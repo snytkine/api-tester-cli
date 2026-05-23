@@ -1,0 +1,32 @@
+extends: default
+
+rules:
+  line-length:
+    max: 100
+    level: error
+
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+
+  comments:
+    min-spaces-from-content: 1
+
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: true
+
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+
+  brackets:
+    min-spaces-inside: 0
+    max-spaces-inside: 0
+
+  trailing-spaces: enable
+
+  new-line-at-end-of-file: enable
+
+  document-start: disable

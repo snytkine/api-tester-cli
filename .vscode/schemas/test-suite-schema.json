@@ -1,0 +1,228 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "test-suite-schema.json",
+  "title": "Test Suite",
+  "description": "Defines a suite of HTTP API tests",
+  "type": "object",
+  "required": ["name", "tests"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the test suite"
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional description of the test suite"
+    },
+    "variables": {
+      "type": "object",
+      "description": "Suite-level key-value pairs available for substitution across all test cases",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "tests": {
+      "type": "array",
+      "description": "List of test cases to execute",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/TestCase"
+      }
+    }
+  },
+  "$defs": {
+    "TestCase": {
+      "type": "object",
+      "required": ["name", "request", "assertions"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the test case"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of what this test verifies"
+        },
+        "variables": {
+          "type": "object",
+          "description": "Key-value pairs available for substitution in the request",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        },
+        "assertions": {
+          "type": "array",
+          "description": "Assertions to evaluate against the response",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/Assertion"
+          }
+        }
+      }
+    },
+    "Request": {
+      "type": "object",
+      "required": ["method", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "description": "HTTP method",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE"]
+        },
+        "url": {
+          "type": "string",
+          "description": "Target URL"
+        },
+        "headers": {
+          "type": "object",
+          "description": "HTTP headers to include in the request",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "$ref": "#/$defs/RequestBody"
+        }
+      }
+    },
+    "RequestBody": {
+      "type": "object",
+      "required": ["type", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Format of the request body",
+          "enum": ["string", "file", "json", "xml", "form-data"]
+        },
+        "content": {
+          "type": "string",
+          "description": "Body content or path to a file containing the body"
+        }
+      }
+    },
+    "ContentReference": {
+      "type": "object",
+      "required": ["type", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Format of the referenced content",
+          "enum": ["string", "file", "json", "xml", "form-data"]
+        },
+        "content": {
+          "type": "string",
+          "description": "Content value or path to a file"
+        },
+        "ignore": {
+          "type": "array",
+          "description": "JSON paths to exclude from comparison",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Assertion": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StatusCodeAssertion"
+        },
+        {
+          "$ref": "#/$defs/JsonPathAssertion"
+        },
+        {
+          "$ref": "#/$defs/JsonSchemaAssertion"
+        },
+        {
+          "$ref": "#/$defs/JsonMatchAssertion"
+        }
+      ]
+    },
+    "StatusCodeAssertion": {
+      "type": "object",
+      "description": "Asserts the HTTP response status code",
+      "required": ["type", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "status_code"
+        },
+        "expected": {
+          "type": "integer",
+          "description": "Expected HTTP status code",
+          "minimum": 100,
+          "maximum": 599
+        }
+      }
+    },
+    "JsonPathAssertion": {
+      "type": "object",
+      "description": "Asserts that a JSON path expression resolves to an expected scalar value",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "json_path"
+        },
+        "path": {
+          "type": "string",
+          "description": "JSON path expression to evaluate against the response"
+        },
+        "expected": {
+          "type": "string",
+          "description": "Expected value at the JSON path"
+        }
+      }
+    },
+    "JsonSchemaAssertion": {
+      "type": "object",
+      "description": "Validates the response body against a JSON Schema",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "json_schema"
+        },
+        "path": {
+          "type": "string",
+          "description": "JSON path expression targeting the part of the response to validate"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContentReference",
+          "description": "Reference to the JSON Schema file"
+        }
+      }
+    },
+    "JsonMatchAssertion": {
+      "type": "object",
+      "description": "Compares the response body to an expected JSON document, with optional field exclusions",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "json_match"
+        },
+        "path": {
+          "type": "string",
+          "description": "JSON path expression targeting the part of the response to compare"
+        },
+        "expected": {
+          "$ref": "#/$defs/ContentReference",
+          "description": "Reference to the expected JSON document, with optional ignore paths"
+        }
+      }
+    }
+  }
+}

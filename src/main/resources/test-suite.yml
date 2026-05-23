@@ -1,36 +1,41 @@
-name: "Test Suite for My Application v1.0"
-description: "This test suite covers the basic functionality of My Application version 1.0."
+---
+name: Test Suite for My Application v1.0
+description: This test suite covers the basic functionality of My Application version 1.0.
+variables:
+  api_base_url: https://api.myapp.com
+  admin_system: "MySystem"
+
 tests:
-  - name: "Test User Login"
-    description: "Verify that users can log in with valid credentials."
+  - name: Test User Login
+    description: Verify that users can log in with valid credentials.
     variables:
-      username: "testuser"
-      password: "password123"
-      id: "login_test_001"
+      username: testuser
+      password: password123
+      id: login_test_001
     request:
-      method: "POST"
-      url: "https://api.myapp.com/login"
+      method: POST
+      url: https://api.myapp.com/login
       headers:
-        Content-Type: "application/json"
+        Content-Type: application/json
       body:
-        type: "file" # string, file, json, xml, form-data
-        content: "login_request_body.json"
+        type: file # string, file, json, xml, form-data
+        content: login_request_body.json
     assertions:
-      - type: "status_code"
+      - type: status_code
         expected: 200
-      - type: "json_schema"
-        path: "$response.body.json"
+      - type: json_schema
+        path: $response.body.json
         expected:
-          type: "file" # string, file, json, xml, form-data
-          content:"schemas/login_response_schema.json"
-      - type: "json_path"
-        path: "$response.headers.content-type"
-        expected: "application/json"
-      - type: "json_match"
-        path: "$response.body.json"
-        expected: 
-          type: "file" # string, file, json, xml, form-data 
-          content: "expected_login_response.json" 
+          type: file # string, file, json, xml, form-data
+          content: schemas/login_response_schema.json
+      - type: json_path
+        path: $response.headers.content-type
+        expected: application/json
+      - type: json_match
+        path: $response.body.json
+        expected:
+          type: file # string, file, json, xml, form-data
+          content: expected_login_response.json
           ignore:
-            - "$.timestamp" # ignore dynamic fields like timestamps
-            - "$.session_id"
+            - $.timestamp # ignore dynamic fields like timestamps
+            - $.session_id

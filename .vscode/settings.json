@@ -9,5 +9,12 @@
   "xml.format.joinCDATALines": false,
   "xml.format.preserveEmptyContent": false,
   "xml.format.spaceBeforeEmptyCloseTag": true,
-  "java.configuration.updateBuildConfiguration": "automatic"
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "yaml.schemas": {
+    ".vscode/schemas/test-suite-schema.json": ["**/test-suite.yml", "**/test-suite.yaml"]
+  },
+  "[yaml]": {
+    "editor.trimAutoWhitespace": true,
+    "files.trimTrailingWhitespace": true
+  }
 }

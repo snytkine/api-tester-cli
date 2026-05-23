@@ -17,6 +17,11 @@
 package io.github.snytkine.apitester.api_tester_cli.model;
 
 import java.util.List;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
-public record TestSuite(String name, @Nullable String description, List<TestCase> tests) {}
+public record TestSuite(
+    String name,
+    @Nullable String description,
+    @Nullable Map<String, String> variables,
+    List<TestCase> tests) {}
