@@ -30,6 +30,7 @@
   </scm>
   <properties>
     <java.version>21</java.version>
+    <rest-assured.version>5.5.0</rest-assured.version>
     <spring-shell.version>4.0.2</spring-shell.version>
     <spotless.version>2.43.0</spotless.version>
   </properties>
@@ -54,8 +55,17 @@
       <artifactId>spring-shell-starter</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.thymeleaf</groupId>
+      <artifactId>thymeleaf</artifactId>
+    </dependency>
+    <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>
       <artifactId>jackson-dataformat-yaml</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <version>${rest-assured.version}</version>
     </dependency>
 
     <dependency>

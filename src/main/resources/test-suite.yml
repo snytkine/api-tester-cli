@@ -2,8 +2,8 @@
 name: Test Suite for My Application v1.0
 description: This test suite covers the basic functionality of My Application version 1.0.
 variables:
-  api_base_url: https://api.myapp.com
-  admin_system: "MySystem"
+  api_base_url: ${cli.api_base_url}
+  admin_system: ${cli.admin_system}
 
 tests:
   - name: Test User Login
@@ -14,9 +14,10 @@ tests:
       id: login_test_001
     request:
       method: POST
-      url: https://api.myapp.com/login
+      url: ${suite.variables.api_base_url}/login
       headers:
         Content-Type: application/json
+        x-username: ${variables.username}
       body:
         type: file # string, file, json, xml, form-data
         content: login_request_body.json
