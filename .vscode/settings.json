@@ -1,0 +1,13 @@
+{
+  "[xml]": {
+    "editor.defaultFormatter": "redhat.vscode-xml",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true
+  },
+  "xml.format.splitAttributes": false,
+  "xml.format.joinCDATALines": false,
+  "xml.format.preserveEmptyContent": false,
+  "xml.format.spaceBeforeEmptyCloseTag": true,
+  "java.configuration.updateBuildConfiguration": "automatic"
+}

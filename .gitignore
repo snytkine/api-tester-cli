@@ -1,0 +1,73 @@
+# ----------------------------------------
+# Maven
+# ----------------------------------------
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# ----------------------------------------
+# Java
+# ----------------------------------------
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ----------------------------------------
+# GraalVM Native Image
+# ----------------------------------------
+# compiled native binary (same name as artifactId)
+api-tester-cli
+*.dump
+*.hprof
+
+# ----------------------------------------
+# macOS
+# ----------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ----------------------------------------
+# Logs & temp files
+# ----------------------------------------
+*.log
+*.tmp
+*.swp
+*.swo
+
+# ----------------------------------------
+# Environment / secrets
+# ----------------------------------------
+.env
+.env.*
+*.pem
+*.p12
+*.jks
+
+# ----------------------------------------
+# IntelliJ IDEA
+# ----------------------------------------
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# ----------------------------------------
+# VS Code
+# keep settings.json and extensions.json (project-shared config)
+# ----------------------------------------
+.vscode/*.code-workspace
+.vscode/launch.json
+.vscode/.ropeproject
+
+# ----------------------------------------
+# Claude Code
+# ----------------------------------------
+.claude/
+
+# ----------------------------------------
+# Spring Boot
+# ----------------------------------------
+spring-shell.log
