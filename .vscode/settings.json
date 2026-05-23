@@ -15,6 +15,7 @@
   },
   "[yaml]": {
     "editor.trimAutoWhitespace": true,
-    "files.trimTrailingWhitespace": true
+    "files.trimTrailingWhitespace": true,
+    "editor.formatOnSave": false
   }
 }

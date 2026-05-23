@@ -1,42 +1,42 @@
 ---
-name: Test Suite for My Application v1.0
-description: This test suite covers the basic functionality of My Application version 1.0.
+name: "Test Suite for My Application v1.0"
+description: "This test suite covers the basic functionality of My Application version\
+  \ 1.0."
 variables:
-  api_base_url: ${cli.api_base_url}
-  admin_system: ${cli.admin_system}
-
+  api_base_url: "${cli.api_base_url}"
+  admin_system: "${cli.admin_system}"
 tests:
-  - name: Test User Login
-    description: Verify that users can log in with valid credentials.
-    variables:
-      username: testuser
-      password: password123
-      id: login_test_001
-    request:
-      method: POST
-      url: ${suite.variables.api_base_url}/login
-      headers:
-        Content-Type: application/json
-        x-username: ${variables.username}
-      body:
-        type: file # string, file, json, xml, form-data
-        content: login_request_body.json
-    assertions:
-      - type: status_code
-        expected: 200
-      - type: json_schema
-        path: $response.body.json
-        expected:
-          type: file # string, file, json, xml, form-data
-          content: schemas/login_response_schema.json
-      - type: json_path
-        path: $response.headers.content-type
-        expected: application/json
-      - type: json_match
-        path: $response.body.json
-        expected:
-          type: file # string, file, json, xml, form-data
-          content: expected_login_response.json
-          ignore:
-            - $.timestamp # ignore dynamic fields like timestamps
-            - $.session_id
+- name: "Test User Login"
+  description: "Verify that users can log in with valid credentials."
+  variables:
+    username: "testuser"
+    password: "password123"
+    id: "login_test_001"
+  request:
+    method: "POST"
+    url: "${suite.variables.api_base_url}/login"
+    headers:
+      Content-Type: "application/json"
+      x-username: "${variables.username}"
+    body:
+      type: "file"
+      content: "login_request_body.json"
+  assertions:
+  - type: "status_code"
+    expected: 200
+  - type: "json_schema"
+    path: "$response.body.json"
+    expected:
+      type: "file"
+      content: "schemas/login_response_schema.json"
+  - type: "json_path"
+    path: "$response.headers.content-type"
+    expected: "application/json"
+  - type: "json_match"
+    path: "$response.body.json"
+    expected:
+      type: "file"
+      content: "expected_login_response.json"
+      ignore:
+      - "$.timestamp"
+      - "$.session_id"

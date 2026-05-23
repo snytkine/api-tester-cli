@@ -2,12 +2,12 @@ extends: default
 
 rules:
   line-length:
-    max: 100
+    max: 88
     level: error
 
   indentation:
     spaces: 2
-    indent-sequences: true
+    indent-sequences: false
     check-multi-line-strings: false
 
   comments:
