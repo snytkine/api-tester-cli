@@ -1,0 +1,17 @@
+---
+name: "Test Suite for My Application v1.0"
+description: "Test suite description."
+variables:
+  api_base_url: "[(${cli.api_base_url})]"
+  admin_system: "[[${cli.admin_system}]]"
+  last_updated: "[[${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}]]"
+  request_id: "[[${#strings.randomAlphanumeric(12)}]]"
+tests:
+- name: "Test User Login"
+  description: "Verify that users can log in with valid credentials."
+  request:
+    method: "POST"
+    url: "https://example.com/login"
+  assertions:
+  - type: "status_code"
+    expected: 200
