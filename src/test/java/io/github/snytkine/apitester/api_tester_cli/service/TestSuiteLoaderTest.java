@@ -18,11 +18,20 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.JsonPathAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
+import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -117,6 +126,68 @@ class TestSuiteLoaderTest {
     Request request = testSuite.tests().get(0).request();
     assertThat(request.url()).isEqualTo("api-example-com/health");
     assertThat(request.headers().get("x-environment")).isEqualTo("production");
+  }
+
+  @Test
+  void loadTestSuite2ResolvesAllVariablesAndParsesAllAssertionTypes() throws Exception {
+    Path path = Path.of(getClass().getResource("/test-suite-2.yml").toURI());
+    CliVariables cliVariables =
+        new CliVariables(
+            Map.of(
+                "api_base_url", "https://api.example.com",
+                "admin_system", "admin-prod"));
+
+    TestSuite testSuite = loader.load(path, cliVariables);
+
+    assertThat(testSuite.filePath()).isEqualTo(path);
+    assertThat(testSuite.name()).isEqualTo("Test Suite for My Application v1.0");
+    assertThat(testSuite.tests()).hasSize(1);
+
+    Map<String, String> variables = testSuite.variables();
+    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+    assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
+    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+    String requestId = variables.get("request_id");
+    assertThat(requestId).hasSize(12).matches("[A-Z0-9]{12}");
+
+    TestCase testCase = testSuite.tests().get(0);
+    assertThat(testCase.name()).isEqualTo("Test User Login");
+    assertThat(testCase.variables().get("username")).isEqualTo("testuser");
+    assertThat(testCase.variables().get("password")).isEqualTo("password123");
+    assertThat(testCase.variables().get("id")).isEqualTo("login_test_001");
+
+    Request request = testCase.request();
+    assertThat(request.method()).isEqualTo(HttpMethod.POST);
+    assertThat(request.url()).isEqualTo("https://api.example.com/login");
+    assertThat(request.headers().get("Content-Type")).isEqualTo("application/json");
+    assertThat(request.headers().get("x-username")).isEqualTo("testuser");
+    assertThat(request.headers().get("x-request-id")).isEqualTo(requestId);
+    assertThat(request.body().type()).isEqualTo(BodyType.FILE);
+    assertThat(request.body().content()).isEqualTo("login_request_body.json");
+
+    List<Assertion> assertions = testCase.assertions();
+    assertThat(assertions).hasSize(4);
+
+    assertThat(assertions.get(0)).isInstanceOf(StatusCodeAssertion.class);
+    assertThat(((StatusCodeAssertion) assertions.get(0)).expected()).isEqualTo(200);
+
+    assertThat(assertions.get(1)).isInstanceOf(JsonSchemaAssertion.class);
+    JsonSchemaAssertion schemaAssertion = (JsonSchemaAssertion) assertions.get(1);
+    assertThat(schemaAssertion.path()).isEqualTo("response.body.json");
+    assertThat(schemaAssertion.expected().type()).isEqualTo("file");
+    assertThat(schemaAssertion.expected().content())
+        .isEqualTo("schemas/login_response_schema.json");
+
+    assertThat(assertions.get(2)).isInstanceOf(JsonPathAssertion.class);
+    JsonPathAssertion pathAssertion = (JsonPathAssertion) assertions.get(2);
+    assertThat(pathAssertion.path()).isEqualTo("response.headers.content-type");
+    assertThat(pathAssertion.expected()).isEqualTo("application/json");
+
+    assertThat(assertions.get(3)).isInstanceOf(JsonMatchAssertion.class);
+    JsonMatchAssertion matchAssertion = (JsonMatchAssertion) assertions.get(3);
+    assertThat(matchAssertion.path()).isEqualTo("response.body.json");
+    assertThat(matchAssertion.expected().content()).isEqualTo("expected_login_response.json");
+    assertThat(matchAssertion.expected().ignore()).containsExactly("timestamp", "session_id");
   }
 
   @Test

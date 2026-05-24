@@ -16,6 +16,8 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -33,4 +35,4 @@ public record TestSuite(
     @Nullable String description,
     @Nullable Map<String, String> variables,
     List<TestCase> tests,
-    @Nullable Path filePath) {}
+    @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath) {}

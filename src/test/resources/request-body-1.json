@@ -1,5 +1,7 @@
 {
     "firstName": "John",
     "lastName": "Doe",
-    "email": "john.doe@example.com"
+    "email": "john.doe@example.com",
+    "username": "[[${variables.username}]]",
+    "requestID": "[[${suite.variables.request_id}]]"
 }
