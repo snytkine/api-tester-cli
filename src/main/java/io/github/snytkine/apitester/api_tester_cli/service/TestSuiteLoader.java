@@ -21,12 +21,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.thymeleaf.PassThroughExpressionEvaluator;
+import io.github.snytkine.apitester.api_tester_cli.thymeleaf.StrictVariableMap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
+import org.thymeleaf.standard.StandardDialect;
 import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.StringTemplateResolver;
 
@@ -44,7 +47,10 @@ public class TestSuiteLoader {
 
     StringTemplateResolver resolver = new StringTemplateResolver();
     resolver.setTemplateMode(TemplateMode.TEXT);
+    StandardDialect dialect = new StandardDialect();
+    dialect.setVariableExpressionEvaluator(new PassThroughExpressionEvaluator());
     this.templateEngine = new TemplateEngine();
+    this.templateEngine.setDialect(dialect);
     this.templateEngine.setTemplateResolver(resolver);
   }
 
@@ -55,7 +61,7 @@ public class TestSuiteLoader {
   public TestSuite load(Path filePath, CliVariables cliVariables) throws IOException {
     String templateContent = Files.readString(filePath);
     Context context = new Context();
-    context.setVariable("cli", cliVariables.cli());
+    context.setVariable("cli", new StrictVariableMap(cliVariables.cli()));
     String processedYaml = templateEngine.process(templateContent, context);
     return yamlMapper.readValue(processedYaml, TestSuite.class);
   }

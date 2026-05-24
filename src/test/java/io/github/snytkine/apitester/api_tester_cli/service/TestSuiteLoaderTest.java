@@ -52,4 +52,19 @@ class TestSuiteLoaderTest {
     assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
     assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
   }
+
+  @Test
+  void loadWithPartialCliVariablesLeavesUnresolvedExpressionsAsIs() throws Exception {
+    Path path = Path.of(getClass().getResource("/test-suite-partial.yml").toURI());
+    CliVariables cliVariables = new CliVariables(Map.of("api_base_url", "https://api.example.com"));
+
+    TestSuite testSuite = loader.load(path, cliVariables);
+
+    Map<String, String> variables = testSuite.variables();
+    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+    assertThat(variables.get("admin_system")).isEqualTo("${cli.admin_system}");
+    assertThat(variables.get("environment")).isEqualTo("${cli.environment}");
+    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+    assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
+  }
 }
