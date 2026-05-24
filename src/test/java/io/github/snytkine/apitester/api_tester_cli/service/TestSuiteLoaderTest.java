@@ -47,6 +47,7 @@ class TestSuiteLoaderTest {
 
     TestSuite testSuite = loader.load(path, cliVariables);
 
+    assertThat(testSuite.filePath()).isEqualTo(path);
     Map<String, String> variables = testSuite.variables();
     assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
     assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
@@ -61,6 +62,7 @@ class TestSuiteLoaderTest {
 
     TestSuite testSuite = loader.load(path, cliVariables);
 
+    assertThat(testSuite.filePath()).isEqualTo(path);
     Map<String, String> variables = testSuite.variables();
     assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
     assertThat(variables.get("admin_system")).isEmpty();
@@ -80,6 +82,7 @@ class TestSuiteLoaderTest {
 
     TestSuite testSuite = loader.load(path, cliVariables);
 
+    assertThat(testSuite.filePath()).isEqualTo(path);
     Map<String, String> variables = testSuite.variables();
     assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
     assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
@@ -105,6 +108,7 @@ class TestSuiteLoaderTest {
 
     TestSuite testSuite = loader.load(path, cliVariables);
 
+    assertThat(testSuite.filePath()).isEqualTo(path);
     Map<String, String> variables = testSuite.variables();
     assertThat(variables.get("api_base_url")).isEqualTo("api-example-com");
     assertThat(variables.get("environment")).isEqualTo("production");
@@ -122,6 +126,7 @@ class TestSuiteLoaderTest {
 
     TestSuite testSuite = loader.load(path, cliVariables);
 
+    assertThat(testSuite.filePath()).isEqualTo(path);
     Map<String, String> variables = testSuite.variables();
     assertThat(variables.get("api_base_url")).isEqualTo("https://localhost:8080");
     assertThat(variables.get("environment")).isEqualTo("staging");

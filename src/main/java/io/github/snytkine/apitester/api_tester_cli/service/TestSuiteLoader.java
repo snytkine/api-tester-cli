@@ -61,7 +61,13 @@ public class TestSuiteLoader {
   }
 
   public TestSuite load(Path filePath) throws IOException {
-    return yamlMapper.readValue(filePath.toFile(), TestSuite.class);
+    TestSuite testSuite = yamlMapper.readValue(filePath.toFile(), TestSuite.class);
+    return new TestSuite(
+        testSuite.name(),
+        testSuite.description(),
+        testSuite.variables(),
+        testSuite.tests(),
+        filePath);
   }
 
   public TestSuite load(Path filePath, CliVariables cliVariables) throws IOException {
@@ -95,6 +101,7 @@ public class TestSuiteLoader {
         processedTestSuite.name(),
         processedTestSuite.description(),
         resolvedVariables,
-        processedTestSuite.tests());
+        processedTestSuite.tests(),
+        filePath);
   }
 }

@@ -16,12 +16,21 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
+/**
+ * Represents a loaded test suite.
+ *
+ * <p>{@code filePath} is not present in the YAML definition; it is set by {@code TestSuiteLoader}
+ * after loading so that downstream components can resolve relative file references (request bodies,
+ * schema files, expected response files) against the directory containing the suite file.
+ */
 public record TestSuite(
     String name,
     @Nullable String description,
     @Nullable Map<String, String> variables,
-    List<TestCase> tests) {}
+    List<TestCase> tests,
+    @Nullable Path filePath) {}
