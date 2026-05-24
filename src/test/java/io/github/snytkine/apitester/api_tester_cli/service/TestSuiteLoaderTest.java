@@ -19,6 +19,7 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -51,5 +52,83 @@ class TestSuiteLoaderTest {
     assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
     assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
     assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
+  }
+
+  @Test
+  void loadWithPartialCliVariablesLeavesUnresolvedExpressionsAsIs() throws Exception {
+    Path path = Path.of(getClass().getResource("/test-suite-partial.yml").toURI());
+    CliVariables cliVariables = new CliVariables(Map.of("api_base_url", "https://api.example.com"));
+
+    TestSuite testSuite = loader.load(path, cliVariables);
+
+    Map<String, String> variables = testSuite.variables();
+    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+    assertThat(variables.get("admin_system")).isEmpty();
+    assertThat(variables.get("environment")).isEmpty();
+    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+    assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
+  }
+
+  @Test
+  void twoStepLoadResolvesSuiteVariableReferencesInTestCases() throws Exception {
+    Path path = Path.of(getClass().getResource("/test-suite-two-step.yml").toURI());
+    CliVariables cliVariables =
+        new CliVariables(
+            Map.of(
+                "api_base_url", "https://api.example.com",
+                "admin_system", "admin-prod"));
+
+    TestSuite testSuite = loader.load(path, cliVariables);
+
+    Map<String, String> variables = testSuite.variables();
+    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+    assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
+    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+    String requestId = variables.get("request_id");
+    assertThat(requestId).hasSize(12).matches("[A-Z0-9]{12}");
+
+    Request request = testSuite.tests().get(0).request();
+    assertThat(request.url()).isEqualTo("https://api.example.com/login");
+    assertThat(request.headers().get("x-admin")).isEqualTo("admin-prod");
+    assertThat(request.headers().get("x-request-id")).isEqualTo(requestId);
+  }
+
+  @Test
+  void elvisOperatorUsesProvidedValueWhenVariableExists() throws Exception {
+    Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
+    CliVariables cliVariables =
+        new CliVariables(
+            Map.of(
+                "api_base_url", "api-example-com",
+                "environment", "production",
+                "timeout", "60"));
+
+    TestSuite testSuite = loader.load(path, cliVariables);
+
+    Map<String, String> variables = testSuite.variables();
+    assertThat(variables.get("api_base_url")).isEqualTo("api-example-com");
+    assertThat(variables.get("environment")).isEqualTo("production");
+    assertThat(variables.get("timeout")).isEqualTo("60");
+
+    Request request = testSuite.tests().get(0).request();
+    assertThat(request.url()).isEqualTo("api-example-com/health");
+    assertThat(request.headers().get("x-environment")).isEqualTo("production");
+  }
+
+  @Test
+  void elvisOperatorUsesDefaultValueWhenVariableIsMissing() throws Exception {
+    Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
+    CliVariables cliVariables = new CliVariables(Map.of());
+
+    TestSuite testSuite = loader.load(path, cliVariables);
+
+    Map<String, String> variables = testSuite.variables();
+    assertThat(variables.get("api_base_url")).isEqualTo("https://localhost:8080");
+    assertThat(variables.get("environment")).isEqualTo("staging");
+    assertThat(variables.get("timeout")).isEqualTo("30");
+
+    Request request = testSuite.tests().get(0).request();
+    assertThat(request.url()).isEqualTo("https://localhost:8080/health");
+    assertThat(request.headers().get("x-environment")).isEqualTo("staging");
   }
 }
