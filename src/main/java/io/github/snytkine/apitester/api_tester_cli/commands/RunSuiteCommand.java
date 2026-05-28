@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.service.PureJavaTestEngine;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +44,7 @@ public class RunSuiteCommand {
 
   private final TestSuiteLoader testSuiteLoader;
   private final ObjectMapper jsonMapper;
+  private final PureJavaTestEngine testEngine;
 
   /**
    * Constructs the command with its required collaborators. A dedicated JSON {@link ObjectMapper}
@@ -50,17 +52,18 @@ public class RunSuiteCommand {
    * project and the mapper is an internally-owned, thread-safe singleton.
    *
    * @param testSuiteLoader loads and template-processes test-suite YAML files
+   * @param testEngine executes the loaded test cases via REST-assured
    */
-  public RunSuiteCommand(TestSuiteLoader testSuiteLoader) {
+  public RunSuiteCommand(TestSuiteLoader testSuiteLoader, PureJavaTestEngine testEngine) {
     this.testSuiteLoader = testSuiteLoader;
+    this.testEngine = testEngine;
     this.jsonMapper =
         new ObjectMapper().findAndRegisterModules().enable(SerializationFeature.INDENT_OUTPUT);
   }
 
   /**
    * Loads a test suite YAML file, resolves its Thymeleaf template expressions against any supplied
-   * variables, and prints the resulting {@link TestSuite} as pretty-printed JSON to standard
-   * output, one line at a time.
+   * variables, and executes the test cases using {@link PureJavaTestEngine}.
    *
    * <p>The command aborts with an error message if {@code suite} does not point to an existing
    * file. Runtime variables are passed as positional {@code key=value} arguments after {@code
@@ -75,13 +78,13 @@ public class RunSuiteCommand {
    * @param context Spring Shell command context; positional arguments are extracted from it as CLI
    *     variables forwarded to the Thymeleaf template engine
    * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
-   * @throws Exception if loading, template processing, or JSON serialisation fails
+   * @throws Exception if loading, template processing, or test execution fails
    */
   @Command(
       name = "run-suite",
       alias = {"rs"},
       description =
-          "Loads a test-suite YAML file and prints the resolved TestSuite as pretty JSON."
+          "Loads a test-suite YAML file and executes its test cases."
               + " Pass variables as key=value positional arguments after --suite.")
   public void runSuite(
       @Option(
@@ -99,8 +102,7 @@ public class RunSuiteCommand {
 
     Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
     TestSuite testSuite = testSuiteLoader.load(suitePath, new CliVariables(cliVars));
-    String json = jsonMapper.writeValueAsString(testSuite);
-    json.lines().forEach(System.out::println);
+    testEngine.runConfigurationSuite(testSuite.tests());
   }
 
   /**

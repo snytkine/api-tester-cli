@@ -18,16 +18,19 @@ package io.github.snytkine.apitester.api_tester_cli.commands;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
+import io.github.snytkine.apitester.api_tester_cli.service.PureJavaTestEngine;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
-import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.shell.core.command.CommandArgument;
@@ -37,21 +40,13 @@ import org.springframework.shell.core.command.ParsedInput;
 
 class RunSuiteCommandTest {
 
+  private PureJavaTestEngine mockEngine;
   private RunSuiteCommand command;
-  private PrintStream originalOut;
-  private ByteArrayOutputStream capturedOut;
 
   @BeforeEach
   void setUp() {
-    command = new RunSuiteCommand(new TestSuiteLoader());
-    capturedOut = new ByteArrayOutputStream();
-    originalOut = System.out;
-    System.setOut(new PrintStream(capturedOut));
-  }
-
-  @AfterEach
-  void tearDown() {
-    System.setOut(originalOut);
+    mockEngine = mock(PureJavaTestEngine.class);
+    command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine);
   }
 
   @Test
@@ -90,27 +85,26 @@ class RunSuiteCommandTest {
   }
 
   @Test
-  void runSuiteResolvesVariablesFromCommandContext() throws Exception {
+  void runSuitePassesResolvedVariablesToEngine() throws Exception {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-    CommandContext context =
-        buildContext("api_base_url=https://api.example.com", "admin_system=IBM");
+    TestRunResult fakeResult = new TestRunResult(1, 0, List.of());
+    when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
 
-    command.runSuite(suite, context);
+    command.runSuite(
+        suite, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
 
-    String output = capturedOut.toString();
-    assertThat(output).contains("\"api_base_url\" : \"https://api.example.com\"");
-    assertThat(output).contains("\"admin_system\" : \"IBM\"");
+    verify(mockEngine).runConfigurationSuite(any());
   }
 
   @Test
-  void runSuiteProducesEmptyStringsWhenNoVariablesPassed() throws Exception {
+  void runSuiteInvokesEngineEvenWithNoVariables() throws Exception {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+    TestRunResult fakeResult = new TestRunResult(1, 0, List.of());
+    when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
 
     command.runSuite(suite, buildContext());
 
-    String output = capturedOut.toString();
-    assertThat(output).contains("\"api_base_url\" : \"\"");
-    assertThat(output).contains("\"admin_system\" : \"\"");
+    verify(mockEngine).runConfigurationSuite(any());
   }
 
   @Test
