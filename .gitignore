@@ -61,6 +61,7 @@ api-tester-cli
 .vscode/*.code-workspace
 .vscode/launch.json
 .vscode/.ropeproject
+.vscode/*.yml
 
 # ----------------------------------------
 # Claude Code
