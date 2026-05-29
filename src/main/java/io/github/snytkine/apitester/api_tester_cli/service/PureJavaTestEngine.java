@@ -16,55 +16,97 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.service;
 
+import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
+import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
+import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
+import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
+import org.assertj.core.api.SoftAssertions;
+import org.jspecify.annotations.Nullable;
+import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 /**
- * Executes a list of {@link TestCase} objects sequentially using Spring's {@link RestClient} backed
- * by Java's built-in {@code java.net.http.HttpClient}, collecting pass/fail counts and error
- * messages into a {@link TestRunResult}.
+ * Executes the test cases in a {@link TestSuite} sequentially using Spring's {@link RestClient},
+ * collecting pass/fail counts and error messages into a {@link TestRunResult}.
+ *
+ * <p>A fresh {@link RestClient} is built for each suite run using the {@link RestClientConfig}
+ * embedded in the suite (base URL and connect timeout). The underlying HTTP transport is supplied
+ * as a {@link ClientHttpRequestFactory} at construction time, keeping transport configuration
+ * separate from per-suite settings.
+ *
+ * <p>Assertions are evaluated via {@link AssertionEvaluatorFactory}, which maps each assertion type
+ * to its evaluator. All assertion failures within a single test case are collected by {@link
+ * SoftAssertions} and surfaced together rather than stopping at the first failure.
+ *
+ * <p>This class is a thread-safe Spring singleton: all per-invocation state is confined to the call
+ * stack of {@link #runConfigurationSuite(TestSuite)}.
  */
 @Service
 @Slf4j
-public class PureJavaTestEngine {
+public class PureJavaTestEngine implements TestEngine {
 
-  private final RestClient restClient;
+  private final ClientHttpRequestFactory requestFactory;
+  private final AssertionEvaluatorFactory evaluatorFactory;
+  private final ResponseResolver responseResolver;
 
   /**
-   * Constructs the engine with the application-scoped {@link RestClient}.
+   * Constructs the engine with the required collaborators.
    *
-   * @param restClient the REST client used to execute HTTP requests
+   * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
+   * @param evaluatorFactory maps assertion model objects to their evaluator implementations
+   * @param responseResolver converts a {@link RestClient.ResponseSpec} into an {@link ApiResponse}
    */
-  public PureJavaTestEngine(RestClient restClient) {
-    this.restClient = restClient;
+  public PureJavaTestEngine(
+      ClientHttpRequestFactory requestFactory,
+      AssertionEvaluatorFactory evaluatorFactory,
+      ResponseResolver responseResolver) {
+    this.requestFactory = requestFactory;
+    this.evaluatorFactory = evaluatorFactory;
+    this.responseResolver = responseResolver;
   }
 
   /**
-   * Runs all test cases in the provided list sequentially and returns an aggregated result.
+   * Runs all test cases in the provided {@link TestSuite} sequentially and returns an aggregated
+   * result.
    *
-   * @param configurations the list of test cases to execute
+   * <p>A {@link RestClient} is built from the suite's {@link RestClientConfig} (base URL and
+   * connect timeout) before iteration begins and shared across all test cases in the suite. The
+   * suite's file path (when present) is used to resolve relative file references in assertions.
+   *
+   * @param testSuite the loaded test suite whose {@link TestSuite#tests()} are executed
    * @return a {@link TestRunResult} containing pass count, fail count, and error messages
    */
-  public TestRunResult runConfigurationSuite(List<TestCase> configurations) {
+  @Override
+  public TestRunResult runConfigurationSuite(TestSuite testSuite) {
+    RestClient restClient = buildRestClient(testSuite.restClientConfig());
+    Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
+
     long passedCount = 0;
     long failedCount = 0;
     List<String> errorMessages = new ArrayList<>();
 
-    for (TestCase config : configurations) {
+    for (TestCase config : testSuite.tests()) {
       try {
-        executeSingleTest(config);
+        executeSingleTest(restClient, config, suiteDir);
         passedCount++;
       } catch (Throwable e) {
         failedCount++;
         errorMessages.add(config.name() + " failed: " + e.getMessage());
+        log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
       }
     }
 
@@ -72,46 +114,91 @@ public class PureJavaTestEngine {
   }
 
   /**
-   * Builds and executes a single HTTP request from the given {@link TestCase} using {@link
-   * RestClient}. Logs an error and rethrows if the request fails.
+   * Executes a single test case: builds and fires the HTTP request, resolves the response into an
+   * {@link ApiResponse}, then evaluates all assertions via {@link SoftAssertions}.
    *
-   * @param config the test case describing the request to execute
-   * @throws Exception if the HTTP request cannot be executed
+   * <p>HTTP errors (network failures, DNS issues) propagate as unchecked exceptions. Assertion
+   * failures surface as {@code MultipleFailuresError} from {@link SoftAssertions#assertAll()}. Both
+   * are caught by the {@code catch (Throwable)} in {@link #runConfigurationSuite}.
+   *
+   * @param restClient the configured client for this suite run
+   * @param config the test case to execute
+   * @param suiteDir the directory of the suite file, or {@code null} if unavailable
    */
-  private void executeSingleTest(TestCase config) throws Exception {
+  private void executeSingleTest(RestClient restClient, TestCase config, @Nullable Path suiteDir) {
     log.debug(
         "Executing test case '{}': {} {}",
         config.name(),
         config.request().method(),
         config.request().url());
-    try {
-      RestClient.RequestBodySpec requestSpec =
-          restClient
-              .method(toSpringHttpMethod(config.request().method()))
-              .uri(config.request().url());
 
-      if (config.request().headers() != null) {
-        for (Map.Entry<String, String> header : config.request().headers().entrySet()) {
-          requestSpec.header(header.getKey(), header.getValue());
-        }
+    RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config);
+    RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
+
+    List<AssertionEvaluator> evaluators =
+        config.assertions().stream().map(a -> evaluatorFactory.create(a, suiteDir)).toList();
+
+    ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
+    log.debug("Test case '{}' received status: {}", config.name(), apiResponse.statusCode());
+
+    SoftAssertions.assertSoftly(soft -> evaluators.forEach(e -> e.evaluate(apiResponse, soft)));
+  }
+
+  /**
+   * Builds a {@link RestClient.RequestBodySpec} from the test case's request definition, applying
+   * headers and logging a warning when a request body is declared but not yet supported.
+   *
+   * @param restClient the client to use for building the request
+   * @param config the test case whose request is being built
+   * @return a fully configured request spec ready for {@link RestClient.RequestBodySpec#retrieve()}
+   */
+  private RestClient.RequestBodySpec buildRequestSpec(RestClient restClient, TestCase config) {
+    RestClient.RequestBodySpec requestSpec =
+        restClient
+            .method(toSpringHttpMethod(config.request().method()))
+            .uri(config.request().url());
+
+    if (config.request().headers() != null) {
+      for (Map.Entry<String, String> header : config.request().headers().entrySet()) {
+        requestSpec.header(header.getKey(), header.getValue());
       }
-
-      // RequestBody is a descriptor (type + file path / inline content).
-      // Body loading from file is not yet implemented.
-      if (config.request().body() != null) {
-        log.warn(
-            "Request body handling is not yet implemented for test case '{}'; body skipped.",
-            config.name());
-      }
-
-      ResponseEntity<String> response = requestSpec.retrieve().toEntity(String.class);
-
-      log.debug(
-          "Test case '{}' received status: {}", config.name(), response.getStatusCode().value());
-    } catch (Exception e) {
-      log.error("Error executing test case '{}': {}", config.name(), e.getMessage(), e);
-      throw e;
     }
+
+    // RequestBody is a descriptor (type + file path / inline content).
+    // Body loading from file is not yet implemented.
+    if (config.request().body() != null) {
+      log.warn(
+          "Request body handling is not yet implemented for test case '{}'; body skipped.",
+          config.name());
+    }
+
+    return requestSpec;
+  }
+
+  /**
+   * Builds a {@link RestClient} configured from the given {@link RestClientConfig}.
+   *
+   * <p>If {@code config} carries a non-blank {@code baseUrl} it is set as the client's default base
+   * URL. When a {@code connectTimeout} is present a new {@link
+   * org.springframework.http.client.JdkClientHttpRequestFactory} is created with that timeout,
+   * replacing the injected factory for this suite.
+   *
+   * @param config the suite-level REST client settings
+   * @return a fully configured {@link RestClient} ready for use
+   */
+  private RestClient buildRestClient(RestClientConfig config) {
+    RestClient.Builder builder = RestClient.builder().requestFactory(requestFactory);
+    if (StringUtils.hasText(config.baseUrl())) {
+      builder.baseUrl(config.baseUrl());
+    }
+    if (config.connectTimeout() != null) {
+      builder.requestFactory(
+          new org.springframework.http.client.JdkClientHttpRequestFactory(
+              java.net.http.HttpClient.newBuilder()
+                  .connectTimeout(Duration.ofMillis(config.connectTimeout()))
+                  .build()));
+    }
+    return builder.build();
   }
 
   /**

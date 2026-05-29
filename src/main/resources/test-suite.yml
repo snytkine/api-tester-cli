@@ -7,6 +7,9 @@ variables:
   admin_system: "[[${cli.admin_system}]]"
   last_updated: "[[${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}]]"
   request_id: "[[${#strings.randomAlphanumeric(12)}]]"
+rest_client:
+  base_url: "https://api.restful-api.dev"
+  connect_timeout: 60000
 tests:
 - name: "Test User Login"
   description: "Verify that users can log in with valid credentials."

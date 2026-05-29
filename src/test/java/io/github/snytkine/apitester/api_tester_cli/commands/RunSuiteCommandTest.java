@@ -23,8 +23,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
-import io.github.snytkine.apitester.api_tester_cli.service.PureJavaTestEngine;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import java.io.PrintWriter;
 import java.nio.file.Path;
@@ -40,12 +40,12 @@ import org.springframework.shell.core.command.ParsedInput;
 
 class RunSuiteCommandTest {
 
-  private PureJavaTestEngine mockEngine;
+  private TestEngine mockEngine;
   private RunSuiteCommand command;
 
   @BeforeEach
   void setUp() {
-    mockEngine = mock(PureJavaTestEngine.class);
+    mockEngine = mock(TestEngine.class);
     command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine);
   }
 

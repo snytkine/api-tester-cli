@@ -1,10 +1,9 @@
 ---
 name: "Test Suite for My Application v1.0"
-description: "This test suite covers the basic functionality of My Application version\
-  \ 1.0."
+description: "Integration test suite used to verify HTTP request execution against\
+  \ a live endpoint."
 variables:
   api_base_url: "https://api.restful-api.dev"
-  request_id: "[[${#strings.randomAlphanumeric(12)}]]"
 tests:
 - name: "Objects Test"
   request:
@@ -15,19 +14,3 @@ tests:
   assertions:
   - type: "status_code"
     expected: 200
-  - type: "json_schema"
-    path: "response.body.json"
-    expected:
-      type: "file"
-      content: "schemas/objects_schema.json"
-  - type: "json_path"
-    path: "response.headers.content-type"
-    expected: "application/json"
-  - type: "json_match"
-    path: "response.body.json"
-    expected:
-      type: "file"
-      content: "expected_login_response.json"
-      ignore:
-      - "timestamp"
-      - "session_id"

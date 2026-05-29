@@ -15,6 +15,22 @@
       "type": "string",
       "description": "Optional description of the test suite"
     },
+    "rest_client": {
+      "type": "object",
+      "description": "Optional HTTP client settings applied to all requests in the suite",
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": "Base URL prepended to all relative request URLs in the suite"
+        },
+        "connect_timeout": {
+          "type": "integer",
+          "description": "Connection timeout in milliseconds",
+          "minimum": 0
+        }
+      }
+    },
     "variables": {
       "type": "object",
       "description": "Suite-level key-value pairs available for substitution across all test cases",

@@ -22,11 +22,13 @@ import io.github.snytkine.apitester.api_tester_cli.config.HttpClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
+import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.client.RestClient;
+import org.springframework.http.client.ClientHttpRequestFactory;
 
 /**
  * Integration test that loads {@code test-suite-1.yml} and runs it through {@link
@@ -41,9 +43,9 @@ class PureJavaTestEngineTest {
   @BeforeEach
   void setUp() {
     loader = new TestSuiteLoader();
-    HttpClientConfig config = new HttpClientConfig();
-    RestClient restClient = config.restClient(config.defaultClientHttpRequestFactory());
-    engine = new PureJavaTestEngine(restClient);
+    ClientHttpRequestFactory factory = new HttpClientConfig().defaultClientHttpRequestFactory();
+    engine =
+        new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
   }
 
   @Test
@@ -51,7 +53,7 @@ class PureJavaTestEngineTest {
     Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
     TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
 
-    TestRunResult result = engine.runConfigurationSuite(testSuite.tests());
+    TestRunResult result = engine.runConfigurationSuite(testSuite);
 
     assertThat(result.getFailedCount())
         .as(

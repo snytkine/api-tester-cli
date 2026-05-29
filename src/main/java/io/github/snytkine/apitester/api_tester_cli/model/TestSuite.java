@@ -16,6 +16,7 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import java.nio.file.Path;
@@ -29,10 +30,14 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code filePath} is not present in the YAML definition; it is set by {@code TestSuiteLoader}
  * after loading so that downstream components can resolve relative file references (request bodies,
  * schema files, expected response files) against the directory containing the suite file.
+ *
+ * <p>{@code restClientConfig} maps to the optional {@code rest_client} key in the YAML and carries
+ * suite-level HTTP client settings such as a base URL and connect timeout.
  */
 public record TestSuite(
     String name,
     @Nullable String description,
+    @Nullable @JsonProperty("rest_client") RestClientConfig restClientConfig,
     @Nullable Map<String, String> variables,
     List<TestCase> tests,
     @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath) {}

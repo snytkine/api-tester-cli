@@ -73,6 +73,8 @@ util/        — FileLoader (load file relative to a base path; parse content as
 
 - After every code change or addition, run `./mvnw spotless:apply`.
 - Every new class and every new method must have a JavaDoc block with detailed documentation.
+- **GraalVM native compilation** — this project must compile and run as a GraalVM native image. Avoid any patterns that break ahead-of-time compilation: no runtime reflection without a `reflect-config.json` entry, no dynamic proxies without `proxy-config.json`, no classpath scanning at runtime. Prefer constructor injection over field injection. Lambdas and method references are safe. Jackson must be configured with explicit type registration rather than relying on classpath discovery where possible. When adding a new dependency verify it ships GraalVM metadata or add hints manually.
+- **Thread safety** — every class, object, and method must be thread-safe. Spring singleton beans (`@Service`, `@Component`, `@Configuration`) must hold no mutable per-request state. All per-invocation data (e.g. a `RestClient` built from suite config, a `SoftAssertions` collector) must live on the call stack, never in instance fields. Document thread-safety guarantees explicitly in class-level JavaDoc.
 
 ### Code style
 

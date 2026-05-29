@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -51,7 +52,6 @@ public class TestSuiteLoader {
   public TestSuiteLoader() {
     this.yamlMapper =
         new ObjectMapper(new YAMLFactory())
-            .findAndRegisterModules()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
     StringTemplateResolver resolver = new StringTemplateResolver();
@@ -65,6 +65,7 @@ public class TestSuiteLoader {
     return new TestSuite(
         testSuite.name(),
         testSuite.description(),
+        RestClientConfig.withDefaults(testSuite.restClientConfig()),
         testSuite.variables(),
         testSuite.tests(),
         filePath);
@@ -100,6 +101,7 @@ public class TestSuiteLoader {
     return new TestSuite(
         processedTestSuite.name(),
         processedTestSuite.description(),
+        RestClientConfig.withDefaults(processedTestSuite.restClientConfig()),
         resolvedVariables,
         processedTestSuite.tests(),
         filePath);
