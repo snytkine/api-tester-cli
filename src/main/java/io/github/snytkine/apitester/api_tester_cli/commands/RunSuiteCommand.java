@@ -20,8 +20,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
@@ -73,6 +75,9 @@ public class RunSuiteCommand {
    * <p>Example: {@code rs --suite=/path/to/suite.yml api_base_url=https://api.example.com
    * admin_system=IBM}
    *
+   * <p>On completion, the aggregated {@link TestRunResult} is serialized to indented JSON and
+   * written to the terminal.
+   *
    * @param suite absolute path to the test-suite YAML file to load
    * @param context Spring Shell command context; positional arguments are extracted from it as CLI
    *     variables forwarded to the Thymeleaf template engine
@@ -101,7 +106,20 @@ public class RunSuiteCommand {
 
     Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
     TestSuite testSuite = testSuiteLoader.load(suitePath, new CliVariables(cliVars));
-    testEngine.runConfigurationSuite(testSuite);
+    TestRunResult result = testEngine.runConfigurationSuite(testSuite);
+    context.outputWriter().println(toJson(result));
+    context.outputWriter().flush();
+  }
+
+  /**
+   * Serializes {@code value} to an indented JSON string.
+   *
+   * @param value the object to serialize
+   * @return pretty-printed JSON
+   * @throws IOException if Jackson serialization fails
+   */
+  private String toJson(Object value) throws IOException {
+    return jsonMapper.writeValueAsString(value);
   }
 
   /**
