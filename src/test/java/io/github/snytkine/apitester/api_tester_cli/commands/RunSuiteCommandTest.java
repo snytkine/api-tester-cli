@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import java.io.PrintWriter;
@@ -87,7 +88,8 @@ class RunSuiteCommandTest {
   @Test
   void runSuitePassesResolvedVariablesToEngine() throws Exception {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-    TestRunResult fakeResult = new TestRunResult(1, 0, List.of());
+    TestRunResult fakeResult =
+        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, List.of())));
     when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
 
     command.runSuite(
@@ -99,7 +101,8 @@ class RunSuiteCommandTest {
   @Test
   void runSuiteInvokesEngineEvenWithNoVariables() throws Exception {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-    TestRunResult fakeResult = new TestRunResult(1, 0, List.of());
+    TestRunResult fakeResult =
+        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, List.of())));
     when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
 
     command.runSuite(suite, buildContext());

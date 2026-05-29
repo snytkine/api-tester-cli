@@ -55,11 +55,16 @@ class PureJavaTestEngineTest {
 
     TestRunResult result = engine.runConfigurationSuite(testSuite);
 
-    assertThat(result.getFailedCount())
+    assertThat(result.failedCount())
         .as(
-            "Expected no test failures but got %d. Errors: %s",
-            result.getFailedCount(), result.getErrorMessages())
+            "Expected no test failures but got %d. Failures: %s",
+            result.failedCount(),
+            result.results().stream()
+                .filter(r -> !r.passed())
+                .flatMap(r -> r.failures().stream())
+                .map(f -> f.message())
+                .toList())
         .isZero();
-    assertThat(result.getPassedCount()).isEqualTo(testSuite.tests().size());
+    assertThat(result.passedCount()).isEqualTo(testSuite.tests().size());
   }
 }

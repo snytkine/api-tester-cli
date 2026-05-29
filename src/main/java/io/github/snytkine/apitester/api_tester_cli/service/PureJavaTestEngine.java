@@ -19,9 +19,11 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
@@ -34,6 +36,8 @@ import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
+import org.opentest4j.AssertionFailedError;
+import org.opentest4j.MultipleFailuresError;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -88,7 +92,7 @@ public class PureJavaTestEngine implements TestEngine {
    * suite's file path (when present) is used to resolve relative file references in assertions.
    *
    * @param testSuite the loaded test suite whose {@link TestSuite#tests()} are executed
-   * @return a {@link TestRunResult} containing pass count, fail count, and error messages
+   * @return a {@link TestRunResult} with per-test-case results including structured failure detail
    */
   @Override
   public TestRunResult runConfigurationSuite(TestSuite testSuite) {
@@ -97,20 +101,57 @@ public class PureJavaTestEngine implements TestEngine {
 
     long passedCount = 0;
     long failedCount = 0;
-    List<String> errorMessages = new ArrayList<>();
+    List<TestCaseResult> results = new ArrayList<>();
 
     for (TestCase config : testSuite.tests()) {
       try {
         executeSingleTest(restClient, config, suiteDir);
         passedCount++;
+        results.add(new TestCaseResult(config.name(), true, List.of()));
+      } catch (MultipleFailuresError e) {
+        failedCount++;
+        results.add(new TestCaseResult(config.name(), false, extractFailures(e)));
+        log.debug(
+            "Test case '{}' failed with {} assertion failure(s)",
+            config.name(),
+            e.getFailures().size());
       } catch (Throwable e) {
         failedCount++;
-        errorMessages.add(config.name() + " failed: " + e.getMessage());
+        results.add(
+            new TestCaseResult(
+                config.name(), false, List.of(new AssertionFailure(e.getMessage(), null, null))));
         log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
       }
     }
 
-    return new TestRunResult(passedCount, failedCount, errorMessages);
+    return new TestRunResult(passedCount, failedCount, results);
+  }
+
+  /**
+   * Converts the individual failures inside a {@link MultipleFailuresError} into a list of {@link
+   * AssertionFailure} records, preserving actual and expected values when available.
+   *
+   * <p>Each failure is an {@link AssertionFailedError} when produced by an AssertJ comparison (e.g.
+   * {@code isEqualTo()}), in which case the actual and expected values are extracted via {@link
+   * AssertionFailedError#getActual()} and {@link AssertionFailedError#getExpected()}. Free- form
+   * failures from {@code soft.fail("message")} produce an {@code AssertionFailedError} with no
+   * defined actual/expected, so both fields are {@code null} in that case.
+   *
+   * @param e the composite error from {@link SoftAssertions#assertAll()}
+   * @return a non-empty list of individual {@link AssertionFailure} records
+   */
+  private List<AssertionFailure> extractFailures(MultipleFailuresError e) {
+    return e.getFailures().stream()
+        .map(
+            failure -> {
+              if (failure instanceof AssertionFailedError afe) {
+                Object actual = afe.isActualDefined() ? afe.getActual().getValue() : null;
+                Object expected = afe.isExpectedDefined() ? afe.getExpected().getValue() : null;
+                return new AssertionFailure(failure.getMessage(), expected, actual);
+              }
+              return new AssertionFailure(failure.getMessage(), null, null);
+            })
+        .toList();
   }
 
   /**
