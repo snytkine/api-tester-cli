@@ -18,12 +18,17 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertFalseAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertTrueAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.IsNullAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.NotEmptyAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.NotNullAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.OneOfAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.RangeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.RegexMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ResponseTimeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.StringContainsAssertion;
@@ -83,12 +88,17 @@ public class AssertionEvaluatorFactory {
       Map<String, String> suiteVariables,
       Map<String, String> testVariables) {
     return switch (assertion) {
+      case AssertFalseAssertion a -> new AssertFalseAssertionEvaluator(a);
+      case AssertTrueAssertion a -> new AssertTrueAssertionEvaluator(a);
       case IsNullAssertion a -> new IsNullAssertionEvaluator(a);
       case JsonMatchAssertion a ->
           new JsonMatchAssertionEvaluator(a, suiteDir, jsonMapper, suiteVariables, testVariables);
       case JsonSchemaAssertion a -> new JsonSchemaAssertionEvaluator(a, suiteDir, jsonMapper);
       case NotEmptyAssertion a -> new NotEmptyAssertionEvaluator(a);
       case NotNullAssertion a -> new NotNullAssertionEvaluator(a);
+      case OneOfAssertion a -> new OneOfAssertionEvaluator(a);
+      case RangeAssertion a -> new RangeAssertionEvaluator(a);
+      case RegexMatchAssertion a -> new RegexMatchAssertionEvaluator(a);
       case ResponseTimeAssertion a -> new ResponseTimeAssertionEvaluator(a);
       case StatusCodeAssertion a -> new StatusCodeAssertionEvaluator(a);
       case StringContainsAssertion a -> new StringContainsAssertionEvaluator(a);

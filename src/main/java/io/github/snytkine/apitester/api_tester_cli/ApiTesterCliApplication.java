@@ -16,6 +16,8 @@
  */
 package io.github.snytkine.apitester.api_tester_cli;
 
+import io.github.snytkine.apitester.api_tester_cli.model.AssertFalseAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertTrueAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
@@ -27,6 +29,9 @@ import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.NotEmptyAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.NotNullAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.model.OneOfAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.RangeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.RegexMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.ResponseTimeAssertion;
@@ -55,6 +60,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 @RegisterReflectionForBinding({
   Assertion.class,
+  AssertFalseAssertion.class,
+  AssertTrueAssertion.class,
   AssertionFailure.class,
   BodyType.class,
   CliVariables.class,
@@ -65,6 +72,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
   NotEmptyAssertion.class,
   NotNullAssertion.class,
   ObjectExpectedValue.class,
+  OneOfAssertion.class,
+  RangeAssertion.class,
+  RegexMatchAssertion.class,
   Request.class,
   RequestBody.class,
   ResponseTimeAssertion.class,

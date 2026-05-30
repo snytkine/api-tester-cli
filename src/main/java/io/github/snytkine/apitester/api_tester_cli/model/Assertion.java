@@ -21,22 +21,32 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
+  @JsonSubTypes.Type(value = AssertFalseAssertion.class, name = "assert_false"),
+  @JsonSubTypes.Type(value = AssertTrueAssertion.class, name = "assert_true"),
   @JsonSubTypes.Type(value = IsNullAssertion.class, name = "is_null"),
   @JsonSubTypes.Type(value = JsonMatchAssertion.class, name = "json_match"),
   @JsonSubTypes.Type(value = JsonSchemaAssertion.class, name = "json_schema"),
   @JsonSubTypes.Type(value = NotEmptyAssertion.class, name = "not_empty"),
   @JsonSubTypes.Type(value = NotNullAssertion.class, name = "not_null"),
+  @JsonSubTypes.Type(value = OneOfAssertion.class, name = "one_of"),
+  @JsonSubTypes.Type(value = RangeAssertion.class, name = "range"),
+  @JsonSubTypes.Type(value = RegexMatchAssertion.class, name = "regex_match"),
   @JsonSubTypes.Type(value = ResponseTimeAssertion.class, name = "response_time"),
   @JsonSubTypes.Type(value = StatusCodeAssertion.class, name = "status_code"),
   @JsonSubTypes.Type(value = StringContainsAssertion.class, name = "string_contains"),
   @JsonSubTypes.Type(value = StringMatchAssertion.class, name = "string_match"),
 })
 public sealed interface Assertion
-    permits IsNullAssertion,
+    permits AssertFalseAssertion,
+        AssertTrueAssertion,
+        IsNullAssertion,
         JsonMatchAssertion,
         JsonSchemaAssertion,
         NotEmptyAssertion,
         NotNullAssertion,
+        OneOfAssertion,
+        RangeAssertion,
+        RegexMatchAssertion,
         ResponseTimeAssertion,
         StatusCodeAssertion,
         StringContainsAssertion,
