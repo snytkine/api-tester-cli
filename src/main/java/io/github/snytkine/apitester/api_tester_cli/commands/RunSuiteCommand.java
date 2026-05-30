@@ -18,21 +18,29 @@ package io.github.snytkine.apitester.api_tester_cli.commands;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
+import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
+import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
+import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.jspecify.annotations.Nullable;
 import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
 import org.springframework.shell.core.command.annotation.Command;
 import org.springframework.shell.core.command.annotation.Option;
+import org.springframework.shell.jline.tui.component.ViewComponentBuilder;
 import org.springframework.stereotype.Component;
 
 /**
@@ -47,19 +55,29 @@ public class RunSuiteCommand {
   private final TestSuiteLoader testSuiteLoader;
   private final ObjectMapper jsonMapper;
   private final TestEngine testEngine;
+  @Nullable private final ViewComponentBuilder viewComponentBuilder;
 
   /**
    * Constructs the command with its required collaborators. A dedicated JSON {@link ObjectMapper}
    * is created here rather than injected; Jackson is not auto-configured as a bean in this CLI
    * project and the mapper is an internally-owned, thread-safe singleton.
    *
+   * <p>When {@code viewComponentBuilder} is {@code null} (e.g. in unit tests that do not have the
+   * full Spring Shell TUI stack on the classpath), UI mode is disabled regardless of TTY
+   * detection.
+   *
    * @param testSuiteLoader loads and template-processes test-suite YAML files
    * @param testEngine executes the loaded test cases
+   * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
    */
-  public RunSuiteCommand(TestSuiteLoader testSuiteLoader, TestEngine testEngine) {
+  public RunSuiteCommand(
+      TestSuiteLoader testSuiteLoader,
+      TestEngine testEngine,
+      @Nullable ViewComponentBuilder viewComponentBuilder) {
     this.testSuiteLoader = testSuiteLoader;
     this.testEngine = testEngine;
     this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
+    this.viewComponentBuilder = viewComponentBuilder;
   }
 
   /**
@@ -75,10 +93,22 @@ public class RunSuiteCommand {
    * <p>Example: {@code rs --suite=/path/to/suite.yml api_base_url=https://api.example.com
    * admin_system=IBM}
    *
-   * <p>On completion, the aggregated {@link TestRunResult} is serialized to indented JSON and
-   * written to the terminal.
+   * <p>Output mode selection (evaluated in order):
+   *
+   * <ol>
+   *   <li>If {@code --ui} is supplied, the interactive terminal UI is activated regardless of
+   *       environment detection.
+   *   <li>If {@code --no-ui} is supplied, JSON output is used even when a TTY is detected.
+   *   <li>Otherwise {@link TtyDetector#shouldUseUi(boolean, boolean)} decides based on the
+   *       attached terminal, {@code NO_COLOR}, {@code CI}, and terminal width.
+   * </ol>
+   *
+   * <p>In UI mode (Phase 4+) the aggregated JSON is not written to stdout; use {@code --output} to
+   * obtain the structured report as a file. In non-UI mode the JSON is always written to stdout.
    *
    * @param suite absolute path to the test-suite YAML file to load
+   * @param noUi when {@code true}, forces JSON output even on a TTY
+   * @param forceUi when {@code true}, forces the interactive UI even when not on a TTY
    * @param context Spring Shell command context; positional arguments are extracted from it as CLI
    *     variables forwarded to the Thymeleaf template engine
    * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
@@ -96,6 +126,15 @@ public class RunSuiteCommand {
               required = true,
               description = "Absolute path to the test-suite.yml file.")
           String suite,
+      @Option(
+              longName = "no-ui",
+              description = "Disable the interactive terminal UI and write JSON to stdout.")
+          boolean noUi,
+      @Option(
+              longName = "ui",
+              description =
+                  "Force the interactive terminal UI even when stdout does not look like a TTY.")
+          boolean forceUi,
       CommandContext context)
       throws Exception {
 
@@ -104,11 +143,25 @@ public class RunSuiteCommand {
       throw new IllegalArgumentException("Test suite file not found: " + suite);
     }
 
+    boolean useUi = viewComponentBuilder != null && TtyDetector.shouldUseUi(forceUi, noUi);
+
     Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
     TestSuite testSuite = testSuiteLoader.load(suitePath, new CliVariables(cliVars));
-    TestRunResult result = testEngine.runConfigurationSuite(testSuite);
-    context.outputWriter().println(toJson(result));
-    context.outputWriter().flush();
+
+    if (useUi) {
+      LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+      TerminalUiListener uiListener = new TerminalUiListener(queue);
+      TerminalUiController controller =
+          new TerminalUiController(queue, viewComponentBuilder);
+      controller.start();
+      testEngine.runConfigurationSuite(testSuite, uiListener);
+      controller.await();
+    } else {
+      TestRunResult result =
+          testEngine.runConfigurationSuite(testSuite, NoOpProgressListener.INSTANCE);
+      context.outputWriter().println(toJson(result));
+      context.outputWriter().flush();
+    }
   }
 
   /**

@@ -16,6 +16,8 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.interfaces;
 
+import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 
@@ -32,9 +34,26 @@ public interface TestEngine {
   /**
    * Executes all test cases in the given {@link TestSuite} and returns an aggregated result.
    *
+   * <p>This convenience overload uses {@link NoOpProgressListener#INSTANCE} and is equivalent to
+   * {@code runConfigurationSuite(testSuite, NoOpProgressListener.INSTANCE)}.
+   *
    * @param testSuite the loaded test suite to execute
    * @return a {@link TestRunResult} containing pass count, fail count, and error messages
    * @throws Exception if a fatal error prevents the suite from running
    */
-  TestRunResult runConfigurationSuite(TestSuite testSuite) throws Exception;
+  default TestRunResult runConfigurationSuite(TestSuite testSuite) throws Exception {
+    return runConfigurationSuite(testSuite, NoOpProgressListener.INSTANCE);
+  }
+
+  /**
+   * Executes all test cases in the given {@link TestSuite}, firing progress events to {@code
+   * listener} at each milestone (suite start, per-test start/complete, suite complete).
+   *
+   * @param testSuite the loaded test suite to execute
+   * @param listener receives progress events; must be thread-safe
+   * @return a {@link TestRunResult} containing pass count, fail count, and error messages
+   * @throws Exception if a fatal error prevents the suite from running
+   */
+  TestRunResult runConfigurationSuite(TestSuite testSuite, TestProgressListener listener)
+      throws Exception;
 }

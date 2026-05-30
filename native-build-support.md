@@ -333,7 +333,86 @@ advantage of native images. Not recommended if fast startup is a priority.
 
 ---
 
-## 11. SLF4J warning during compilation (not a problem)
+## 11. Spring Shell TUI (`spring-shell-jline`) — native image findings
+
+**Status: PASS — native build succeeds with no additional reflection hints required.**
+
+### Background
+
+The terminal UI (Phase 4+) uses classes from `spring-shell-jline` 4.0.2:
+`GridView`, `BoxView`, `ViewComponent`, `ViewComponentBuilder`, `ShellMessageBuilder`,
+`TerminalUI`, and the Reactor-based `EventLoop`.
+
+`spring-shell-jline` is an **optional** compile-time dependency of
+`spring-shell-core-autoconfigure` — it is NOT pulled by `spring-shell-starter` by default.
+Add it explicitly:
+
+```xml
+<dependency>
+  <groupId>org.springframework.shell</groupId>
+  <artifactId>spring-shell-jline</artifactId>
+</dependency>
+```
+
+This transitively brings in:
+- `org.jline:jline:3.30.9` — JLine, which **ships its own native-image metadata** under
+  `META-INF/native-image/org.jline/…`
+- `io.projectreactor:reactor-core:3.8.5` — Reactor, which **ships its own
+  `reflect-config.json`** at `META-INF/native-image/io.projectreactor/reactor-core/`
+
+### Smoke test command
+
+`TuiSmokeCommand` (`tui-smoke`) was created as the verification artefact. It:
+1. Builds a `GridView` with three `BoxView` rows.
+2. Runs the component asynchronously via `ViewComponentBuilder.build(grid).runAsync()`.
+3. Updates row content via `AtomicReferenceArray` and redraws via
+   `ShellMessageBuilder.ofRedraw()`.
+4. Exits automatically after all rows are updated.
+
+### Native build results (GraalVM 25.0.3, `-Os`)
+
+```
+[2/8] Performing analysis: 22,840 types, 32,366 fields, 113,939 methods
+BUILD SUCCESS — binary: 61 MB
+```
+
+- No `NoSuchMethodException`, no `ClassNotFoundException`, no Reactor-related failures.
+- Spring Boot's AOT processor (`spring-boot:process-aot`) correctly registers all
+  Spring Shell TUI beans discovered via classpath scanning.
+- `spring-shell-jline` itself ships **no** native-image metadata, but Spring Boot's AOT
+  processor covers the Spring-managed beans, and neither Reactor nor JLine require
+  additional hints beyond what they already ship.
+
+### Non-fatal warnings to be aware of
+
+1. **JLine `native-image.properties` layout warnings** — JLine 3.30.9 bundles metadata
+   under sub-module paths (`jline-terminal`, `jline-terminal-jni`, etc.) that don't match
+   the recommended flat layout. These produce `[WARNING] Properties file … does not match
+   the recommended '…/native-image.properties' layout.` at build time. They are cosmetic
+   and do not affect the binary.
+
+2. **JLine native-access warning at runtime** — `JLineNativeLoader` calls
+   `System.load()` (a restricted method in Java 25) when loading the JLine native library.
+   This surfaces as:
+   ```
+   WARNING: A restricted method in java.lang.System has been called
+   WARNING: java.lang.System::load has been called by org.jline.nativ.JLineNativeLoader
+   ```
+   Suppress it by adding `--enable-native-access=ALL-UNNAMED` to the native-image
+   `buildArgs`. This is cosmetic but can be silenced in a future build.
+
+3. **`--no-fallback` and `DynamicProxyConfigurationResources` deprecation** — pre-existing
+   warnings about deprecated proxy-config format; tracked separately from the TUI work.
+
+### Conclusion
+
+Using Spring Shell's `GridView` + `BoxView` + `ViewComponentBuilder` is **viable for the
+GraalVM native image**. No additional reflection or proxy hints are required beyond the
+existing `@RegisterReflectionForBinding` list. Phase 4 can proceed using these components.
+
+---
+
+## 12. SLF4J warning during compilation (not a problem)
 
 During `[2/8] Performing analysis`, the native-image compiler JVM prints:
 

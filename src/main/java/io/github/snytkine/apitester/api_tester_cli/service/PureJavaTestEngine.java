@@ -16,6 +16,9 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.service;
 
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
+import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
@@ -31,6 +34,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseRes
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -88,42 +92,70 @@ public class PureJavaTestEngine implements TestEngine {
   }
 
   /**
-   * Runs all test cases in the provided {@link TestSuite} sequentially and returns an aggregated
-   * result.
+   * Runs all test cases in the provided {@link TestSuite} sequentially, firing progress events to
+   * {@code listener} at each milestone, and returns an aggregated result.
    *
    * <p>A {@link RestClient} is built from the suite's {@link RestClientConfig} (base URL and
    * connect timeout) before iteration begins and shared across all test cases in the suite. The
    * suite's file path (when present) is used to resolve relative file references in assertions.
    *
+   * <p>Events fired (in order):
+   *
+   * <ol>
+   *   <li>{@link TestProgressEvent.SuiteStarted} — once, before any test runs
+   *   <li>{@link TestProgressEvent.TestStarted} — before each test's HTTP request
+   *   <li>{@link TestProgressEvent.TestCompleted} — after each test's assertions are evaluated
+   *   <li>{@link TestProgressEvent.SuiteCompleted} — once, after all tests finish
+   * </ol>
+   *
    * @param testSuite the loaded test suite whose {@link TestSuite#tests()} are executed
+   * @param listener receives progress events; must be thread-safe
    * @return a {@link TestRunResult} with per-test-case results including structured failure detail
    */
   @Override
-  public TestRunResult runConfigurationSuite(TestSuite testSuite) {
+  public TestRunResult runConfigurationSuite(TestSuite testSuite, TestProgressListener listener) {
     RestClient restClient = buildRestClient(testSuite.restClientConfig());
     Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
     Map<String, String> suiteVariables =
         Objects.requireNonNullElse(testSuite.variables(), Map.of());
 
+    List<TestCase> tests = testSuite.tests();
+    Instant suiteStart = Instant.now();
+    listener.onProgress(
+        new TestProgressEvent.SuiteStarted(testSuite.name(), tests.size(), suiteStart));
+
     long passedCount = 0;
     long failedCount = 0;
     List<TestCaseResult> results = new ArrayList<>();
 
-    for (TestCase config : testSuite.tests()) {
+    for (int i = 0; i < tests.size(); i++) {
+      TestCase config = tests.get(i);
+      listener.onProgress(new TestProgressEvent.TestStarted(i, config.name()));
+      long testStart = System.currentTimeMillis();
+
       try {
         executeSingleTest(restClient, config, suiteDir, suiteVariables);
+        long durationMs = System.currentTimeMillis() - testStart;
         passedCount++;
         results.add(new TestCaseResult(config.name(), true, config.assertions().size(), List.of()));
+        listener.onProgress(
+            new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.PASS, durationMs, null));
       } catch (MultipleFailuresError e) {
+        long durationMs = System.currentTimeMillis() - testStart;
         failedCount++;
         List<AssertionFailure> failures = extractFailures(e);
         int passedAssertions = config.assertions().size() - failures.size();
         results.add(new TestCaseResult(config.name(), false, passedAssertions, failures));
+        String summary = e.getFailures().isEmpty() ? e.getMessage() : e.getFailures().get(0).getMessage();
+        listener.onProgress(
+            new TestProgressEvent.TestCompleted(
+                i, config.name(), TestStatus.FAIL, durationMs, summary));
         log.debug(
             "Test case '{}' failed with {} assertion failure(s)",
             config.name(),
             e.getFailures().size());
       } catch (Throwable e) {
+        long durationMs = System.currentTimeMillis() - testStart;
         failedCount++;
         results.add(
             new TestCaseResult(
@@ -131,9 +163,16 @@ public class PureJavaTestEngine implements TestEngine {
                 false,
                 0,
                 List.of(new AssertionFailure(e.getMessage(), null, null))));
+        listener.onProgress(
+            new TestProgressEvent.TestCompleted(
+                i, config.name(), TestStatus.ERROR, durationMs, e.getMessage()));
         log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
       }
     }
+
+    long totalDurationMs = Instant.now().toEpochMilli() - suiteStart.toEpochMilli();
+    listener.onProgress(
+        new TestProgressEvent.SuiteCompleted(passedCount, failedCount, totalDurationMs));
 
     return new TestRunResult(passedCount, failedCount, results);
   }

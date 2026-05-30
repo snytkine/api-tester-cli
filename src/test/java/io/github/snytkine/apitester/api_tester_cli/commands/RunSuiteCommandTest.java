@@ -47,7 +47,7 @@ class RunSuiteCommandTest {
   @BeforeEach
   void setUp() {
     mockEngine = mock(TestEngine.class);
-    command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine);
+    command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine, null);
   }
 
   @Test
@@ -90,12 +90,12 @@ class RunSuiteCommandTest {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
     TestRunResult fakeResult =
         new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
-    when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
+    when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
 
     command.runSuite(
-        suite, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
+        suite, false, false, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
 
-    verify(mockEngine).runConfigurationSuite(any());
+    verify(mockEngine).runConfigurationSuite(any(), any());
   }
 
   @Test
@@ -103,16 +103,29 @@ class RunSuiteCommandTest {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
     TestRunResult fakeResult =
         new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
-    when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
+    when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
 
-    command.runSuite(suite, buildContext());
+    command.runSuite(suite, false, false, buildContext());
 
-    verify(mockEngine).runConfigurationSuite(any());
+    verify(mockEngine).runConfigurationSuite(any(), any());
+  }
+
+  @Test
+  void runSuiteWithNoUiFlagStillPrintsJson() throws Exception {
+    String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+    TestRunResult fakeResult =
+        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+    when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
+
+    command.runSuite(suite, true, false, buildContext());
+
+    verify(mockEngine).runConfigurationSuite(any(), any());
   }
 
   @Test
   void runSuiteThrowsWhenFileDoesNotExist() {
-    assertThatThrownBy(() -> command.runSuite("/nonexistent/path/suite.yml", buildContext()))
+    assertThatThrownBy(
+            () -> command.runSuite("/nonexistent/path/suite.yml", false, false, buildContext()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Test suite file not found");
   }
