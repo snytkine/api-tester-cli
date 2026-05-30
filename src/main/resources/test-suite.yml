@@ -35,7 +35,7 @@ tests:
     expected:
       type: "file"
       content: "schemas/login_response_schema.json"
-  - type: "json_path"
+  - type: "string_match"
     path: "response.headers.content-type"
     expected: "application/json"
   - type: "json_match"

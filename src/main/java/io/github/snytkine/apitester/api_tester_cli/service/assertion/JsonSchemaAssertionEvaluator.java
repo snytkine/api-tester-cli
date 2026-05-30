@@ -44,7 +44,7 @@ import org.jspecify.annotations.Nullable;
  * is used as the default.
  *
  * <p>The {@code path} field on the assertion follows the same {@code response.*} convention as
- * {@link JsonPathAssertionEvaluator}:
+ * {@link StringMatchAssertionEvaluator}:
  *
  * <ul>
  *   <li>{@code response.body.json} — validate the entire parsed JSON body

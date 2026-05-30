@@ -16,4 +16,16 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
-public record JsonPathAssertion(String path, String expected) implements Assertion {}
+import com.fasterxml.jackson.annotation.JsonProperty;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Assertion that passes when the resolved response value is an exact match for {@code expected}.
+ *
+ * <p>The {@code path} follows the same {@code response.*} convention as {@link
+ * StringContainsAssertion}. When {@code caseSensitive} is {@code true} (or omitted — the default)
+ * the equality check is case-sensitive; when {@code false} the comparison ignores case.
+ */
+public record StringMatchAssertion(
+    String path, String expected, @Nullable @JsonProperty("case_sensitive") Boolean caseSensitive)
+    implements Assertion {}

@@ -20,9 +20,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.JsonPathAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.StringContainsAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.StringMatchAssertion;
 import java.nio.file.Path;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
@@ -79,10 +80,11 @@ public class AssertionEvaluatorFactory {
       Map<String, String> testVariables) {
     return switch (assertion) {
       case StatusCodeAssertion a -> new StatusCodeAssertionEvaluator(a);
-      case JsonPathAssertion a -> new JsonPathAssertionEvaluator(a);
       case JsonSchemaAssertion a -> new JsonSchemaAssertionEvaluator(a, suiteDir, jsonMapper);
       case JsonMatchAssertion a ->
           new JsonMatchAssertionEvaluator(a, suiteDir, jsonMapper, suiteVariables, testVariables);
+      case StringContainsAssertion a -> new StringContainsAssertionEvaluator(a);
+      case StringMatchAssertion a -> new StringMatchAssertionEvaluator(a);
     };
   }
 }

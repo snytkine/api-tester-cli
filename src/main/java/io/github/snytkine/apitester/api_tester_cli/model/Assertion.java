@@ -22,9 +22,14 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
   @JsonSubTypes.Type(value = StatusCodeAssertion.class, name = "status_code"),
-  @JsonSubTypes.Type(value = JsonPathAssertion.class, name = "json_path"),
   @JsonSubTypes.Type(value = JsonSchemaAssertion.class, name = "json_schema"),
   @JsonSubTypes.Type(value = JsonMatchAssertion.class, name = "json_match"),
+  @JsonSubTypes.Type(value = StringContainsAssertion.class, name = "string_contains"),
+  @JsonSubTypes.Type(value = StringMatchAssertion.class, name = "string_match"),
 })
 public sealed interface Assertion
-    permits StatusCodeAssertion, JsonPathAssertion, JsonSchemaAssertion, JsonMatchAssertion {}
+    permits StatusCodeAssertion,
+        JsonSchemaAssertion,
+        JsonMatchAssertion,
+        StringContainsAssertion,
+        StringMatchAssertion {}

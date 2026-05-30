@@ -23,10 +23,10 @@ import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.JsonPathAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.StringMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.nio.file.Path;
@@ -178,8 +178,8 @@ class TestSuiteLoaderTest {
     assertThat(schemaAssertion.expected().content())
         .isEqualTo("schemas/login_response_schema.json");
 
-    assertThat(assertions.get(2)).isInstanceOf(JsonPathAssertion.class);
-    JsonPathAssertion pathAssertion = (JsonPathAssertion) assertions.get(2);
+    assertThat(assertions.get(2)).isInstanceOf(StringMatchAssertion.class);
+    StringMatchAssertion pathAssertion = (StringMatchAssertion) assertions.get(2);
     assertThat(pathAssertion.path()).isEqualTo("response.headers.content-type");
     assertThat(pathAssertion.expected()).isEqualTo("application/json");
 
