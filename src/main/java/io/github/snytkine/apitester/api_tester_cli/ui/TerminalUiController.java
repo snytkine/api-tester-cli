@@ -30,7 +30,8 @@ import org.springframework.shell.jline.tui.component.view.control.GridView;
 import org.springframework.shell.jline.tui.component.view.screen.Screen;
 
 /**
- * Drives the Spring Shell {@link GridView}-based terminal UI for a single suite run.
+ * Drives the Spring Shell {@link GridView}-based terminal UI for a single suite run, with Braille
+ * spinner animation for in-progress tests.
  *
  * <p>Lifecycle for one suite run:
  *
@@ -38,14 +39,22 @@ import org.springframework.shell.jline.tui.component.view.screen.Screen;
  *   <li>{@link #start()} — starts a background controller thread that blocks on the event queue.
  *   <li>The thread receives {@link TestProgressEvent.SuiteStarted} and builds a {@link GridView}
  *       with one row per test, pre-populated with "pending" text.
- *   <li>Subsequent {@link TestProgressEvent.TestStarted} and {@link
- *       TestProgressEvent.TestCompleted} events update the corresponding row and trigger a JLine
- *       redraw via {@link ShellMessageBuilder#ofRedraw()}.
+ *   <li>On {@link TestProgressEvent.TestStarted}: the row transitions to "running" state. The
+ *       render loop then advances a per-row Braille spinner frame on every tick ({@value
+ *       #POLL_TIMEOUT_MS} ms) and dispatches a redraw, producing smooth animation.
+ *   <li>On {@link TestProgressEvent.TestCompleted}: the row is updated with the final status glyph
+ *       and duration, and spinner animation for that row stops.
  *   <li>{@link TestProgressEvent.SuiteCompleted} signals the loop to exit, the view component is
  *       stopped, and the controller thread terminates.
  *   <li>{@link #await()} — blocks the calling thread until the controller thread finishes so the
  *       terminal is fully restored before the caller continues.
  * </ol>
+ *
+ * <p>Spinner animation runs on the controller thread. Every {@link #POLL_TIMEOUT_MS} ms (or sooner
+ * if an event arrives), all rows whose state is "running" have their spinner frame advanced and
+ * their row text rewritten. A JLine redraw is dispatched only when at least one row is running or
+ * a {@link TestProgressEvent.TestCompleted} event has just updated a row — idle ticks with no
+ * running rows produce no redraw.
  *
  * <p>This class is <em>not</em> a Spring singleton. One instance is created per suite run by
  * {@link io.github.snytkine.apitester.api_tester_cli.commands.RunSuiteCommand}. All mutable view
@@ -111,7 +120,10 @@ public final class TerminalUiController {
 
   /**
    * Main controller thread loop. Waits for {@link TestProgressEvent.SuiteStarted}, builds the
-   * view, then drains the queue until {@link TestProgressEvent.SuiteCompleted}.
+   * view, then runs the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}.
+   *
+   * <p>Per-row animation state ({@code testNames}, {@code isRunning}, {@code spinnerFrames}) is
+   * entirely local to this thread — no external synchronisation is required.
    */
   private void runLoop() {
     try {
@@ -125,6 +137,10 @@ public final class TerminalUiController {
 
       int rowCount = suiteStarted.totalTestCount();
       AtomicReferenceArray<String> rows = new AtomicReferenceArray<>(rowCount);
+      String[] testNames = new String[rowCount];
+      boolean[] isRunning = new boolean[rowCount];
+      int[] spinnerFrames = new int[rowCount];
+
       for (int i = 0; i < rowCount; i++) {
         rows.set(i, "  " + Glyphs.PENDING + " (pending)");
       }
@@ -137,11 +153,33 @@ public final class TerminalUiController {
         boolean done = false;
         while (!done) {
           TestProgressEvent event = queue.poll(POLL_TIMEOUT_MS, TimeUnit.MILLISECONDS);
-          if (event == null) {
-            // Timeout — Phase 5 will advance the spinner frame here.
-            continue;
+          if (event != null) {
+            done = applyEvent(event, rows, testNames, isRunning);
           }
-          done = applyEvent(event, rows, vc);
+
+          // Advance the Braille spinner for every row that is currently running.
+          boolean anyRunning = false;
+          for (int i = 0; i < rowCount; i++) {
+            if (isRunning[i]) {
+              anyRunning = true;
+              int frame = spinnerFrames[i];
+              rows.set(
+                  i,
+                  "  "
+                      + Glyphs.SPINNER_FRAMES[frame]
+                      + " "
+                      + testNames[i]
+                      + " (running...)");
+              spinnerFrames[i] = (frame + 1) % Glyphs.SPINNER_FRAMES.length;
+            }
+          }
+
+          // Dispatch a redraw only when the display actually changed: either a spinner frame
+          // ticked on at least one running row, or a TestCompleted event just wrote a final
+          // status line. SuiteStarted and SuiteCompleted produce no visible change.
+          if (anyRunning || event instanceof TestProgressEvent.TestCompleted) {
+            vc.getEventLoop().dispatch(ShellMessageBuilder.ofRedraw());
+          }
         }
       } finally {
         vc.exit();
@@ -157,25 +195,37 @@ public final class TerminalUiController {
   }
 
   /**
-   * Applies a single event to the row array and triggers a redraw when the view is visible.
+   * Applies a single event, updating the per-row state arrays used by the spinner loop.
+   *
+   * <p>{@link TestProgressEvent.TestStarted} records the test name and marks the row as running;
+   * the spinner loop then writes the first animated frame on the very next tick. {@link
+   * TestProgressEvent.TestCompleted} clears the running flag and writes the final status text
+   * directly to {@code rows}; the spinner loop will no longer touch that row. Redraw dispatching
+   * is handled by the caller after this method returns.
    *
    * @param event the event to apply
-   * @param rows shared row-text array
-   * @param vc the running view component
+   * @param rows shared row-text array; updated directly on {@link TestProgressEvent.TestCompleted}
+   * @param testNames per-row test name; written on {@link TestProgressEvent.TestStarted}
+   * @param isRunning per-row running flag; set on {@link TestProgressEvent.TestStarted}, cleared
+   *     on {@link TestProgressEvent.TestCompleted}
    * @return {@code true} when the suite is complete and the render loop should exit
    */
   private boolean applyEvent(
-      TestProgressEvent event, AtomicReferenceArray<String> rows, ViewComponent vc) {
+      TestProgressEvent event,
+      AtomicReferenceArray<String> rows,
+      String[] testNames,
+      boolean[] isRunning) {
     return switch (event) {
       case TestProgressEvent.SuiteStarted ignored ->
-          // Duplicate; should never happen — ignore.
+          // Duplicate SuiteStarted; should never happen — ignore.
           false;
       case TestProgressEvent.TestStarted e -> {
-        rows.set(e.testIndex(), "  " + Glyphs.RUNNING + " " + e.testName() + " (running...)");
-        vc.getEventLoop().dispatch(ShellMessageBuilder.ofRedraw());
+        testNames[e.testIndex()] = e.testName();
+        isRunning[e.testIndex()] = true;
         yield false;
       }
       case TestProgressEvent.TestCompleted e -> {
+        isRunning[e.testIndex()] = false;
         String glyph =
             switch (e.status()) {
               case PASS -> Glyphs.PASS;
@@ -183,7 +233,6 @@ public final class TerminalUiController {
             };
         rows.set(
             e.testIndex(), "  " + glyph + " " + e.testName() + " (" + e.durationMs() + "ms)");
-        vc.getEventLoop().dispatch(ShellMessageBuilder.ofRedraw());
         yield false;
       }
       case TestProgressEvent.SuiteCompleted ignored -> true;
