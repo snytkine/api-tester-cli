@@ -19,6 +19,7 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.OneOfAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
@@ -30,8 +31,15 @@ import org.opentest4j.MultipleFailuresError;
 
 class OneOfAssertionEvaluatorTest {
 
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+
   private static ApiResponse responseWithJson(Object json) {
-    return new ApiResponse(200, Map.of(), new ApiResponse.Body(json.toString(), json));
+    try {
+      return new ApiResponse(
+          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Test

@@ -21,13 +21,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.AssertFalseAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.ArrayContainsAllAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.MultipleFailuresError;
 
-class AssertFalseAssertionEvaluatorTest {
+class ArrayContainsAllAssertionEvaluatorTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -41,76 +42,62 @@ class AssertFalseAssertionEvaluatorTest {
   }
 
   @Test
-  void booleanFalsePasses() {
-    ApiResponse response = responseWithJson(Map.of("deleted", false));
+  void allPresentPasses() {
+    ApiResponse response =
+        responseWithJson(Map.of("tags", List.of("java", "spring", "graal", "native")));
 
     FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("response.body.json.$.deleted"))
+    new ArrayContainsAllAssertionEvaluator(
+            new ArrayContainsAllAssertion("response.body.json.$.tags", List.of("java", "spring")))
         .evaluate(response, collector);
 
     assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
-  void booleanTrueFails() {
-    ApiResponse response = responseWithJson(Map.of("deleted", true));
+  void oneMissingFails() {
+    ApiResponse response = responseWithJson(Map.of("tags", List.of("java", "graal")));
 
     FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("response.body.json.$.deleted"))
+    new ArrayContainsAllAssertionEvaluator(
+            new ArrayContainsAllAssertion("response.body.json.$.tags", List.of("java", "spring")))
         .evaluate(response, collector);
 
     assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
-  void stringFalseFails() {
-    ApiResponse response = responseWithJson(Map.of("deleted", "false"));
+  void allMissingFails() {
+    ApiResponse response = responseWithJson(Map.of("tags", List.of("python", "rust")));
 
     FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("response.body.json.$.deleted"))
+    new ArrayContainsAllAssertionEvaluator(
+            new ArrayContainsAllAssertion("response.body.json.$.tags", List.of("java", "spring")))
         .evaluate(response, collector);
 
     assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
-  void integerZeroFails() {
-    ApiResponse response = responseWithJson(Map.of("deleted", 0));
+  void numbersAllPresentPasses() {
+    ApiResponse response = responseWithJson(Map.of("codes", List.of(200, 201, 204)));
 
     FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("response.body.json.$.deleted"))
+    new ArrayContainsAllAssertionEvaluator(
+            new ArrayContainsAllAssertion("response.body.json.$.codes", List.of(200, 204)))
         .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
-  void nullValueFails() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+  void nonArrayValueFails() {
+    ApiResponse response = responseWithJson(Map.of("tags", "not-an-array"));
 
     FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("response.body.json"))
+    new ArrayContainsAllAssertionEvaluator(
+            new ArrayContainsAllAssertion("response.body.json.$.tags", List.of("java")))
         .evaluate(response, collector);
-
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
-
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("deleted", false));
-
-    FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("response.body.json.$.missing"))
-        .evaluate(response, collector);
-
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
-
-  @Test
-  void unsupportedPathFails() {
-    FailureCollector collector = new FailureCollector();
-    new AssertFalseAssertionEvaluator(new AssertFalseAssertion("invalid.path"))
-        .evaluate(new ApiResponse(200, Map.of(), null), collector);
 
     assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
