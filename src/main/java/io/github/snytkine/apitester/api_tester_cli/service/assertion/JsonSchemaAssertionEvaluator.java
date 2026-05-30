@@ -27,13 +27,14 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
-import lombok.extern.slf4j.Slf4j;
-import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Evaluates a {@link JsonSchemaAssertion} by validating a portion of the HTTP response against a
@@ -59,8 +60,9 @@ import org.jspecify.annotations.Nullable;
  * construction, so instances are safe to use from multiple threads if shared, though in practice
  * each test case owns its own instance.
  */
-@Slf4j
 class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
+
+  private static final Logger log = LoggerFactory.getLogger(JsonSchemaAssertionEvaluator.class);
 
   private static final String RESPONSE_PREFIX = "response.";
   private static final String BODY_JSON = "body.json";
@@ -88,20 +90,19 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
 
   /**
    * Validates the response value at {@code assertion.path()} against the JSON Schema specified by
-   * {@code assertion.expected()}, recording each schema violation as a separate soft-assertion
-   * failure.
+   * {@code assertion.expected()}, recording each schema violation as a separate failure.
    *
    * @param response the captured HTTP response
-   * @param soft the shared soft-assertion collector
+   * @param collector the shared failure collector
    */
   @Override
-  public void evaluate(ApiResponse response, SoftAssertions soft) {
+  public void evaluate(ApiResponse response, FailureCollector collector) {
     if (response.body() == null || response.body().json() == null) {
-      soft.fail("Response body is absent or not valid JSON for json_schema assertion");
+      collector.fail("Response body is absent or not valid JSON for json_schema assertion");
       return;
     }
 
-    JsonNode targetNode = extractTarget(response, soft);
+    JsonNode targetNode = extractTarget(response, collector);
     if (targetNode == null) {
       return;
     }
@@ -110,7 +111,8 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
     try {
       schemaContent = loadContent(assertion.expected());
     } catch (IOException e) {
-      soft.fail("Failed to load schema '%s': %s", assertion.expected().content(), e.getMessage());
+      collector.fail(
+          "Failed to load schema '%s': %s", assertion.expected().content(), e.getMessage());
       return;
     }
 
@@ -119,9 +121,9 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
       JsonSchemaFactory factory = JsonSchemaFactory.getInstance(detectVersion(schemaNode));
       JsonSchema schema = factory.getSchema(schemaNode);
       Set<ValidationMessage> errors = schema.validate(targetNode);
-      errors.forEach(error -> soft.fail("JSON schema violation: %s", error.getMessage()));
+      errors.forEach(error -> collector.fail("JSON schema violation: %s", error.getMessage()));
     } catch (Exception e) {
-      soft.fail("JSON schema validation failed: %s", e.getMessage());
+      collector.fail("JSON schema validation failed: %s", e.getMessage());
     }
   }
 
@@ -129,17 +131,17 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
    * Extracts the response value to validate based on {@code assertion.path()}.
    *
    * <p>Supports {@code response.body.json} (the full parsed body) and {@code
-   * response.body.json.<expr>} (a JSONPath sub-expression). Records a soft failure and returns
-   * {@code null} for unsupported paths.
+   * response.body.json.<expr>} (a JSONPath sub-expression). Records a failure and returns {@code
+   * null} for unsupported paths.
    *
    * @param response the captured HTTP response
-   * @param soft the shared soft-assertion collector
+   * @param collector the shared failure collector
    * @return the extracted {@link JsonNode}, or {@code null} if the path could not be resolved
    */
-  @Nullable private JsonNode extractTarget(ApiResponse response, SoftAssertions soft) {
+  @Nullable private JsonNode extractTarget(ApiResponse response, FailureCollector collector) {
     String path = assertion.path();
     if (!path.startsWith(RESPONSE_PREFIX)) {
-      soft.fail("Unsupported path '%s': must start with 'response.'", path);
+      collector.fail("Unsupported path '%s': must start with 'response.'", path);
       return null;
     }
     String remaining = path.substring(RESPONSE_PREFIX.length());
@@ -151,20 +153,20 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
     if (remaining.startsWith(BODY_JSON_DOT)) {
       String jsonPathExpr = remaining.substring(BODY_JSON_DOT.length());
       if (response.body().text() == null) {
-        soft.fail("Response body text is absent when evaluating path '%s'", path);
+        collector.fail("Response body text is absent when evaluating path '%s'", path);
         return null;
       }
       try {
         Object value = JsonPath.read(response.body().text(), jsonPathExpr);
         return objectMapper.valueToTree(value);
       } catch (Exception e) {
-        soft.fail(
+        collector.fail(
             "Failed to extract JSONPath '%s' from response body: %s", jsonPathExpr, e.getMessage());
         return null;
       }
     }
 
-    soft.fail("Unsupported path '%s' for json_schema assertion", path);
+    collector.fail("Unsupported path '%s' for json_schema assertion", path);
     return null;
   }
 

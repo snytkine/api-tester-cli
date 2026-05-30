@@ -21,7 +21,7 @@ import com.jayway.jsonpath.PathNotFoundException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.StringMatchAssertion;
-import org.assertj.core.api.SoftAssertions;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -63,26 +63,27 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
    * string, and asserts that it exactly equals the expected value.
    *
    * @param response the captured HTTP response
-   * @param soft the shared soft-assertion collector
+   * @param collector the shared failure collector
    */
   @Override
-  public void evaluate(ApiResponse response, SoftAssertions soft) {
+  public void evaluate(ApiResponse response, FailureCollector collector) {
     String path = assertion.path();
     if (!path.startsWith(PREFIX)) {
-      soft.fail("Unsupported path '%s': must start with 'response.'", path);
+      collector.fail("Unsupported path '%s': must start with 'response.'", path);
       return;
     }
     String remaining = path.substring(PREFIX.length());
-    Object resolved = resolve(response, remaining, path, soft);
+    Object resolved = resolve(response, remaining, path, collector);
     if (resolved == null) {
       return;
     }
     String actual = String.valueOf(resolved);
     boolean caseSensitive = assertion.caseSensitive() == null || assertion.caseSensitive();
     if (caseSensitive) {
-      soft.assertThat(actual).as("Value at path '%s'", path).isEqualTo(assertion.expected());
+      collector.assertThat(actual).as("Value at path '%s'", path).isEqualTo(assertion.expected());
     } else {
-      soft.assertThat(actual)
+      collector
+          .assertThat(actual)
           .as("Value at path '%s' (ignoring case)", path)
           .isEqualToIgnoringCase(assertion.expected());
     }
@@ -90,23 +91,23 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
 
   /**
    * Navigates the {@code remaining} path segment within {@code response} and returns the resolved
-   * value, or {@code null} and records a soft failure when the path is unsupported.
+   * value, or {@code null} and records a failure when the path is unsupported.
    *
    * @param response the captured HTTP response
    * @param remaining the path segment after the {@code response.} prefix
    * @param fullPath the original full path, used in failure messages
-   * @param soft the shared soft-assertion collector
+   * @param collector the shared failure collector
    * @return the resolved value, or {@code null} if resolution failed
    */
   @Nullable private Object resolve(
-      ApiResponse response, String remaining, String fullPath, SoftAssertions soft) {
+      ApiResponse response, String remaining, String fullPath, FailureCollector collector) {
     if (remaining.equals("statusCode")) {
       return response.statusCode();
     }
     if (remaining.startsWith("headers.")) {
       String name = remaining.substring("headers.".length()).toLowerCase();
       if (response.headers() == null) {
-        soft.fail("No headers present in response when evaluating path '%s'", fullPath);
+        collector.fail("No headers present in response when evaluating path '%s'", fullPath);
         return null;
       }
       return response.headers().get(name);
@@ -120,24 +121,24 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
     if (remaining.startsWith(BODY_JSON_PREFIX)) {
       String jsonPathExpr = remaining.substring(BODY_JSON_PREFIX.length());
       if (response.body() == null || response.body().text() == null) {
-        soft.fail("Response body is absent when evaluating path '%s'", fullPath);
+        collector.fail("Response body is absent when evaluating path '%s'", fullPath);
         return null;
       }
       try {
         return JsonPath.read(response.body().text(), jsonPathExpr);
       } catch (PathNotFoundException e) {
-        soft.fail(
+        collector.fail(
             "JSONPath expression '%s' not found in response body (path '%s')",
             jsonPathExpr, fullPath);
         return null;
       } catch (Exception e) {
-        soft.fail(
+        collector.fail(
             "Failed to evaluate JSONPath '%s' in path '%s': %s",
             jsonPathExpr, fullPath, e.getMessage());
         return null;
       }
     }
-    soft.fail("Unsupported path segment '%s' in path '%s'", remaining, fullPath);
+    collector.fail("Unsupported path segment '%s' in path '%s'", remaining, fullPath);
     return null;
   }
 }

@@ -1,7 +1,0 @@
----
-spring:
-  application:
-    name: "api-tester-cli"
-logging:
-  level:
-    io.github.snytkine.apitester: "DEBUG"

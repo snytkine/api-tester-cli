@@ -19,7 +19,7 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
-import org.assertj.core.api.SoftAssertions;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 
 /**
  * Evaluates a {@link StatusCodeAssertion} by comparing the response's HTTP status code against the
@@ -42,10 +42,13 @@ class StatusCodeAssertionEvaluator implements AssertionEvaluator {
    * Asserts that the response status code equals the expected value.
    *
    * @param response the captured HTTP response
-   * @param soft the shared soft-assertion collector
+   * @param collector the shared failure collector
    */
   @Override
-  public void evaluate(ApiResponse response, SoftAssertions soft) {
-    soft.assertThat(response.statusCode()).as("HTTP status code").isEqualTo(assertion.expected());
+  public void evaluate(ApiResponse response, FailureCollector collector) {
+    collector
+        .assertThat(response.statusCode())
+        .as("HTTP status code")
+        .isEqualTo(assertion.expected());
   }
 }

@@ -23,10 +23,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.MultipleFailuresError;
 
@@ -90,20 +90,20 @@ class JsonSchemaAssertionEvaluatorTest {
     ApiResponse response =
         responseWithJson("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
   void objectMissingRequiredFieldRecordsSchemaViolation() {
     ApiResponse response = responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice"));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll)
+    assertThatThrownBy(collector::assertAll)
         .isInstanceOf(MultipleFailuresError.class)
         .hasMessageContaining("JSON schema violation");
   }
@@ -114,10 +114,10 @@ class JsonSchemaAssertionEvaluatorTest {
         responseWithJson(
             "{\"name\":\"Alice\",\"age\":\"thirty\"}", Map.of("name", "Alice", "age", "thirty"));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll)
+    assertThatThrownBy(collector::assertAll)
         .isInstanceOf(MultipleFailuresError.class)
         .hasMessageContaining("JSON schema violation");
   }
@@ -127,30 +127,31 @@ class JsonSchemaAssertionEvaluatorTest {
     String text = "[{\"id\":1},{\"id\":2}]";
     Object json = List.of(Map.of("id", 1), Map.of("id", 2));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json", ARRAY_SCHEMA).evaluate(responseWithJson(text, json), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json", ARRAY_SCHEMA)
+        .evaluate(responseWithJson(text, json), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
   void draft2020SchemaIsRecognisedAndUsedCorrectly() {
     ApiResponse response = responseWithJson("{\"id\":\"abc\"}", Map.of("id", "abc"));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_2020).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json", OBJECT_SCHEMA_2020).evaluate(response, collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
   void nullBodyRecordsFailure() {
     ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -158,10 +159,10 @@ class JsonSchemaAssertionEvaluatorTest {
     ApiResponse response =
         responseWithJson("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("invalid.path", OBJECT_SCHEMA_DRAFT7).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("invalid.path", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll)
+    assertThatThrownBy(collector::assertAll)
         .isInstanceOf(MultipleFailuresError.class)
         .hasMessageContaining("response.");
   }
@@ -172,10 +173,10 @@ class JsonSchemaAssertionEvaluatorTest {
     Object json = Map.of("data", Map.of("id", "abc"));
     ApiResponse response = responseWithJson(text, json);
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluatorFor("response.body.json.$.data", OBJECT_SCHEMA_2020).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluatorFor("response.body.json.$.data", OBJECT_SCHEMA_2020).evaluate(response, collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -189,9 +190,9 @@ class JsonSchemaAssertionEvaluatorTest {
 
     ApiResponse response = responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice"));
 
-    SoftAssertions soft = new SoftAssertions();
-    ev.evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    ev.evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 }

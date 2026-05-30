@@ -21,8 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.StringMatchAssertion;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.Map;
-import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.MultipleFailuresError;
 
@@ -50,10 +50,10 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.headers.content-type", "application/json", true));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -62,10 +62,11 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.headers.content-type", "application/json", true));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json;charset=UTF-8"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(
+        responseWithHeader("content-type", "application/json;charset=UTF-8"), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -74,10 +75,10 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.headers.content-type", "APPLICATION/JSON", false));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -86,10 +87,10 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.headers.content-type", "APPLICATION/JSON", true));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -98,10 +99,10 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.headers.content-type", "APPLICATION/JSON", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -110,10 +111,10 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.statusCode", "200", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithStatus(200), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithStatus(200), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -122,10 +123,10 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.body.text", "hello world", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithBodyText("hello world"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithBodyText("hello world"), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -134,12 +135,12 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.body.json.$.name", "Alice", null));
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator.evaluate(
         responseWithJsonBody("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30)),
-        soft);
+        collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -148,10 +149,11 @@ class StringMatchAssertionEvaluatorTest {
         new StringMatchAssertionEvaluator(
             new StringMatchAssertion("response.body.json.$.name", "Bob", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithJsonBody("{\"name\":\"Alice\"}", Map.of("name", "Alice")), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(
+        responseWithJsonBody("{\"name\":\"Alice\"}", Map.of("name", "Alice")), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -159,10 +161,10 @@ class StringMatchAssertionEvaluatorTest {
     var evaluator =
         new StringMatchAssertionEvaluator(new StringMatchAssertion("invalid.path", "value", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithStatus(200), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithStatus(200), collector);
 
-    assertThatThrownBy(soft::assertAll)
+    assertThatThrownBy(collector::assertAll)
         .isInstanceOf(MultipleFailuresError.class)
         .hasMessageContaining("response.");
   }

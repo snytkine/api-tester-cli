@@ -28,17 +28,18 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import lombok.extern.slf4j.Slf4j;
-import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
 import org.opentest4j.AssertionFailedError;
 import org.opentest4j.MultipleFailuresError;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -55,14 +56,16 @@ import org.springframework.web.client.RestClient;
  *
  * <p>Assertions are evaluated via {@link AssertionEvaluatorFactory}, which maps each assertion type
  * to its evaluator. All assertion failures within a single test case are collected by {@link
- * SoftAssertions} and surfaced together rather than stopping at the first failure.
+ * io.github.snytkine.apitester.api_tester_cli.util.FailureCollector} and surfaced together rather
+ * than stopping at the first failure.
  *
  * <p>This class is a thread-safe Spring singleton: all per-invocation state is confined to the call
  * stack of {@link #runConfigurationSuite(TestSuite)}.
  */
 @Service
-@Slf4j
 public class PureJavaTestEngine implements TestEngine {
+
+  private static final Logger log = LoggerFactory.getLogger(PureJavaTestEngine.class);
 
   private final ClientHttpRequestFactory requestFactory;
   private final AssertionEvaluatorFactory evaluatorFactory;
@@ -145,7 +148,7 @@ public class PureJavaTestEngine implements TestEngine {
    * failures from {@code soft.fail("message")} produce an {@code AssertionFailedError} with no
    * defined actual/expected, so both fields are {@code null} in that case.
    *
-   * @param e the composite error from {@link SoftAssertions#assertAll()}
+   * @param e the composite error from {@link FailureCollector#assertAll()}
    * @return a non-empty list of individual {@link AssertionFailure} records
    */
   private List<AssertionFailure> extractFailures(MultipleFailuresError e) {
@@ -199,7 +202,9 @@ public class PureJavaTestEngine implements TestEngine {
     ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
     log.debug("Test case '{}' received status: {}", config.name(), apiResponse.statusCode());
 
-    SoftAssertions.assertSoftly(soft -> evaluators.forEach(e -> e.evaluate(apiResponse, soft)));
+    FailureCollector collector = new FailureCollector();
+    evaluators.forEach(e -> e.evaluate(apiResponse, collector));
+    collector.assertAll();
   }
 
   /**

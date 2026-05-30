@@ -23,11 +23,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.MultipleFailuresError;
 
@@ -60,20 +60,20 @@ class JsonMatchAssertionEvaluatorTest {
     json.put("name", "Alice");
     json.put("age", 30);
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator("{\"name\":\"Alice\",\"age\":30}", List.of())
-        .evaluate(responseWithJson("{\"name\":\"Alice\",\"age\":30}", json), soft);
+        .evaluate(responseWithJson("{\"name\":\"Alice\",\"age\":30}", json), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
   void objectBodyMismatchFails() {
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator("{\"name\":\"Bob\"}", List.of())
-        .evaluate(responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice")), soft);
+        .evaluate(responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice")), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -81,11 +81,11 @@ class JsonMatchAssertionEvaluatorTest {
     String jsonText = "[{\"id\":1},{\"id\":2}]";
     Object json = List.of(Map.of("id", 1), Map.of("id", 2));
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator("[{\"id\":1},{\"id\":2}]", List.of())
-        .evaluate(responseWithJson(jsonText, json), soft);
+        .evaluate(responseWithJson(jsonText, json), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -94,11 +94,11 @@ class JsonMatchAssertionEvaluatorTest {
     Object actualJson = Map.of("name", "Alice", "timestamp", "2026-01-01T00:00:00Z");
     String expectedContent = "{\"name\":\"Alice\",\"timestamp\":\"different-value\"}";
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator(expectedContent, List.of("timestamp"))
-        .evaluate(responseWithJson(actualText, actualJson), soft);
+        .evaluate(responseWithJson(actualText, actualJson), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -107,31 +107,31 @@ class JsonMatchAssertionEvaluatorTest {
     Object actualJson = List.of(Map.of("id", 1, "ts", "old"), Map.of("id", 2, "ts", "also-old"));
     String expectedContent = "[{\"id\":1,\"ts\":\"ignored\"},{\"id\":2,\"ts\":\"also-ignored\"}]";
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator(expectedContent, List.of("ts"))
-        .evaluate(responseWithJson(actualText, actualJson), soft);
+        .evaluate(responseWithJson(actualText, actualJson), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
   void nullBodyRecordsFailure() {
     ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator("{\"name\":\"Alice\"}", List.of()).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator("{\"name\":\"Alice\"}", List.of()).evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
   void bodyWithNullJsonRecordsFailure() {
     ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("not-json", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator("{\"name\":\"Alice\"}", List.of()).evaluate(response, soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator("{\"name\":\"Alice\"}", List.of()).evaluate(response, collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -143,10 +143,10 @@ class JsonMatchAssertionEvaluatorTest {
     JsonMatchAssertionEvaluator ev =
         new JsonMatchAssertionEvaluator(assertion, tmpDir, OBJECT_MAPPER, Map.of(), Map.of());
 
-    SoftAssertions soft = new SoftAssertions();
-    ev.evaluate(responseWithJson("{\"a\":1}", Map.of("a", 1)), soft);
+    FailureCollector collector = new FailureCollector();
+    ev.evaluate(responseWithJson("{\"a\":1}", Map.of("a", 1)), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -154,11 +154,11 @@ class JsonMatchAssertionEvaluatorTest {
     Map<String, String> suiteVars = Map.of("userId", "42");
     String template = "{\"id\":\"[[${suite.variables.userId}]]\"}";
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator(template, List.of(), suiteVars, Map.of())
-        .evaluate(responseWithJson("{\"id\":\"42\"}", Map.of("id", "42")), soft);
+        .evaluate(responseWithJson("{\"id\":\"42\"}", Map.of("id", "42")), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -166,10 +166,10 @@ class JsonMatchAssertionEvaluatorTest {
     Map<String, String> testVars = Map.of("token", "abc123");
     String template = "{\"token\":\"[[${variables.token}]]\"}";
 
-    SoftAssertions soft = new SoftAssertions();
+    FailureCollector collector = new FailureCollector();
     evaluator(template, List.of(), Map.of(), testVars)
-        .evaluate(responseWithJson("{\"token\":\"abc123\"}", Map.of("token", "abc123")), soft);
+        .evaluate(responseWithJson("{\"token\":\"abc123\"}", Map.of("token", "abc123")), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 }

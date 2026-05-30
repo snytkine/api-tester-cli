@@ -24,15 +24,16 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
-import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Evaluates a {@link JsonMatchAssertion} by comparing the response's JSON body to an expected JSON
@@ -46,8 +47,9 @@ import org.jspecify.annotations.Nullable;
  * <p>Current limitation: only top-level field names are supported in the ignore list. Nested
  * JSONPath expressions are not yet evaluated.
  */
-@Slf4j
 class JsonMatchAssertionEvaluator implements AssertionEvaluator {
+
+  private static final Logger log = LoggerFactory.getLogger(JsonMatchAssertionEvaluator.class);
 
   private final JsonMatchAssertion assertion;
   @Nullable private final Path suiteDir;
@@ -81,15 +83,15 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
 
   /**
    * Compares the response JSON body to the expected JSON document, recording any mismatch in {@code
-   * soft}.
+   * collector}.
    *
    * @param response the captured HTTP response
-   * @param soft the shared soft-assertion collector
+   * @param collector the shared failure collector
    */
   @Override
-  public void evaluate(ApiResponse response, SoftAssertions soft) {
+  public void evaluate(ApiResponse response, FailureCollector collector) {
     if (response.body() == null || response.body().json() == null) {
-      soft.fail("Response body is absent or not valid JSON for json_match assertion");
+      collector.fail("Response body is absent or not valid JSON for json_match assertion");
       return;
     }
 
@@ -97,7 +99,7 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
     try {
       expectedJson = loadContent(assertion.expected());
     } catch (IOException e) {
-      soft.fail(
+      collector.fail(
           "Failed to load expected JSON content '%s': %s",
           assertion.expected().content(), e.getMessage());
       return;
@@ -113,11 +115,12 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
       String actualSerialized = objectMapper.writeValueAsString(actualNode);
       String expectedSerialized = objectMapper.writeValueAsString(expectedNode);
 
-      soft.assertThat(actualSerialized)
+      collector
+          .assertThat(actualSerialized)
           .as("JSON body match (ignoring: %s)", assertion.expected().ignore())
           .isEqualTo(expectedSerialized);
     } catch (Exception e) {
-      soft.fail("Failed to compare JSON bodies: %s", e.getMessage());
+      collector.fail("Failed to compare JSON bodies: %s", e.getMessage());
     }
   }
 

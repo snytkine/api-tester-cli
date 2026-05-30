@@ -17,15 +17,14 @@
 package io.github.snytkine.apitester.api_tester_cli.interfaces;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import org.assertj.core.api.SoftAssertions;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 
 /**
  * Contract for evaluating a single assertion against a captured HTTP response.
  *
  * <p>Implementations receive a fully-resolved {@link ApiResponse} and a shared {@link
- * SoftAssertions} collector. All assertion failures must be reported through {@code soft} rather
- * than thrown directly so that every assertion in a test case is evaluated before failures are
- * surfaced.
+ * FailureCollector}. All assertion failures must be reported through the collector rather than
+ * thrown directly so that every assertion in a test case is evaluated before failures are surfaced.
  *
  * <p>Implementations must be stateless — all input comes through method parameters — so they are
  * safe to call concurrently across multiple test suite runs.
@@ -34,10 +33,11 @@ import org.assertj.core.api.SoftAssertions;
 public interface AssertionEvaluator {
 
   /**
-   * Evaluates this assertion against the given response, recording any failures in {@code soft}.
+   * Evaluates this assertion against the given response, recording any failures in {@code
+   * collector}.
    *
    * @param response the captured HTTP response to assert against
-   * @param soft the shared soft-assertion collector for this test case
+   * @param collector the shared failure collector for this test case
    */
-  void evaluate(ApiResponse response, SoftAssertions soft);
+  void evaluate(ApiResponse response, FailureCollector collector);
 }

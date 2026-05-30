@@ -21,8 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.StringContainsAssertion;
+import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.Map;
-import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.Test;
 import org.opentest4j.MultipleFailuresError;
 
@@ -46,10 +46,11 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("response.headers.content-type", "application/json", true));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json;charset=UTF-8"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(
+        responseWithHeader("content-type", "application/json;charset=UTF-8"), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -58,10 +59,10 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("response.headers.content-type", "text/html", true));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -71,10 +72,11 @@ class StringContainsAssertionEvaluatorTest {
             new StringContainsAssertion(
                 "response.headers.content-type", "APPLICATION/JSON", false));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json;charset=UTF-8"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(
+        responseWithHeader("content-type", "application/json;charset=UTF-8"), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -83,10 +85,10 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("response.headers.content-type", "APPLICATION/JSON", true));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -96,10 +98,10 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("response.headers.content-type", "APPLICATION/JSON", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithHeader("content-type", "application/json"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
 
-    assertThatThrownBy(soft::assertAll).isInstanceOf(MultipleFailuresError.class);
+    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
   }
 
   @Test
@@ -108,10 +110,10 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("response.statusCode", "20", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithStatus(200), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithStatus(200), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -120,10 +122,10 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("response.body.text", "hello", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithBodyText("say hello world"), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithBodyText("say hello world"), collector);
 
-    assertThatCode(soft::assertAll).doesNotThrowAnyException();
+    assertThatCode(collector::assertAll).doesNotThrowAnyException();
   }
 
   @Test
@@ -132,10 +134,10 @@ class StringContainsAssertionEvaluatorTest {
         new StringContainsAssertionEvaluator(
             new StringContainsAssertion("invalid.path", "value", null));
 
-    SoftAssertions soft = new SoftAssertions();
-    evaluator.evaluate(responseWithStatus(200), soft);
+    FailureCollector collector = new FailureCollector();
+    evaluator.evaluate(responseWithStatus(200), collector);
 
-    assertThatThrownBy(soft::assertAll)
+    assertThatThrownBy(collector::assertAll)
         .isInstanceOf(MultipleFailuresError.class)
         .hasMessageContaining("response.");
   }
