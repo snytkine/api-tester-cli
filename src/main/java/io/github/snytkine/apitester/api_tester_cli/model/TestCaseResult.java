@@ -32,6 +32,9 @@ public record TestCaseResult(
     /** {@code true} if all assertions passed, {@code false} otherwise. */
     boolean passed,
 
+    /** Number of assertions that passed for this test case. */
+    int passedAssertions,
+
     /**
      * Individual failures collected during assertion evaluation. Empty when {@code passed} is
      * {@code true}. For non-assertion errors (e.g. network failures) this contains a single entry

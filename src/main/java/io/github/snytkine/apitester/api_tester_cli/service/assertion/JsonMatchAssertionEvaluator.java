@@ -16,16 +16,20 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
@@ -48,6 +52,8 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
   private final JsonMatchAssertion assertion;
   @Nullable private final Path suiteDir;
   private final ObjectMapper objectMapper;
+  private final Map<String, String> suiteVariables;
+  private final Map<String, String> testVariables;
 
   /**
    * Constructs the evaluator for the given assertion.
@@ -56,12 +62,21 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
    * @param suiteDir directory of the test-suite file, used to resolve relative expected-file paths;
    *     may be {@code null} when the suite was not loaded from disk
    * @param objectMapper the Jackson mapper used to parse and compare JSON trees
+   * @param suiteVariables resolved suite-level variables forwarded to the Thymeleaf template
+   *     processor when the expected file contains template expressions
+   * @param testVariables test-case-level variables forwarded to the Thymeleaf template processor
    */
   JsonMatchAssertionEvaluator(
-      JsonMatchAssertion assertion, @Nullable Path suiteDir, ObjectMapper objectMapper) {
+      JsonMatchAssertion assertion,
+      @Nullable Path suiteDir,
+      ObjectMapper objectMapper,
+      Map<String, String> suiteVariables,
+      Map<String, String> testVariables) {
     this.assertion = assertion;
     this.suiteDir = suiteDir;
     this.objectMapper = objectMapper;
+    this.suiteVariables = suiteVariables;
+    this.testVariables = testVariables;
   }
 
   /**
@@ -89,8 +104,8 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
     }
 
     try {
-      ObjectNode actualNode = (ObjectNode) objectMapper.valueToTree(response.body().json());
-      ObjectNode expectedNode = (ObjectNode) objectMapper.readTree(expectedJson);
+      JsonNode actualNode = objectMapper.valueToTree(response.body().json());
+      JsonNode expectedNode = objectMapper.readTree(expectedJson);
 
       removeIgnoredFields(actualNode, assertion.expected().ignore());
       removeIgnoredFields(expectedNode, assertion.expected().ignore());
@@ -108,34 +123,54 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
 
   /**
    * Loads the expected JSON content from an inline string or from a file relative to the suite
-   * directory.
+   * directory, then processes the result as a Thymeleaf TEXT-mode template.
+   *
+   * <p>Template expressions in the expected JSON (e.g. {@code [[${suite.variables.userId}]]}) are
+   * resolved against the suite- and test-level variables supplied at construction time. Content
+   * without any template expressions is returned unchanged.
    *
    * @param expected the content reference from the assertion
-   * @return the raw expected JSON string
+   * @return the template-processed expected JSON string
    * @throws IOException if the file cannot be read
    * @throws IllegalStateException if {@code type} is {@code file} but {@code suiteDir} is null
    */
   private String loadContent(ObjectExpectedValue expected) throws IOException {
+    String raw;
     if ("file".equals(expected.type())) {
       if (suiteDir == null) {
         throw new IllegalStateException(
             "Suite directory is required to resolve file reference: " + expected.content());
       }
-      return Files.readString(suiteDir.resolve(expected.content()));
+      raw = Files.readString(suiteDir.resolve(expected.content()));
+    } else {
+      raw = expected.content();
     }
-    return expected.content();
+    return FileLoader.parseFile(raw, suiteVariables, testVariables);
   }
 
   /**
-   * Removes the named top-level fields from a JSON object node in place.
+   * Removes the named fields from a {@link JsonNode} in place.
    *
-   * @param node the object node to modify
-   * @param fields the field names to remove
+   * <p>For an {@link ObjectNode} the fields are removed from the top level. For an {@link
+   * ArrayNode} the fields are removed from each object element, allowing ignore lists to work on
+   * array responses whose elements share common volatile fields.
+   *
+   * @param node the JSON node to modify
+   * @param fields the field names to remove; no-op when {@code null} or empty
    */
-  private void removeIgnoredFields(ObjectNode node, @Nullable List<String> fields) {
+  private void removeIgnoredFields(JsonNode node, @Nullable List<String> fields) {
     if (fields == null || fields.isEmpty()) {
       return;
     }
-    fields.forEach(node::remove);
+    if (node instanceof ObjectNode objectNode) {
+      fields.forEach(objectNode::remove);
+    } else if (node instanceof ArrayNode arrayNode) {
+      arrayNode.forEach(
+          element -> {
+            if (element instanceof ObjectNode objectElement) {
+              fields.forEach(objectElement::remove);
+            }
+          });
+    }
   }
 }

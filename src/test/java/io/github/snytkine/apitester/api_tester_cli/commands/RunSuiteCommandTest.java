@@ -89,7 +89,7 @@ class RunSuiteCommandTest {
   void runSuitePassesResolvedVariablesToEngine() throws Exception {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
     TestRunResult fakeResult =
-        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, List.of())));
+        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
     when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
 
     command.runSuite(
@@ -102,7 +102,7 @@ class RunSuiteCommandTest {
   void runSuiteInvokesEngineEvenWithNoVariables() throws Exception {
     String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
     TestRunResult fakeResult =
-        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, List.of())));
+        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
     when(mockEngine.runConfigurationSuite(any())).thenReturn(fakeResult);
 
     command.runSuite(suite, buildContext());

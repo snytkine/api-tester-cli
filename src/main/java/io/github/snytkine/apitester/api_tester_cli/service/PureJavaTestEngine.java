@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
@@ -98,6 +99,8 @@ public class PureJavaTestEngine implements TestEngine {
   public TestRunResult runConfigurationSuite(TestSuite testSuite) {
     RestClient restClient = buildRestClient(testSuite.restClientConfig());
     Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
+    Map<String, String> suiteVariables =
+        Objects.requireNonNullElse(testSuite.variables(), Map.of());
 
     long passedCount = 0;
     long failedCount = 0;
@@ -105,12 +108,14 @@ public class PureJavaTestEngine implements TestEngine {
 
     for (TestCase config : testSuite.tests()) {
       try {
-        executeSingleTest(restClient, config, suiteDir);
+        executeSingleTest(restClient, config, suiteDir, suiteVariables);
         passedCount++;
-        results.add(new TestCaseResult(config.name(), true, List.of()));
+        results.add(new TestCaseResult(config.name(), true, config.assertions().size(), List.of()));
       } catch (MultipleFailuresError e) {
         failedCount++;
-        results.add(new TestCaseResult(config.name(), false, extractFailures(e)));
+        List<AssertionFailure> failures = extractFailures(e);
+        int passedAssertions = config.assertions().size() - failures.size();
+        results.add(new TestCaseResult(config.name(), false, passedAssertions, failures));
         log.debug(
             "Test case '{}' failed with {} assertion failure(s)",
             config.name(),
@@ -119,7 +124,10 @@ public class PureJavaTestEngine implements TestEngine {
         failedCount++;
         results.add(
             new TestCaseResult(
-                config.name(), false, List.of(new AssertionFailure(e.getMessage(), null, null))));
+                config.name(),
+                false,
+                0,
+                List.of(new AssertionFailure(e.getMessage(), null, null))));
         log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
       }
     }
@@ -165,8 +173,14 @@ public class PureJavaTestEngine implements TestEngine {
    * @param restClient the configured client for this suite run
    * @param config the test case to execute
    * @param suiteDir the directory of the suite file, or {@code null} if unavailable
+   * @param suiteVariables resolved suite-level variables, forwarded to assertion evaluators that
+   *     process expected content as Thymeleaf templates
    */
-  private void executeSingleTest(RestClient restClient, TestCase config, @Nullable Path suiteDir) {
+  private void executeSingleTest(
+      RestClient restClient,
+      TestCase config,
+      @Nullable Path suiteDir,
+      Map<String, String> suiteVariables) {
     log.debug(
         "Executing test case '{}': {} {}",
         config.name(),
@@ -176,8 +190,11 @@ public class PureJavaTestEngine implements TestEngine {
     RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config);
     RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
+    Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
     List<AssertionEvaluator> evaluators =
-        config.assertions().stream().map(a -> evaluatorFactory.create(a, suiteDir)).toList();
+        config.assertions().stream()
+            .map(a -> evaluatorFactory.create(a, suiteDir, suiteVariables, testVariables))
+            .toList();
 
     ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
     log.debug("Test case '{}' received status: {}", config.name(), apiResponse.statusCode());

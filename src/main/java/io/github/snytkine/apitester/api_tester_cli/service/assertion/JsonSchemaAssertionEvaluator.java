@@ -16,29 +16,59 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jayway.jsonpath.JsonPath;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersion;
+import com.networknt.schema.ValidationMessage;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.assertj.core.api.SoftAssertions;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Evaluates a {@link JsonSchemaAssertion} by validating the response body against a JSON Schema.
+ * Evaluates a {@link JsonSchemaAssertion} by validating a portion of the HTTP response against a
+ * JSON Schema document loaded from a file or supplied inline.
  *
- * <p>JSON Schema validation requires a dedicated validator library (e.g. {@code
- * networknt/json-schema-validator}) which is not yet on the classpath. Until that dependency is
- * added this evaluator records a soft assertion failure with a clear "not yet implemented" message
- * so the test case is marked failed rather than silently passing.
+ * <p>The schema version is detected automatically from the {@code $schema} keyword in the schema
+ * document, supporting Draft 4, 6, 7, 2019-09, and 2020-12. When {@code $schema} is absent, Draft 7
+ * is used as the default.
+ *
+ * <p>The {@code path} field on the assertion follows the same {@code response.*} convention as
+ * {@link JsonPathAssertionEvaluator}:
+ *
+ * <ul>
+ *   <li>{@code response.body.json} — validate the entire parsed JSON body
+ *   <li>{@code response.body.json.<jsonpath>} — validate the value at the given JSONPath expression
+ * </ul>
+ *
+ * <p>Each schema violation is recorded as an individual soft-assertion failure rather than stopping
+ * at the first error, giving the caller a complete picture of all schema violations in one run.
+ *
+ * <p>This class is package-private and instantiated by {@link AssertionEvaluatorFactory}. It is not
+ * a Spring bean; a new instance is created per test case. All state is immutable after
+ * construction, so instances are safe to use from multiple threads if shared, though in practice
+ * each test case owns its own instance.
  */
 @Slf4j
 class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
 
-  private final JsonSchemaAssertion assertion;
+  private static final String RESPONSE_PREFIX = "response.";
+  private static final String BODY_JSON = "body.json";
+  private static final String BODY_JSON_DOT = "body.json.";
 
-  @SuppressWarnings("unused")
+  private final JsonSchemaAssertion assertion;
   @Nullable private final Path suiteDir;
+  private final ObjectMapper objectMapper;
 
   /**
    * Constructs the evaluator for the given assertion.
@@ -46,25 +76,136 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
    * @param assertion the json_schema assertion to evaluate
    * @param suiteDir directory of the test-suite file, used to resolve relative schema file paths;
    *     may be {@code null} when the suite was not loaded from disk
+   * @param objectMapper the Jackson mapper used to parse the schema and convert response values to
+   *     {@link JsonNode} for validation
    */
-  JsonSchemaAssertionEvaluator(JsonSchemaAssertion assertion, @Nullable Path suiteDir) {
+  JsonSchemaAssertionEvaluator(
+      JsonSchemaAssertion assertion, @Nullable Path suiteDir, ObjectMapper objectMapper) {
     this.assertion = assertion;
     this.suiteDir = suiteDir;
+    this.objectMapper = objectMapper;
   }
 
   /**
-   * Records a soft assertion failure indicating that JSON Schema validation is not yet implemented.
+   * Validates the response value at {@code assertion.path()} against the JSON Schema specified by
+   * {@code assertion.expected()}, recording each schema violation as a separate soft-assertion
+   * failure.
    *
-   * @param response the captured HTTP response (unused until implementation is complete)
+   * @param response the captured HTTP response
    * @param soft the shared soft-assertion collector
    */
   @Override
   public void evaluate(ApiResponse response, SoftAssertions soft) {
-    log.warn(
-        "JSON schema validation is not yet implemented for assertion with schema '{}'",
-        assertion.expected().content());
-    soft.fail(
-        "JSON schema validation is not yet implemented (schema: '%s')",
-        assertion.expected().content());
+    if (response.body() == null || response.body().json() == null) {
+      soft.fail("Response body is absent or not valid JSON for json_schema assertion");
+      return;
+    }
+
+    JsonNode targetNode = extractTarget(response, soft);
+    if (targetNode == null) {
+      return;
+    }
+
+    String schemaContent;
+    try {
+      schemaContent = loadContent(assertion.expected());
+    } catch (IOException e) {
+      soft.fail("Failed to load schema '%s': %s", assertion.expected().content(), e.getMessage());
+      return;
+    }
+
+    try {
+      JsonNode schemaNode = objectMapper.readTree(schemaContent);
+      JsonSchemaFactory factory = JsonSchemaFactory.getInstance(detectVersion(schemaNode));
+      JsonSchema schema = factory.getSchema(schemaNode);
+      Set<ValidationMessage> errors = schema.validate(targetNode);
+      errors.forEach(error -> soft.fail("JSON schema violation: %s", error.getMessage()));
+    } catch (Exception e) {
+      soft.fail("JSON schema validation failed: %s", e.getMessage());
+    }
+  }
+
+  /**
+   * Extracts the response value to validate based on {@code assertion.path()}.
+   *
+   * <p>Supports {@code response.body.json} (the full parsed body) and {@code
+   * response.body.json.<expr>} (a JSONPath sub-expression). Records a soft failure and returns
+   * {@code null} for unsupported paths.
+   *
+   * @param response the captured HTTP response
+   * @param soft the shared soft-assertion collector
+   * @return the extracted {@link JsonNode}, or {@code null} if the path could not be resolved
+   */
+  @Nullable private JsonNode extractTarget(ApiResponse response, SoftAssertions soft) {
+    String path = assertion.path();
+    if (!path.startsWith(RESPONSE_PREFIX)) {
+      soft.fail("Unsupported path '%s': must start with 'response.'", path);
+      return null;
+    }
+    String remaining = path.substring(RESPONSE_PREFIX.length());
+
+    if (remaining.equals(BODY_JSON)) {
+      return objectMapper.valueToTree(response.body().json());
+    }
+
+    if (remaining.startsWith(BODY_JSON_DOT)) {
+      String jsonPathExpr = remaining.substring(BODY_JSON_DOT.length());
+      if (response.body().text() == null) {
+        soft.fail("Response body text is absent when evaluating path '%s'", path);
+        return null;
+      }
+      try {
+        Object value = JsonPath.read(response.body().text(), jsonPathExpr);
+        return objectMapper.valueToTree(value);
+      } catch (Exception e) {
+        soft.fail(
+            "Failed to extract JSONPath '%s' from response body: %s", jsonPathExpr, e.getMessage());
+        return null;
+      }
+    }
+
+    soft.fail("Unsupported path '%s' for json_schema assertion", path);
+    return null;
+  }
+
+  /**
+   * Detects the JSON Schema version from the {@code $schema} keyword in the parsed schema document.
+   *
+   * <p>Recognises the standard draft URIs for Draft 4, 6, 7, 2019-09, and 2020-12. Returns {@link
+   * SpecVersion.VersionFlag#V7} when the keyword is absent or unrecognised.
+   *
+   * @param schemaNode the parsed schema document
+   * @return the matching {@link SpecVersion.VersionFlag}
+   */
+  private SpecVersion.VersionFlag detectVersion(JsonNode schemaNode) {
+    JsonNode schemaUri = schemaNode.get("$schema");
+    if (schemaUri != null) {
+      String uri = schemaUri.asText();
+      if (uri.contains("2020-12")) return SpecVersion.VersionFlag.V202012;
+      if (uri.contains("2019-09")) return SpecVersion.VersionFlag.V201909;
+      if (uri.contains("draft-07") || uri.contains("draft/07")) return SpecVersion.VersionFlag.V7;
+      if (uri.contains("draft-06") || uri.contains("draft/06")) return SpecVersion.VersionFlag.V6;
+      if (uri.contains("draft-04") || uri.contains("draft/04")) return SpecVersion.VersionFlag.V4;
+    }
+    return SpecVersion.VersionFlag.V7;
+  }
+
+  /**
+   * Loads the schema content from an inline string or from a file relative to the suite directory.
+   *
+   * @param expected the content reference from the assertion
+   * @return the raw schema JSON string
+   * @throws IOException if the file cannot be read
+   * @throws IllegalStateException if {@code type} is {@code file} but {@code suiteDir} is null
+   */
+  private String loadContent(ObjectExpectedValue expected) throws IOException {
+    if ("file".equals(expected.type())) {
+      if (suiteDir == null) {
+        throw new IllegalStateException(
+            "Suite directory is required to resolve file reference: " + expected.content());
+      }
+      return Files.readString(suiteDir.resolve(expected.content()));
+    }
+    return expected.content();
   }
 }

@@ -24,6 +24,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.JsonPathAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
 import java.nio.file.Path;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -61,16 +62,27 @@ public class AssertionEvaluatorFactory {
    * JsonSchemaAssertionEvaluator}). It may be {@code null} when the suite was not loaded from disk,
    * in which case file-reference assertions will record a soft failure rather than throw.
    *
+   * <p>The {@code suiteVariables} and {@code testVariables} maps are forwarded to {@link
+   * JsonMatchAssertionEvaluator} so that expected JSON files can contain Thymeleaf expressions
+   * resolved against suite- and test-level variables.
+   *
    * @param assertion the assertion from the test case
    * @param suiteDir directory of the test-suite YAML file, or {@code null} if unavailable
+   * @param suiteVariables resolved suite-level variables; must not be {@code null}
+   * @param testVariables test-case-level variables; must not be {@code null}
    * @return a matching {@link AssertionEvaluator}
    */
-  public AssertionEvaluator create(Assertion assertion, @Nullable Path suiteDir) {
+  public AssertionEvaluator create(
+      Assertion assertion,
+      @Nullable Path suiteDir,
+      Map<String, String> suiteVariables,
+      Map<String, String> testVariables) {
     return switch (assertion) {
       case StatusCodeAssertion a -> new StatusCodeAssertionEvaluator(a);
       case JsonPathAssertion a -> new JsonPathAssertionEvaluator(a);
-      case JsonSchemaAssertion a -> new JsonSchemaAssertionEvaluator(a, suiteDir);
-      case JsonMatchAssertion a -> new JsonMatchAssertionEvaluator(a, suiteDir, jsonMapper);
+      case JsonSchemaAssertion a -> new JsonSchemaAssertionEvaluator(a, suiteDir, jsonMapper);
+      case JsonMatchAssertion a ->
+          new JsonMatchAssertionEvaluator(a, suiteDir, jsonMapper, suiteVariables, testVariables);
     };
   }
 }
