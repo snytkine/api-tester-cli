@@ -21,11 +21,15 @@ import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.IsNullAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.JsonSchemaAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.NotEmptyAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.NotNullAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
+import io.github.snytkine.apitester.api_tester_cli.model.ResponseTimeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.StringContainsAssertion;
@@ -55,11 +59,15 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
   BodyType.class,
   CliVariables.class,
   HttpMethod.class,
+  IsNullAssertion.class,
   JsonMatchAssertion.class,
   JsonSchemaAssertion.class,
+  NotEmptyAssertion.class,
+  NotNullAssertion.class,
   ObjectExpectedValue.class,
   Request.class,
   RequestBody.class,
+  ResponseTimeAssertion.class,
   RestClientConfig.class,
   StatusCodeAssertion.class,
   StringContainsAssertion.class,

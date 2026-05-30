@@ -89,17 +89,25 @@ public class ResponseResolver {
     RestClient.ResponseSpec spec = responseSpec.onStatus(status -> true, (req, res) -> {});
 
     if (determineLevel(assertions) == ResponseResolutionLevel.STATUS_ONLY) {
+      long startNs = System.nanoTime();
       ResponseEntity<Void> entity = spec.toBodilessEntity();
+      long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;
       return new ApiResponse(
-          entity.getStatusCode().value(), flattenHeaders(entity.getHeaders()), null);
+          entity.getStatusCode().value(),
+          flattenHeaders(entity.getHeaders()),
+          null,
+          responseTimeMs);
     }
 
+    long startNs = System.nanoTime();
     ResponseEntity<String> entity = spec.toEntity(String.class);
+    long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;
     String bodyText = entity.getBody();
     return new ApiResponse(
         entity.getStatusCode().value(),
         flattenHeaders(entity.getHeaders()),
-        new ApiResponse.Body(bodyText, tryParseJson(bodyText)));
+        new ApiResponse.Body(bodyText, tryParseJson(bodyText)),
+        responseTimeMs);
   }
 
   /**

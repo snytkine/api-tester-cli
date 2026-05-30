@@ -22,11 +22,28 @@ import org.jspecify.annotations.Nullable;
 /**
  * Represents the full HTTP response captured after executing a single test case request.
  *
- * <p>Holds the status code, response headers, and a structured {@link Body} that exposes the
- * response payload both as raw text and as a parsed JSON object for use in assertions.
+ * <p>Holds the status code, response headers, a structured {@link Body} that exposes the response
+ * payload both as raw text and as a parsed JSON object, and the round-trip response time in
+ * milliseconds.
  */
 public record ApiResponse(
-    @Nullable Integer statusCode, @Nullable Map<String, String> headers, @Nullable Body body) {
+    @Nullable Integer statusCode,
+    @Nullable Map<String, String> headers,
+    @Nullable Body body,
+    @Nullable Long responseTimeMs) {
+
+  /**
+   * Convenience constructor for use in tests and contexts where response time is not relevant.
+   * Delegates to the canonical constructor with {@code responseTimeMs} set to {@code null}.
+   *
+   * @param statusCode the HTTP status code
+   * @param headers the response headers
+   * @param body the response body, or {@code null} when the body was not consumed
+   */
+  public ApiResponse(
+      @Nullable Integer statusCode, @Nullable Map<String, String> headers, @Nullable Body body) {
+    this(statusCode, headers, body, null);
+  }
 
   /**
    * The response payload in two representations: raw text and a parsed JSON object.
