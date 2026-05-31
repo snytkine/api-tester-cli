@@ -23,6 +23,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
+import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonMatchAssertion;
@@ -197,5 +198,43 @@ class TestSuiteLoaderTest {
         Request request = testSuite.tests().get(0).request();
         assertThat(request.url()).isEqualTo("https://localhost:8080/health");
         assertThat(request.headers().get("x-environment")).isEqualTo("staging");
+    }
+
+    @Test
+    void restClientHeadersAreLoadedWhenPresent() throws Exception {
+        Path path = Path.of(
+                getClass().getResource("/test-suite-rest-client-headers.yml").toURI());
+
+        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+
+        RestClientConfig config = testSuite.restClientConfig();
+        assertThat(config).isNotNull();
+        assertThat(config.headers()).isNotNull();
+        assertThat(config.headers()).containsEntry("x-api-key", "test-key-123");
+        assertThat(config.headers()).containsEntry("Accept", "application/json");
+    }
+
+    @Test
+    void restClientHeadersAreNullWhenAbsentFromYaml() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+
+        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+
+        // TestSuiteLoader always applies withDefaults, so restClientConfig() is never null.
+        // When the YAML has no rest_client.headers key, headers() is null.
+        assertThat(testSuite.restClientConfig()).isNotNull();
+        assertThat(testSuite.restClientConfig().headers()).isNull();
+    }
+
+    @Test
+    void withDefaultsProducesNullHeadersWhenRestClientHasNoHeadersKey() throws Exception {
+        Path path = Path.of(
+                getClass().getResource("/test-suite-rest-client-headers.yml").toURI());
+
+        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+
+        RestClientConfig withDefaults = RestClientConfig.withDefaults(testSuite.restClientConfig());
+        assertThat(withDefaults.headers()).isNotNull();
+        assertThat(withDefaults.headers()).containsEntry("x-api-key", "test-key-123");
     }
 }

@@ -1,0 +1,619 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "test-suite-schema.json",
+  "title": "Test Suite",
+  "description": "Defines a suite of HTTP API tests",
+  "type": "object",
+  "required": ["name", "tests"],
+  "additionalProperties": false,
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Name of the test suite"
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional description of the test suite"
+    },
+    "rest_client": {
+      "type": "object",
+      "description": "Optional HTTP client settings applied to all requests in the suite",
+      "additionalProperties": false,
+      "properties": {
+        "base_url": {
+          "type": "string",
+          "description": "Base URL prepended to all relative request URLs in the suite"
+        },
+        "connect_timeout": {
+          "type": "integer",
+          "description": "Connection timeout in milliseconds",
+          "minimum": 0
+        },
+        "headers": {
+          "type": "object",
+          "description": "Optional default HTTP headers sent with every request in the suite",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "variables": {
+      "type": "object",
+      "description": "Suite-level key-value pairs available for substitution across all test cases",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "tests": {
+      "type": "array",
+      "description": "List of test cases to execute",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/TestCase"
+      }
+    }
+  },
+  "$defs": {
+    "TestCase": {
+      "type": "object",
+      "required": ["name", "request", "assertions"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the test case"
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional description of what this test verifies"
+        },
+        "variables": {
+          "type": "object",
+          "description": "Key-value pairs available for substitution in the request",
+          "additionalProperties": true
+        },
+        "request": {
+          "$ref": "#/$defs/Request"
+        },
+        "assertions": {
+          "type": "array",
+          "description": "Assertions to evaluate against the response",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/Assertion"
+          }
+        }
+      }
+    },
+    "Request": {
+      "type": "object",
+      "required": ["method", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "description": "HTTP method",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE"]
+        },
+        "url": {
+          "type": "string",
+          "description": "Target URL or path (relative to rest_client.base_url when set)"
+        },
+        "headers": {
+          "type": "object",
+          "description": "HTTP headers to include in the request",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "$ref": "#/$defs/RequestBody"
+        }
+      }
+    },
+    "RequestBody": {
+      "type": "object",
+      "required": ["type", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "How to interpret the body content: 'file' loads from a path relative to the suite file and processes it as a Thymeleaf template; 'string' sends the content as a literal string without template processing",
+          "enum": ["string", "file", "json", "xml", "form-data"]
+        },
+        "content": {
+          "type": "string",
+          "description": "Body content (for type 'string') or relative file path (for type 'file')"
+        }
+      }
+    },
+    "ContentReference": {
+      "type": "object",
+      "required": ["type", "content"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "How to interpret the content: 'file' loads from a path relative to the suite file; 'string' is inline content",
+          "enum": ["string", "file"]
+        },
+        "content": {
+          "type": "string",
+          "description": "Inline content (for type 'string') or relative file path (for type 'file')"
+        },
+        "ignore": {
+          "type": "array",
+          "description": "Top-level field names to exclude from the JSON comparison (json_match only)",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Scalar": {
+      "description": "A scalar JSON value: string, number, or boolean",
+      "oneOf": [
+        {"type": "string"},
+        {"type": "number"},
+        {"type": "boolean"}
+      ]
+    },
+    "Assertion": {
+      "description": "An assertion to evaluate against the HTTP response",
+      "oneOf": [
+        {"$ref": "#/$defs/StatusCodeAssertion"},
+        {"$ref": "#/$defs/StatusInAssertion"},
+        {"$ref": "#/$defs/ResponseTimeAssertion"},
+        {"$ref": "#/$defs/HasHeaderAssertion"},
+        {"$ref": "#/$defs/NotNullAssertion"},
+        {"$ref": "#/$defs/IsNullAssertion"},
+        {"$ref": "#/$defs/NotEmptyAssertion"},
+        {"$ref": "#/$defs/AssertTrueAssertion"},
+        {"$ref": "#/$defs/AssertFalseAssertion"},
+        {"$ref": "#/$defs/StringMatchAssertion"},
+        {"$ref": "#/$defs/StringContainsAssertion"},
+        {"$ref": "#/$defs/StartsWithAssertion"},
+        {"$ref": "#/$defs/EndsWithAssertion"},
+        {"$ref": "#/$defs/RegexMatchAssertion"},
+        {"$ref": "#/$defs/GreaterThanAssertion"},
+        {"$ref": "#/$defs/LessThanAssertion"},
+        {"$ref": "#/$defs/GreaterThanOrEqualAssertion"},
+        {"$ref": "#/$defs/LessThanOrEqualAssertion"},
+        {"$ref": "#/$defs/RangeAssertion"},
+        {"$ref": "#/$defs/ValueTypeAssertion"},
+        {"$ref": "#/$defs/OneOfAssertion"},
+        {"$ref": "#/$defs/ArraySizeAssertion"},
+        {"$ref": "#/$defs/ArraySizeMinAssertion"},
+        {"$ref": "#/$defs/ArraySizeMaxAssertion"},
+        {"$ref": "#/$defs/ArrayContainsAssertion"},
+        {"$ref": "#/$defs/ArrayContainsAllAssertion"},
+        {"$ref": "#/$defs/ArrayIsEmptyAssertion"},
+        {"$ref": "#/$defs/ArrayIsNotEmptyAssertion"},
+        {"$ref": "#/$defs/JsonMatchAssertion"},
+        {"$ref": "#/$defs/JsonSchemaAssertion"}
+      ]
+    },
+    "StatusCodeAssertion": {
+      "type": "object",
+      "description": "Asserts that the HTTP response status code equals the expected value",
+      "required": ["type", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "status_code"},
+        "expected": {
+          "type": "integer",
+          "description": "Expected HTTP status code",
+          "minimum": 100,
+          "maximum": 599
+        }
+      }
+    },
+    "StatusInAssertion": {
+      "type": "object",
+      "description": "Asserts that the HTTP response status code is one of the expected values",
+      "required": ["type", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "status_in"},
+        "expected": {
+          "type": "array",
+          "description": "Acceptable HTTP status codes",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          }
+        }
+      }
+    },
+    "ResponseTimeAssertion": {
+      "type": "object",
+      "description": "Asserts that the response was received within the specified number of milliseconds",
+      "required": ["type", "milliseconds"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "response_time"},
+        "milliseconds": {
+          "type": "integer",
+          "description": "Maximum acceptable response time in milliseconds",
+          "minimum": 1
+        }
+      }
+    },
+    "HasHeaderAssertion": {
+      "type": "object",
+      "description": "Asserts that the response includes a header with the given name",
+      "required": ["type", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "has_header"},
+        "name": {
+          "type": "string",
+          "description": "Header name to check for (case-insensitive)"
+        }
+      }
+    },
+    "NotNullAssertion": {
+      "type": "object",
+      "description": "Asserts that the value at the given path is not null",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "not_null"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "IsNullAssertion": {
+      "type": "object",
+      "description": "Asserts that the value at the given path is null or absent",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "is_null"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "NotEmptyAssertion": {
+      "type": "object",
+      "description": "Asserts that the value at the given path is not null and, if a string, not empty",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "not_empty"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "AssertTrueAssertion": {
+      "type": "object",
+      "description": "Asserts that the value at the given path is boolean true",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "assert_true"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "AssertFalseAssertion": {
+      "type": "object",
+      "description": "Asserts that the value at the given path is boolean false",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "assert_false"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "StringMatchAssertion": {
+      "type": "object",
+      "description": "Asserts that the string value at the given path equals the expected string",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "string_match"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "string",
+          "description": "Expected string value"
+        },
+        "case_sensitive": {
+          "type": "boolean",
+          "description": "Whether the comparison is case-sensitive (default: true)"
+        }
+      }
+    },
+    "StringContainsAssertion": {
+      "type": "object",
+      "description": "Asserts that the string value at the given path contains the expected substring",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "string_contains"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "string",
+          "description": "Substring that must be present"
+        },
+        "case_sensitive": {
+          "type": "boolean",
+          "description": "Whether the comparison is case-sensitive (default: true)"
+        }
+      }
+    },
+    "StartsWithAssertion": {
+      "type": "object",
+      "description": "Asserts that the string value at the given path starts with the expected prefix",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "starts_with"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "string",
+          "description": "Required prefix"
+        }
+      }
+    },
+    "EndsWithAssertion": {
+      "type": "object",
+      "description": "Asserts that the string value at the given path ends with the expected suffix",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "ends_with"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "string",
+          "description": "Required suffix"
+        }
+      }
+    },
+    "RegexMatchAssertion": {
+      "type": "object",
+      "description": "Asserts that the string value at the given path matches the regular expression",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "regex_match"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "string",
+          "description": "Java regular expression pattern"
+        }
+      }
+    },
+    "GreaterThanAssertion": {
+      "type": "object",
+      "description": "Asserts that the numeric value at the given path is strictly greater than expected",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "greater_than"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "number",
+          "description": "Exclusive lower bound"
+        }
+      }
+    },
+    "LessThanAssertion": {
+      "type": "object",
+      "description": "Asserts that the numeric value at the given path is strictly less than expected",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "less_than"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "number",
+          "description": "Exclusive upper bound"
+        }
+      }
+    },
+    "GreaterThanOrEqualAssertion": {
+      "type": "object",
+      "description": "Asserts that the numeric value at the given path is greater than or equal to expected",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "greater_than_or_equal"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "number",
+          "description": "Inclusive lower bound"
+        }
+      }
+    },
+    "LessThanOrEqualAssertion": {
+      "type": "object",
+      "description": "Asserts that the numeric value at the given path is less than or equal to expected",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "less_than_or_equal"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "number",
+          "description": "Inclusive upper bound"
+        }
+      }
+    },
+    "RangeAssertion": {
+      "type": "object",
+      "description": "Asserts that the numeric value at the given path is between min and max (inclusive)",
+      "required": ["type", "path", "min", "max"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "range"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "min": {
+          "type": "number",
+          "description": "Inclusive lower bound"
+        },
+        "max": {
+          "type": "number",
+          "description": "Inclusive upper bound"
+        }
+      }
+    },
+    "ValueTypeAssertion": {
+      "type": "object",
+      "description": "Asserts that the JSON value at the given path is of the specified type",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "value_type"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "string",
+          "description": "Expected JSON value type",
+          "enum": ["string", "number", "boolean", "array", "object", "null"]
+        }
+      }
+    },
+    "OneOfAssertion": {
+      "type": "object",
+      "description": "Asserts that the value at the given path equals one of the items in the expected array",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "one_of"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "array",
+          "description": "Array of acceptable scalar values",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/Scalar"}
+        }
+      }
+    },
+    "ArraySizeAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path has exactly the expected number of elements",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_size"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "integer",
+          "description": "Expected array length",
+          "minimum": 0
+        }
+      }
+    },
+    "ArraySizeMinAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path has at least min elements",
+      "required": ["type", "path", "min"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_size_min"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "min": {
+          "type": "integer",
+          "description": "Minimum required array length",
+          "minimum": 0
+        }
+      }
+    },
+    "ArraySizeMaxAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path has at most max elements",
+      "required": ["type", "path", "max"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_size_max"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "max": {
+          "type": "integer",
+          "description": "Maximum allowed array length",
+          "minimum": 0
+        }
+      }
+    },
+    "ArrayContainsAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path contains the expected scalar value",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_contains"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "$ref": "#/$defs/Scalar",
+          "description": "Scalar value that must be present in the array"
+        }
+      }
+    },
+    "ArrayContainsAllAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path contains all of the expected scalar values",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_contains_all"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "type": "array",
+          "description": "Scalar values that must all be present in the array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/Scalar"}
+        }
+      }
+    },
+    "ArrayIsEmptyAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path has zero elements",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_is_empty"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "ArrayIsNotEmptyAssertion": {
+      "type": "object",
+      "description": "Asserts that the array at the given path has at least one element",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "array_is_not_empty"},
+        "path": {"$ref": "#/$defs/PathExpression"}
+      }
+    },
+    "JsonMatchAssertion": {
+      "type": "object",
+      "description": "Compares the JSON at the given path to an expected JSON document, with optional field exclusions",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "json_match"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "$ref": "#/$defs/ContentReference",
+          "description": "Reference to the expected JSON document"
+        }
+      }
+    },
+    "JsonSchemaAssertion": {
+      "type": "object",
+      "description": "Validates the JSON at the given path against a JSON Schema document",
+      "required": ["type", "path", "expected"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"type": "string", "const": "json_schema"},
+        "path": {"$ref": "#/$defs/PathExpression"},
+        "expected": {
+          "$ref": "#/$defs/ContentReference",
+          "description": "Reference to the JSON Schema file"
+        }
+      }
+    },
+    "PathExpression": {
+      "type": "string",
+      "description": "Dot-notation path into the response (e.g. 'response.body.json.fieldName' or 'response.headers.content-type')"
+    }
+  }
+}

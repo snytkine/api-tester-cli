@@ -24,6 +24,7 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
@@ -32,6 +33,8 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -211,16 +214,18 @@ public class PureJavaTestEngine implements TestEngine {
      * @param suiteDir the directory of the suite file, or {@code null} if unavailable
      * @param suiteVariables resolved suite-level variables, forwarded to assertion evaluators that
      *     process expected content as Thymeleaf templates
+     * @throws IOException if a file-type request body cannot be read from disk
      */
     private void executeSingleTest(
-            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, String> suiteVariables) {
+            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, String> suiteVariables)
+            throws IOException {
         log.debug(
                 "Executing test case '{}': {} {}",
                 config.name(),
                 config.request().method(),
                 config.request().url());
 
-        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config);
+        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, suiteDir, suiteVariables);
         RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
         Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
@@ -238,13 +243,33 @@ public class PureJavaTestEngine implements TestEngine {
 
     /**
      * Builds a {@link RestClient.RequestBodySpec} from the test case's request definition, applying
-     * headers and logging a warning when a request body is declared but not yet supported.
+     * headers and, when applicable, attaching a resolved request body.
+     *
+     * <p>A body is attached only when both of the following are true:
+     *
+     * <ul>
+     *   <li>The HTTP method normally supports a request body ({@code POST}, {@code PUT}, {@code
+     *       PATCH}, {@code DELETE}).
+     *   <li>The test case declares a non-null {@link RequestBody}.
+     * </ul>
+     *
+     * <p>Body content is resolved via {@link #loadBodyContent}: {@code FILE} bodies are read from
+     * disk relative to the suite directory and processed through the Thymeleaf template engine;
+     * {@code STRING} bodies are used as literal text without any template processing.
      *
      * @param restClient the client to use for building the request
      * @param config the test case whose request is being built
+     * @param suiteDir the directory of the suite file, needed to resolve relative file paths; may be
+     *     {@code null} when the suite was not loaded from disk
+     * @param suiteVariables resolved suite-level variables forwarded to the Thymeleaf template engine
      * @return a fully configured request spec ready for {@link RestClient.RequestBodySpec#retrieve()}
+     * @throws IOException if a {@code FILE}-type body cannot be read from disk
+     * @throws IllegalStateException if a {@code FILE}-type body is declared but {@code suiteDir} is
+     *     {@code null}
      */
-    private RestClient.RequestBodySpec buildRequestSpec(RestClient restClient, TestCase config) {
+    private RestClient.RequestBodySpec buildRequestSpec(
+            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, String> suiteVariables)
+            throws IOException {
         RestClient.RequestBodySpec requestSpec = restClient
                 .method(toSpringHttpMethod(config.request().method()))
                 .uri(config.request().url());
@@ -255,13 +280,77 @@ public class PureJavaTestEngine implements TestEngine {
             }
         }
 
-        // RequestBody is a descriptor (type + file path / inline content).
-        // Body loading from file is not yet implemented.
         if (config.request().body() != null) {
-            log.warn("Request body handling is not yet implemented for test case '{}'; body skipped.", config.name());
+            if (supportsBody(config.request().method())) {
+                Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
+                String content = loadBodyContent(config.request().body(), suiteDir, suiteVariables, testVariables);
+                requestSpec.body(content);
+            } else {
+                log.warn(
+                        "HTTP method {} does not support a request body; body skipped for test case '{}'.",
+                        config.request().method(),
+                        config.name());
+            }
         }
 
         return requestSpec;
+    }
+
+    /**
+     * Returns {@code true} for HTTP methods that conventionally carry a request body.
+     *
+     * @param method the HTTP method to check
+     * @return {@code true} for {@code POST}, {@code PUT}, {@code PATCH}, and {@code DELETE}
+     */
+    static boolean supportsBody(HttpMethod method) {
+        return switch (method) {
+            case POST, PUT, PATCH, DELETE -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Resolves the body content from a {@link RequestBody} descriptor.
+     *
+     * <p>For {@code FILE} bodies the file at {@link RequestBody#content()} is read relative to
+     * {@code suiteDir} and then processed through the Thymeleaf TEXT-mode template engine with the
+     * provided suite and test variables.
+     *
+     * <p>For {@code STRING} bodies the {@link RequestBody#content()} value is returned as-is,
+     * without any template processing.
+     *
+     * @param body the request-body descriptor from the test case
+     * @param suiteDir the directory of the suite file; required when {@code body.type()} is {@code
+     *     FILE}
+     * @param suiteVariables suite-level variables available as {@code ${suite.variables.*}} in
+     *     Thymeleaf expressions
+     * @param testVariables test-case-level variables available as {@code ${variables.*}} in Thymeleaf
+     *     expressions
+     * @return the resolved body string ready to be sent with the HTTP request
+     * @throws IOException if the file cannot be read
+     * @throws IllegalStateException if {@code type} is {@code FILE} but {@code suiteDir} is {@code
+     *     null}
+     * @throws UnsupportedOperationException if the body type is not yet supported
+     */
+    static String loadBodyContent(
+            RequestBody body,
+            @Nullable Path suiteDir,
+            Map<String, String> suiteVariables,
+            Map<String, String> testVariables)
+            throws IOException {
+        return switch (body.type()) {
+            case STRING -> body.content();
+            case FILE -> {
+                if (suiteDir == null) {
+                    throw new IllegalStateException(
+                            "Suite directory is required to resolve file body: " + body.content());
+                }
+                String raw = FileLoader.loadFile(suiteDir, body.content());
+                yield FileLoader.parseFile(raw, suiteVariables, testVariables);
+            }
+            default ->
+                throw new UnsupportedOperationException("Request body type '" + body.type() + "' is not yet supported");
+        };
     }
 
     /**
@@ -270,7 +359,8 @@ public class PureJavaTestEngine implements TestEngine {
      * <p>If {@code config} carries a non-blank {@code baseUrl} it is set as the client's default base
      * URL. When a {@code connectTimeout} is present a new {@link
      * org.springframework.http.client.JdkClientHttpRequestFactory} is created with that timeout,
-     * replacing the injected factory for this suite.
+     * replacing the injected factory for this suite. When {@code headers} is non-null and non-empty
+     * each entry is registered as a default header applied to every request built with this client.
      *
      * @param config the suite-level REST client settings
      * @return a fully configured {@link RestClient} ready for use
@@ -285,6 +375,9 @@ public class PureJavaTestEngine implements TestEngine {
                     java.net.http.HttpClient.newBuilder()
                             .connectTimeout(Duration.ofMillis(config.connectTimeout()))
                             .build()));
+        }
+        if (config.headers() != null) {
+            config.headers().forEach((name, value) -> builder.defaultHeader(name, value));
         }
         return builder.build();
     }

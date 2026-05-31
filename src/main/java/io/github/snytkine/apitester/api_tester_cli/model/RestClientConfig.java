@@ -17,18 +17,20 @@
 package io.github.snytkine.apitester.api_tester_cli.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Optional HTTP client settings declared at the top of a test-suite YAML under the {@code
  * rest_client} key.
  *
- * <p>When present, these values can be used by the test engine to configure the underlying HTTP
- * client (e.g. override the connect timeout or supply a base URL so that individual test cases can
- * use relative paths).
+ * <p>When present, these values configure the underlying HTTP client for the entire suite (e.g. a
+ * base URL so test cases can use relative paths, a connect timeout, or default headers applied to
+ * every request).
  *
- * <p>Use {@link #withDefaults(RestClientConfig)} to obtain a fully populated instance where any
- * missing property is replaced by its default value.
+ * <p>Use {@link #withDefaults(RestClientConfig)} to obtain an instance where {@code baseUrl} and
+ * {@code connectTimeout} are guaranteed non-null. {@code headers} has no default and remains
+ * {@code null} when the {@code headers} key is absent from the YAML.
  */
 public record RestClientConfig(
         /**
@@ -38,7 +40,14 @@ public record RestClientConfig(
         @JsonProperty("base_url") String baseUrl,
 
         /** Connection timeout in milliseconds. Defaults to {@value #DEFAULT_CONNECT_TIMEOUT_MS}. */
-        @JsonProperty("connect_timeout") Integer connectTimeout) {
+        @JsonProperty("connect_timeout") Integer connectTimeout,
+
+        /**
+         * Default HTTP headers added to every request in the suite. Individual test-case headers take
+         * precedence when the same header name appears in both places. May be {@code null} when the
+         * {@code headers} key is absent from the YAML.
+         */
+        @JsonProperty("headers") @Nullable Map<String, String> headers) {
 
     /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
     public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
@@ -47,21 +56,26 @@ public record RestClientConfig(
     public static final String DEFAULT_BASE_URL = "";
 
     /**
-     * Returns a {@link RestClientConfig} with every {@code null} field replaced by its default value.
+     * Returns a {@link RestClientConfig} with {@code baseUrl} and {@code connectTimeout} guaranteed
+     * non-null.
      *
      * <p>If {@code raw} is {@code null} (i.e. the {@code rest_client} key was absent from the YAML),
      * a fully-defaulted instance is returned. Otherwise the non-null fields of {@code raw} are
-     * preserved and only the missing ones are filled in.
+     * preserved and only the missing scalar fields are filled in with their defaults. {@code headers}
+     * is always passed through as-is: it is {@code null} when the {@code headers} key was absent from
+     * the YAML and non-null otherwise.
      *
      * @param raw the config parsed from YAML, or {@code null} if the key was absent
-     * @return a non-null {@link RestClientConfig} with all fields populated
+     * @return a non-null {@link RestClientConfig} with {@code baseUrl} and {@code connectTimeout}
+     *     populated
      */
     public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
         if (raw == null) {
-            return new RestClientConfig(DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS);
+            return new RestClientConfig(DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null);
         }
         return new RestClientConfig(
                 raw.baseUrl() != null ? raw.baseUrl() : DEFAULT_BASE_URL,
-                raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS);
+                raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS,
+                raw.headers());
     }
 }

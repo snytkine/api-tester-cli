@@ -40,8 +40,33 @@ public class FileLoader {
 
     private FileLoader() {}
 
+    /**
+     * Reads a file relative to the given base file path.
+     *
+     * <p>The directory containing {@code basePath} is used as the base for resolving {@code file}.
+     * Use this overload when you have the suite file path (not the directory).
+     *
+     * @param basePath path to the suite file; its parent directory is used for resolution
+     * @param file file name or relative path to resolve against the suite directory
+     * @return the file contents as a string
+     * @throws FileNotFoundException if the resolved path does not exist
+     * @throws IOException if the file cannot be read
+     */
     public static String loadFile(String basePath, String file) throws IOException {
-        Path resolved = Path.of(basePath).getParent().resolve(file);
+        return loadFile(Path.of(basePath).getParent(), file);
+    }
+
+    /**
+     * Reads a file relative to the given directory.
+     *
+     * @param directory the base directory used to resolve {@code file}
+     * @param file file name or relative path to resolve against {@code directory}
+     * @return the file contents as a string
+     * @throws FileNotFoundException if the resolved path does not exist
+     * @throws IOException if the file cannot be read
+     */
+    public static String loadFile(Path directory, String file) throws IOException {
+        Path resolved = directory.resolve(file);
         if (!Files.exists(resolved)) {
             throw new FileNotFoundException("File not found: " + resolved);
         }

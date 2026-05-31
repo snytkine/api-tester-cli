@@ -27,7 +27,6 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonMatchAss
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -146,7 +145,7 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
                 throw new IllegalStateException(
                         "Suite directory is required to resolve file reference: " + expected.content());
             }
-            raw = Files.readString(suiteDir.resolve(expected.content()));
+            raw = FileLoader.loadFile(suiteDir, expected.content());
         } else {
             raw = expected.content();
         }

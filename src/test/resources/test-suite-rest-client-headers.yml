@@ -1,0 +1,15 @@
+---
+name: "Suite with rest_client headers"
+rest_client:
+  base_url: "https://api.example.com"
+  headers:
+    x-api-key: "test-key-123"
+    Accept: "application/json"
+tests:
+- name: "Basic test"
+  request:
+    method: "GET"
+    url: "/objects"
+  assertions:
+  - type: "status_code"
+    expected: 200
