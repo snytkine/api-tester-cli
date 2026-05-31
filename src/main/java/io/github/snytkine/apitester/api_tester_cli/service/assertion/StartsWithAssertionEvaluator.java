@@ -30,47 +30,47 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class StartsWithAssertionEvaluator implements AssertionEvaluator {
 
-  private final StartsWithAssertion assertion;
+    private final StartsWithAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the starts_with assertion to evaluate
-   */
-  StartsWithAssertionEvaluator(StartsWithAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves the path and records a failure if the value is not a string starting with {@code
-   * expected}.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (!(f.value() instanceof String actual)) {
-          collector.fail(
-              "Expected a string value at path '%s' for starts_with but was: %s (%s)",
-              assertion.path(),
-              f.value(),
-              f.value() == null ? "null" : f.value().getClass().getSimpleName());
-          return;
-        }
-        if (!actual.startsWith(assertion.expected())) {
-          collector.fail(
-              "Expected value at path '%s' to start with '%s' but was: '%s'",
-              assertion.path(), assertion.expected(), actual);
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected string at path '%s' to start with '%s' but path does not exist",
-              assertion.path(), assertion.expected());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the starts_with assertion to evaluate
+     */
+    StartsWithAssertionEvaluator(StartsWithAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Resolves the path and records a failure if the value is not a string starting with {@code
+     * expected}.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (!(f.value() instanceof String actual)) {
+                    collector.fail(
+                            "Expected a string value at path '%s' for starts_with but was: %s (%s)",
+                            assertion.path(),
+                            f.value(),
+                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                    return;
+                }
+                if (!actual.startsWith(assertion.expected())) {
+                    collector.fail(
+                            "Expected value at path '%s' to start with '%s' but was: '%s'",
+                            assertion.path(), assertion.expected(), actual);
+                }
+            }
+            case Result.Missing m ->
+                collector.fail(
+                        "Expected string at path '%s' to start with '%s' but path does not exist",
+                        assertion.path(), assertion.expected());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
 }

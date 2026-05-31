@@ -32,47 +32,46 @@ import java.util.List;
  */
 class ArraySizeMaxAssertionEvaluator implements AssertionEvaluator {
 
-  private final ArraySizeMaxAssertion assertion;
+    private final ArraySizeMaxAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the array_size_max assertion to evaluate
-   */
-  ArraySizeMaxAssertionEvaluator(ArraySizeMaxAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves the path, confirms the value is a list, and checks its size does not exceed {@code
-   * max}.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (!(f.value() instanceof List<?> list)) {
-          collector.fail(
-              "Expected an array at path '%s' for array_size_max but was: %s (%s)",
-              assertion.path(),
-              f.value(),
-              f.value() == null ? "null" : f.value().getClass().getSimpleName());
-          return;
-        }
-        if (list.size() > assertion.max()) {
-          collector.fail(
-              "Expected array at path '%s' to have at most %d elements but had: %d",
-              assertion.path(), assertion.max(), list.size());
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected array at path '%s' for array_size_max but path does not exist",
-              assertion.path());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the array_size_max assertion to evaluate
+     */
+    ArraySizeMaxAssertionEvaluator(ArraySizeMaxAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Resolves the path, confirms the value is a list, and checks its size does not exceed {@code
+     * max}.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (!(f.value() instanceof List<?> list)) {
+                    collector.fail(
+                            "Expected an array at path '%s' for array_size_max but was: %s (%s)",
+                            assertion.path(),
+                            f.value(),
+                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                    return;
+                }
+                if (list.size() > assertion.max()) {
+                    collector.fail(
+                            "Expected array at path '%s' to have at most %d elements but had: %d",
+                            assertion.path(), assertion.max(), list.size());
+                }
+            }
+            case Result.Missing m ->
+                collector.fail(
+                        "Expected array at path '%s' for array_size_max but path does not exist", assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
 }

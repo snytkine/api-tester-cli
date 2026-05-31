@@ -40,83 +40,78 @@ import org.springframework.http.client.ClientHttpRequestFactory;
  */
 class PureJavaTestEngineEventTest {
 
-  private TestSuiteLoader loader;
-  private PureJavaTestEngine engine;
+    private TestSuiteLoader loader;
+    private PureJavaTestEngine engine;
 
-  @BeforeEach
-  void setUp() {
-    loader = new TestSuiteLoader();
-    ClientHttpRequestFactory factory = new HttpClientConfig().defaultClientHttpRequestFactory();
-    engine =
-        new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
-  }
-
-  @Test
-  void eventsAreFiredInCorrectOrderForPassingSuite() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
-    TestSuite suite = loader.load(path, new CliVariables(Map.of()));
-    int testCount = suite.tests().size();
-
-    List<TestProgressEvent> captured = new ArrayList<>();
-    TestRunResult result = engine.runConfigurationSuite(suite, captured::add);
-
-    // First event must be SuiteStarted
-    assertThat(captured.get(0)).isInstanceOf(TestProgressEvent.SuiteStarted.class);
-    TestProgressEvent.SuiteStarted suiteStarted = (TestProgressEvent.SuiteStarted) captured.get(0);
-    assertThat(suiteStarted.suiteName()).isEqualTo(suite.name());
-    assertThat(suiteStarted.totalTestCount()).isEqualTo(testCount);
-
-    // Last event must be SuiteCompleted
-    assertThat(captured.get(captured.size() - 1)).isInstanceOf(TestProgressEvent.SuiteCompleted.class);
-    TestProgressEvent.SuiteCompleted suiteCompleted =
-        (TestProgressEvent.SuiteCompleted) captured.get(captured.size() - 1);
-    assertThat(suiteCompleted.passCount()).isEqualTo(result.passedCount());
-    assertThat(suiteCompleted.failCount()).isEqualTo(result.failedCount());
-
-    // Between suite start and suite complete: pairs of TestStarted / TestCompleted
-    List<TestProgressEvent> middleEvents = captured.subList(1, captured.size() - 1);
-    assertThat(middleEvents).hasSize(testCount * 2);
-    for (int i = 0; i < testCount; i++) {
-      assertThat(middleEvents.get(i * 2)).isInstanceOf(TestProgressEvent.TestStarted.class);
-      assertThat(middleEvents.get(i * 2 + 1)).isInstanceOf(TestProgressEvent.TestCompleted.class);
-
-      TestProgressEvent.TestStarted started =
-          (TestProgressEvent.TestStarted) middleEvents.get(i * 2);
-      TestProgressEvent.TestCompleted completed =
-          (TestProgressEvent.TestCompleted) middleEvents.get(i * 2 + 1);
-
-      assertThat(started.testIndex()).isEqualTo(i);
-      assertThat(completed.testIndex()).isEqualTo(i);
-      assertThat(completed.testName()).isEqualTo(started.testName());
+    @BeforeEach
+    void setUp() {
+        loader = new TestSuiteLoader();
+        ClientHttpRequestFactory factory = new HttpClientConfig().defaultClientHttpRequestFactory();
+        engine = new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
     }
-  }
 
-  @Test
-  void passedTestsFireCompletedWithPassStatus() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
-    TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+    @Test
+    void eventsAreFiredInCorrectOrderForPassingSuite() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        int testCount = suite.tests().size();
 
-    List<TestProgressEvent> captured = new ArrayList<>();
-    TestRunResult result = engine.runConfigurationSuite(suite, captured::add);
+        List<TestProgressEvent> captured = new ArrayList<>();
+        TestRunResult result = engine.runConfigurationSuite(suite, captured::add);
 
-    long passEventCount =
-        captured.stream()
-            .filter(e -> e instanceof TestProgressEvent.TestCompleted tc && tc.status() == TestStatus.PASS)
-            .count();
+        // First event must be SuiteStarted
+        assertThat(captured.get(0)).isInstanceOf(TestProgressEvent.SuiteStarted.class);
+        TestProgressEvent.SuiteStarted suiteStarted = (TestProgressEvent.SuiteStarted) captured.get(0);
+        assertThat(suiteStarted.suiteName()).isEqualTo(suite.name());
+        assertThat(suiteStarted.totalTestCount()).isEqualTo(testCount);
 
-    assertThat(passEventCount).isEqualTo(result.passedCount());
-  }
+        // Last event must be SuiteCompleted
+        assertThat(captured.get(captured.size() - 1)).isInstanceOf(TestProgressEvent.SuiteCompleted.class);
+        TestProgressEvent.SuiteCompleted suiteCompleted =
+                (TestProgressEvent.SuiteCompleted) captured.get(captured.size() - 1);
+        assertThat(suiteCompleted.passCount()).isEqualTo(result.passedCount());
+        assertThat(suiteCompleted.failCount()).isEqualTo(result.failedCount());
 
-  @Test
-  void noOpListenerProducesIdenticalResultToDefaultOverload() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
-    TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        // Between suite start and suite complete: pairs of TestStarted / TestCompleted
+        List<TestProgressEvent> middleEvents = captured.subList(1, captured.size() - 1);
+        assertThat(middleEvents).hasSize(testCount * 2);
+        for (int i = 0; i < testCount; i++) {
+            assertThat(middleEvents.get(i * 2)).isInstanceOf(TestProgressEvent.TestStarted.class);
+            assertThat(middleEvents.get(i * 2 + 1)).isInstanceOf(TestProgressEvent.TestCompleted.class);
 
-    TestRunResult resultDefault = engine.runConfigurationSuite(suite);
-    TestRunResult resultWithNoop =
-        engine.runConfigurationSuite(suite, NoOpProgressListener.INSTANCE);
+            TestProgressEvent.TestStarted started = (TestProgressEvent.TestStarted) middleEvents.get(i * 2);
+            TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) middleEvents.get(i * 2 + 1);
 
-    assertThat(resultWithNoop.passedCount()).isEqualTo(resultDefault.passedCount());
-    assertThat(resultWithNoop.failedCount()).isEqualTo(resultDefault.failedCount());
-  }
+            assertThat(started.testIndex()).isEqualTo(i);
+            assertThat(completed.testIndex()).isEqualTo(i);
+            assertThat(completed.testName()).isEqualTo(started.testName());
+        }
+    }
+
+    @Test
+    void passedTestsFireCompletedWithPassStatus() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+
+        List<TestProgressEvent> captured = new ArrayList<>();
+        TestRunResult result = engine.runConfigurationSuite(suite, captured::add);
+
+        long passEventCount = captured.stream()
+                .filter(e -> e instanceof TestProgressEvent.TestCompleted tc && tc.status() == TestStatus.PASS)
+                .count();
+
+        assertThat(passEventCount).isEqualTo(result.passedCount());
+    }
+
+    @Test
+    void noOpListenerProducesIdenticalResultToDefaultOverload() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+
+        TestRunResult resultDefault = engine.runConfigurationSuite(suite);
+        TestRunResult resultWithNoop = engine.runConfigurationSuite(suite, NoOpProgressListener.INSTANCE);
+
+        assertThat(resultWithNoop.passedCount()).isEqualTo(resultDefault.passedCount());
+        assertThat(resultWithNoop.failedCount()).isEqualTo(resultDefault.failedCount());
+    }
 }

@@ -43,57 +43,57 @@ import java.util.regex.PatternSyntaxException;
  */
 class RegexMatchAssertionEvaluator implements AssertionEvaluator {
 
-  private final RegexMatchAssertion assertion;
+    private final RegexMatchAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the regex_match assertion to evaluate
-   */
-  RegexMatchAssertionEvaluator(RegexMatchAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Compiles the regex pattern, resolves the path, and records a failure if the value is not a
-   * string or does not match the pattern.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    Pattern pattern;
-    try {
-      pattern = Pattern.compile(assertion.expected());
-    } catch (PatternSyntaxException e) {
-      collector.fail(
-          "Invalid regex pattern '%s' in regex_match assertion at path '%s': %s",
-          assertion.expected(), assertion.path(), e.getMessage());
-      return;
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the regex_match assertion to evaluate
+     */
+    RegexMatchAssertionEvaluator(RegexMatchAssertion assertion) {
+        this.assertion = assertion;
     }
 
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (!(f.value() instanceof String actual)) {
-          collector.fail(
-              "Expected a string value at path '%s' for regex match but was: %s (%s)",
-              assertion.path(),
-              f.value(),
-              f.value() == null ? "null" : f.value().getClass().getSimpleName());
-          return;
+    /**
+     * Compiles the regex pattern, resolves the path, and records a failure if the value is not a
+     * string or does not match the pattern.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        Pattern pattern;
+        try {
+            pattern = Pattern.compile(assertion.expected());
+        } catch (PatternSyntaxException e) {
+            collector.fail(
+                    "Invalid regex pattern '%s' in regex_match assertion at path '%s': %s",
+                    assertion.expected(), assertion.path(), e.getMessage());
+            return;
         }
-        if (!pattern.matcher(actual).matches()) {
-          collector.fail(
-              "Expected value at path '%s' to match pattern '%s' but was: %s",
-              assertion.path(), assertion.expected(), actual);
+
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (!(f.value() instanceof String actual)) {
+                    collector.fail(
+                            "Expected a string value at path '%s' for regex match but was: %s (%s)",
+                            assertion.path(),
+                            f.value(),
+                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                    return;
+                }
+                if (!pattern.matcher(actual).matches()) {
+                    collector.fail(
+                            "Expected value at path '%s' to match pattern '%s' but was: %s",
+                            assertion.path(), assertion.expected(), actual);
+                }
+            }
+            case Result.Missing m ->
+                collector.fail(
+                        "Expected string at path '%s' to match pattern '%s' but path does not exist",
+                        assertion.path(), assertion.expected());
+            case Result.Error e -> collector.fail(e.message());
         }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected string at path '%s' to match pattern '%s' but path does not exist",
-              assertion.path(), assertion.expected());
-      case Result.Error e -> collector.fail(e.message());
     }
-  }
 }

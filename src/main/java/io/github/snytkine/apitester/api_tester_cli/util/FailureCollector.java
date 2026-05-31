@@ -35,202 +35,202 @@ import org.opentest4j.MultipleFailuresError;
  */
 public final class FailureCollector {
 
-  private final List<Throwable> failures = new ArrayList<>();
-
-  /**
-   * Records an unconditional failure with the given message.
-   *
-   * @param message the failure description; may contain {@link String#format} placeholders when
-   *     {@code args} are supplied
-   * @param args optional format arguments
-   */
-  public void fail(String message, Object... args) {
-    String formatted = args.length == 0 ? message : String.format(message, args);
-    failures.add(new AssertionFailedError(formatted));
-  }
-
-  /**
-   * Returns a pending string assertion whose failures are recorded rather than thrown immediately.
-   *
-   * @param actual the string value under test
-   * @return a {@link StringAssertion} for chaining
-   */
-  public StringAssertion assertThat(String actual) {
-    return new StringAssertion(actual, this);
-  }
-
-  /**
-   * Returns a pending integer assertion whose failures are recorded rather than thrown immediately.
-   *
-   * @param actual the integer value under test
-   * @return an {@link IntAssertion} for chaining
-   */
-  public IntAssertion assertThat(int actual) {
-    return new IntAssertion(actual, this);
-  }
-
-  /**
-   * Returns the list of failures recorded so far. The list is live; callers must not modify it.
-   *
-   * @return the current failure list
-   */
-  public List<Throwable> getFailures() {
-    return failures;
-  }
-
-  /**
-   * Throws {@link MultipleFailuresError} if any failures have been recorded; otherwise returns
-   * normally.
-   *
-   * @throws MultipleFailuresError when at least one failure was collected
-   */
-  public void assertAll() {
-    if (!failures.isEmpty()) {
-      throw new MultipleFailuresError("", failures);
-    }
-  }
-
-  private void addFailure(String description, AssertionError e) {
-    if (description != null) {
-      failures.add(new AssertionFailedError("[" + description + "] " + e.getMessage()));
-    } else {
-      failures.add(e);
-    }
-  }
-
-  /**
-   * Fluent string assertion that records failures into the enclosing {@link FailureCollector}
-   * instead of throwing immediately.
-   *
-   * <p>Call {@link #as(String, Object...)} before the terminal method to attach a context label to
-   * the failure message.
-   */
-  public static final class StringAssertion {
-
-    private final String actual;
-    private final FailureCollector collector;
-    private String description;
-
-    private StringAssertion(String actual, FailureCollector collector) {
-      this.actual = actual;
-      this.collector = collector;
-    }
+    private final List<Throwable> failures = new ArrayList<>();
 
     /**
-     * Attaches a context label to any failure produced by the terminal method.
+     * Records an unconditional failure with the given message.
      *
-     * @param description the label; may contain {@link String#format} placeholders
+     * @param message the failure description; may contain {@link String#format} placeholders when
+     *     {@code args} are supplied
      * @param args optional format arguments
-     * @return this assertion for chaining
      */
-    public StringAssertion as(String description, Object... args) {
-      this.description = args.length == 0 ? description : String.format(description, args);
-      return this;
+    public void fail(String message, Object... args) {
+        String formatted = args.length == 0 ? message : String.format(message, args);
+        failures.add(new AssertionFailedError(formatted));
     }
 
     /**
-     * Asserts that the actual value equals {@code expected}, recording a failure if not.
+     * Returns a pending string assertion whose failures are recorded rather than thrown immediately.
      *
-     * @param expected the expected string
+     * @param actual the string value under test
+     * @return a {@link StringAssertion} for chaining
      */
-    public void isEqualTo(String expected) {
-      try {
-        applyDescription(Assertions.assertThat(actual)).isEqualTo(expected);
-      } catch (AssertionError e) {
-        collector.addFailure(description, e);
-      }
+    public StringAssertion assertThat(String actual) {
+        return new StringAssertion(actual, this);
     }
 
     /**
-     * Asserts that the actual value equals {@code expected} ignoring case, recording a failure if
-     * not.
+     * Returns a pending integer assertion whose failures are recorded rather than thrown immediately.
      *
-     * @param expected the expected string
+     * @param actual the integer value under test
+     * @return an {@link IntAssertion} for chaining
      */
-    public void isEqualToIgnoringCase(String expected) {
-      try {
-        applyDescription(Assertions.assertThat(actual)).isEqualToIgnoringCase(expected);
-      } catch (AssertionError e) {
-        collector.addFailure(description, e);
-      }
+    public IntAssertion assertThat(int actual) {
+        return new IntAssertion(actual, this);
     }
 
     /**
-     * Asserts that the actual value contains {@code expected} as a substring, recording a failure
-     * if not.
+     * Returns the list of failures recorded so far. The list is live; callers must not modify it.
      *
-     * @param expected the expected substring
+     * @return the current failure list
      */
-    public void contains(String expected) {
-      try {
-        applyDescription(Assertions.assertThat(actual)).contains(expected);
-      } catch (AssertionError e) {
-        collector.addFailure(description, e);
-      }
+    public List<Throwable> getFailures() {
+        return failures;
     }
 
     /**
-     * Asserts that the actual value contains {@code expected} as a substring ignoring case,
-     * recording a failure if not.
+     * Throws {@link MultipleFailuresError} if any failures have been recorded; otherwise returns
+     * normally.
      *
-     * @param expected the expected substring
+     * @throws MultipleFailuresError when at least one failure was collected
      */
-    public void containsIgnoringCase(String expected) {
-      try {
-        applyDescription(Assertions.assertThat(actual)).containsIgnoringCase(expected);
-      } catch (AssertionError e) {
-        collector.addFailure(description, e);
-      }
-    }
-
-    private org.assertj.core.api.AbstractStringAssert<?> applyDescription(
-        org.assertj.core.api.AbstractStringAssert<?> assertion) {
-      return description != null ? assertion.as(description) : assertion;
-    }
-  }
-
-  /**
-   * Fluent integer assertion that records failures into the enclosing {@link FailureCollector}
-   * instead of throwing immediately.
-   */
-  public static final class IntAssertion {
-
-    private final int actual;
-    private final FailureCollector collector;
-    private String description;
-
-    private IntAssertion(int actual, FailureCollector collector) {
-      this.actual = actual;
-      this.collector = collector;
-    }
-
-    /**
-     * Attaches a context label to any failure produced by the terminal method.
-     *
-     * @param description the label; may contain {@link String#format} placeholders
-     * @param args optional format arguments
-     * @return this assertion for chaining
-     */
-    public IntAssertion as(String description, Object... args) {
-      this.description = args.length == 0 ? description : String.format(description, args);
-      return this;
-    }
-
-    /**
-     * Asserts that the actual value equals {@code expected}, recording a failure if not.
-     *
-     * @param expected the expected integer
-     */
-    public void isEqualTo(int expected) {
-      try {
-        org.assertj.core.api.AbstractIntegerAssert<?> assertion = Assertions.assertThat(actual);
-        if (description != null) {
-          assertion = assertion.as(description);
+    public void assertAll() {
+        if (!failures.isEmpty()) {
+            throw new MultipleFailuresError("", failures);
         }
-        assertion.isEqualTo(expected);
-      } catch (AssertionError e) {
-        collector.addFailure(description, e);
-      }
     }
-  }
+
+    private void addFailure(String description, AssertionError e) {
+        if (description != null) {
+            failures.add(new AssertionFailedError("[" + description + "] " + e.getMessage()));
+        } else {
+            failures.add(e);
+        }
+    }
+
+    /**
+     * Fluent string assertion that records failures into the enclosing {@link FailureCollector}
+     * instead of throwing immediately.
+     *
+     * <p>Call {@link #as(String, Object...)} before the terminal method to attach a context label to
+     * the failure message.
+     */
+    public static final class StringAssertion {
+
+        private final String actual;
+        private final FailureCollector collector;
+        private String description;
+
+        private StringAssertion(String actual, FailureCollector collector) {
+            this.actual = actual;
+            this.collector = collector;
+        }
+
+        /**
+         * Attaches a context label to any failure produced by the terminal method.
+         *
+         * @param description the label; may contain {@link String#format} placeholders
+         * @param args optional format arguments
+         * @return this assertion for chaining
+         */
+        public StringAssertion as(String description, Object... args) {
+            this.description = args.length == 0 ? description : String.format(description, args);
+            return this;
+        }
+
+        /**
+         * Asserts that the actual value equals {@code expected}, recording a failure if not.
+         *
+         * @param expected the expected string
+         */
+        public void isEqualTo(String expected) {
+            try {
+                applyDescription(Assertions.assertThat(actual)).isEqualTo(expected);
+            } catch (AssertionError e) {
+                collector.addFailure(description, e);
+            }
+        }
+
+        /**
+         * Asserts that the actual value equals {@code expected} ignoring case, recording a failure if
+         * not.
+         *
+         * @param expected the expected string
+         */
+        public void isEqualToIgnoringCase(String expected) {
+            try {
+                applyDescription(Assertions.assertThat(actual)).isEqualToIgnoringCase(expected);
+            } catch (AssertionError e) {
+                collector.addFailure(description, e);
+            }
+        }
+
+        /**
+         * Asserts that the actual value contains {@code expected} as a substring, recording a failure
+         * if not.
+         *
+         * @param expected the expected substring
+         */
+        public void contains(String expected) {
+            try {
+                applyDescription(Assertions.assertThat(actual)).contains(expected);
+            } catch (AssertionError e) {
+                collector.addFailure(description, e);
+            }
+        }
+
+        /**
+         * Asserts that the actual value contains {@code expected} as a substring ignoring case,
+         * recording a failure if not.
+         *
+         * @param expected the expected substring
+         */
+        public void containsIgnoringCase(String expected) {
+            try {
+                applyDescription(Assertions.assertThat(actual)).containsIgnoringCase(expected);
+            } catch (AssertionError e) {
+                collector.addFailure(description, e);
+            }
+        }
+
+        private org.assertj.core.api.AbstractStringAssert<?> applyDescription(
+                org.assertj.core.api.AbstractStringAssert<?> assertion) {
+            return description != null ? assertion.as(description) : assertion;
+        }
+    }
+
+    /**
+     * Fluent integer assertion that records failures into the enclosing {@link FailureCollector}
+     * instead of throwing immediately.
+     */
+    public static final class IntAssertion {
+
+        private final int actual;
+        private final FailureCollector collector;
+        private String description;
+
+        private IntAssertion(int actual, FailureCollector collector) {
+            this.actual = actual;
+            this.collector = collector;
+        }
+
+        /**
+         * Attaches a context label to any failure produced by the terminal method.
+         *
+         * @param description the label; may contain {@link String#format} placeholders
+         * @param args optional format arguments
+         * @return this assertion for chaining
+         */
+        public IntAssertion as(String description, Object... args) {
+            this.description = args.length == 0 ? description : String.format(description, args);
+            return this;
+        }
+
+        /**
+         * Asserts that the actual value equals {@code expected}, recording a failure if not.
+         *
+         * @param expected the expected integer
+         */
+        public void isEqualTo(int expected) {
+            try {
+                org.assertj.core.api.AbstractIntegerAssert<?> assertion = Assertions.assertThat(actual);
+                if (description != null) {
+                    assertion = assertion.as(description);
+                }
+                assertion.isEqualTo(expected);
+            } catch (AssertionError e) {
+                collector.addFailure(description, e);
+            }
+        }
+    }
 }

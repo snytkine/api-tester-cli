@@ -27,5 +27,5 @@ import org.jspecify.annotations.Nullable;
  * the equality check is case-sensitive; when {@code false} the comparison ignores case.
  */
 public record StringMatchAssertion(
-    String path, String expected, @Nullable @JsonProperty("case_sensitive") Boolean caseSensitive)
-    implements Assertion {}
+        String path, String expected, @Nullable @JsonProperty("case_sensitive") Boolean caseSensitive)
+        implements Assertion {}

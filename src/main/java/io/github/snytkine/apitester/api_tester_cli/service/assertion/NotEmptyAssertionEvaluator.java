@@ -41,39 +41,37 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class NotEmptyAssertionEvaluator implements AssertionEvaluator {
 
-  private final NotEmptyAssertion assertion;
+    private final NotEmptyAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the not_empty assertion to evaluate
-   */
-  NotEmptyAssertionEvaluator(NotEmptyAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves {@code assertion.path()} and records a failure if the value is missing, {@code null},
-   * or an empty string.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (f.value() == null) {
-          collector.fail("Expected non-empty value at path '%s' but was null", assertion.path());
-        } else if (f.value() instanceof String s && s.isEmpty()) {
-          collector.fail(
-              "Expected non-empty value at path '%s' but was an empty string", assertion.path());
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected non-empty value at path '%s' but path does not exist", assertion.path());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the not_empty assertion to evaluate
+     */
+    NotEmptyAssertionEvaluator(NotEmptyAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Resolves {@code assertion.path()} and records a failure if the value is missing, {@code null},
+     * or an empty string.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (f.value() == null) {
+                    collector.fail("Expected non-empty value at path '%s' but was null", assertion.path());
+                } else if (f.value() instanceof String s && s.isEmpty()) {
+                    collector.fail("Expected non-empty value at path '%s' but was an empty string", assertion.path());
+                }
+            }
+            case Result.Missing m ->
+                collector.fail("Expected non-empty value at path '%s' but path does not exist", assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
 }

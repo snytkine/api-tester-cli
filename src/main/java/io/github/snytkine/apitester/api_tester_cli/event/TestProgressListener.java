@@ -19,10 +19,10 @@ package io.github.snytkine.apitester.api_tester_cli.event;
 /**
  * Observer that receives {@link TestProgressEvent}s as a test suite executes.
  *
- * <p>Implementations must be <strong>thread-safe</strong>: in the parallel execution model
- * multiple test worker threads may call {@link #onProgress} concurrently. Callers never block
- * waiting for this method to return; implementations should therefore be non-blocking (e.g.
- * enqueue the event and return immediately).
+ * <p>Implementations must be <strong>thread-safe</strong>: in the parallel execution model multiple
+ * test worker threads may call {@link #onProgress} concurrently. Callers never block waiting for
+ * this method to return; implementations should therefore be non-blocking (e.g. enqueue the event
+ * and return immediately).
  *
  * <p>This is a {@link FunctionalInterface} so lambda or method-reference implementations can be
  * used in tests.
@@ -30,10 +30,10 @@ package io.github.snytkine.apitester.api_tester_cli.event;
 @FunctionalInterface
 public interface TestProgressListener {
 
-  /**
-   * Called by the test runner when a progress milestone is reached.
-   *
-   * @param event the event describing the milestone; never {@code null}
-   */
-  void onProgress(TestProgressEvent event);
+    /**
+     * Called by the test runner when a progress milestone is reached.
+     *
+     * @param event the event describing the milestone; never {@code null}
+     */
+    void onProgress(TestProgressEvent event);
 }

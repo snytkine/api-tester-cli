@@ -29,30 +29,29 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class HasHeaderAssertionEvaluator implements AssertionEvaluator {
 
-  private final HasHeaderAssertion assertion;
+    private final HasHeaderAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the has_header assertion to evaluate
-   */
-  HasHeaderAssertionEvaluator(HasHeaderAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Checks that the named header is present in the response and records a failure when it is
-   * absent.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    String normalised = assertion.name().toLowerCase();
-    if (response.headers() == null || !response.headers().containsKey(normalised)) {
-      collector.fail(
-          "Expected response to contain header '%s' but it was absent", assertion.name());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the has_header assertion to evaluate
+     */
+    HasHeaderAssertionEvaluator(HasHeaderAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Checks that the named header is present in the response and records a failure when it is
+     * absent.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        String normalised = assertion.name().toLowerCase();
+        if (response.headers() == null || !response.headers().containsKey(normalised)) {
+            collector.fail("Expected response to contain header '%s' but it was absent", assertion.name());
+        }
+    }
 }

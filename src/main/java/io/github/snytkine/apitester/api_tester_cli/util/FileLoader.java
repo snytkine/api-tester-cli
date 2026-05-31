@@ -28,31 +28,30 @@ import org.thymeleaf.templateresolver.StringTemplateResolver;
 
 public class FileLoader {
 
-  private static final TemplateEngine TEMPLATE_ENGINE;
+    private static final TemplateEngine TEMPLATE_ENGINE;
 
-  static {
-    StringTemplateResolver resolver = new StringTemplateResolver();
-    resolver.setTemplateMode(TemplateMode.TEXT);
-    TemplateEngine engine = new TemplateEngine();
-    engine.setTemplateResolver(resolver);
-    TEMPLATE_ENGINE = engine;
-  }
-
-  private FileLoader() {}
-
-  public static String loadFile(String basePath, String file) throws IOException {
-    Path resolved = Path.of(basePath).getParent().resolve(file);
-    if (!Files.exists(resolved)) {
-      throw new FileNotFoundException("File not found: " + resolved);
+    static {
+        StringTemplateResolver resolver = new StringTemplateResolver();
+        resolver.setTemplateMode(TemplateMode.TEXT);
+        TemplateEngine engine = new TemplateEngine();
+        engine.setTemplateResolver(resolver);
+        TEMPLATE_ENGINE = engine;
     }
-    return Files.readString(resolved);
-  }
 
-  public static String parseFile(
-      String file, Map<String, String> suiteVariables, Map<String, String> variables) {
-    Context context = new Context();
-    context.setVariable("suite", Map.of("variables", suiteVariables));
-    context.setVariable("variables", variables);
-    return TEMPLATE_ENGINE.process(file, context);
-  }
+    private FileLoader() {}
+
+    public static String loadFile(String basePath, String file) throws IOException {
+        Path resolved = Path.of(basePath).getParent().resolve(file);
+        if (!Files.exists(resolved)) {
+            throw new FileNotFoundException("File not found: " + resolved);
+        }
+        return Files.readString(resolved);
+    }
+
+    public static String parseFile(String file, Map<String, String> suiteVariables, Map<String, String> variables) {
+        Context context = new Context();
+        context.setVariable("suite", Map.of("variables", suiteVariables));
+        context.setVariable("variables", variables);
+        return TEMPLATE_ENGINE.process(file, context);
+    }
 }

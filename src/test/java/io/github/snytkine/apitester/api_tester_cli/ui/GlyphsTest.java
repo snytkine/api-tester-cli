@@ -22,38 +22,38 @@ import org.junit.jupiter.api.Test;
 
 class GlyphsTest {
 
-  @Test
-  void passGlyphIsNonEmpty() {
-    assertThat(Glyphs.PASS).isNotEmpty();
-  }
+    @Test
+    void passGlyphIsNonEmpty() {
+        assertThat(Glyphs.PASS).isNotEmpty();
+    }
 
-  @Test
-  void failGlyphIsNonEmpty() {
-    assertThat(Glyphs.FAIL).isNotEmpty();
-  }
+    @Test
+    void failGlyphIsNonEmpty() {
+        assertThat(Glyphs.FAIL).isNotEmpty();
+    }
 
-  @Test
-  void runningGlyphIsNonEmpty() {
-    assertThat(Glyphs.RUNNING).isNotEmpty();
-  }
+    @Test
+    void runningGlyphIsNonEmpty() {
+        assertThat(Glyphs.RUNNING).isNotEmpty();
+    }
 
-  @Test
-  void pendingGlyphIsNonEmpty() {
-    assertThat(Glyphs.PENDING).isNotEmpty();
-  }
+    @Test
+    void pendingGlyphIsNonEmpty() {
+        assertThat(Glyphs.PENDING).isNotEmpty();
+    }
 
-  @Test
-  void spinnerFramesHasTenEntries() {
-    assertThat(Glyphs.SPINNER_FRAMES).hasSize(10);
-  }
+    @Test
+    void spinnerFramesHasTenEntries() {
+        assertThat(Glyphs.SPINNER_FRAMES).hasSize(10);
+    }
 
-  @Test
-  void spinnerFramesContainsNoBlanks() {
-    assertThat(Glyphs.SPINNER_FRAMES).doesNotContain((String) null).doesNotContain("");
-  }
+    @Test
+    void spinnerFramesContainsNoBlanks() {
+        assertThat(Glyphs.SPINNER_FRAMES).doesNotContain((String) null).doesNotContain("");
+    }
 
-  @Test
-  void passAndFailGlyphsAreDistinct() {
-    assertThat(Glyphs.PASS).isNotEqualTo(Glyphs.FAIL);
-  }
+    @Test
+    void passAndFailGlyphsAreDistinct() {
+        assertThat(Glyphs.PASS).isNotEqualTo(Glyphs.FAIL);
+    }
 }

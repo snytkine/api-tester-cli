@@ -29,11 +29,11 @@ import org.jspecify.annotations.Nullable;
  * non-assertion errors such as HTTP network failures.
  */
 public record AssertionFailure(
-    /** Human-readable description of what failed. */
-    String message,
+        /** Human-readable description of what failed. */
+        String message,
 
-    /** The value the assertion expected, or {@code null} if not applicable. */
-    @Nullable Object expected,
+        /** The value the assertion expected, or {@code null} if not applicable. */
+        @Nullable Object expected,
 
-    /** The value the assertion actually observed, or {@code null} if not applicable. */
-    @Nullable Object actual) {}
+        /** The value the assertion actually observed, or {@code null} if not applicable. */
+        @Nullable Object actual) {}

@@ -31,37 +31,37 @@ import org.jspecify.annotations.Nullable;
  * missing property is replaced by its default value.
  */
 public record RestClientConfig(
+        /**
+         * Base URL prepended to all relative request URLs in the suite. Defaults to an empty string,
+         * meaning every test case must supply a fully-qualified URL.
+         */
+        @JsonProperty("base_url") String baseUrl,
+
+        /** Connection timeout in milliseconds. Defaults to {@value #DEFAULT_CONNECT_TIMEOUT_MS}. */
+        @JsonProperty("connect_timeout") Integer connectTimeout) {
+
+    /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
+    public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+
+    /** Default base URL applied when the YAML omits {@code base_url}. */
+    public static final String DEFAULT_BASE_URL = "";
+
     /**
-     * Base URL prepended to all relative request URLs in the suite. Defaults to an empty string,
-     * meaning every test case must supply a fully-qualified URL.
+     * Returns a {@link RestClientConfig} with every {@code null} field replaced by its default value.
+     *
+     * <p>If {@code raw} is {@code null} (i.e. the {@code rest_client} key was absent from the YAML),
+     * a fully-defaulted instance is returned. Otherwise the non-null fields of {@code raw} are
+     * preserved and only the missing ones are filled in.
+     *
+     * @param raw the config parsed from YAML, or {@code null} if the key was absent
+     * @return a non-null {@link RestClientConfig} with all fields populated
      */
-    @JsonProperty("base_url") String baseUrl,
-
-    /** Connection timeout in milliseconds. Defaults to {@value #DEFAULT_CONNECT_TIMEOUT_MS}. */
-    @JsonProperty("connect_timeout") Integer connectTimeout) {
-
-  /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
-  public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
-
-  /** Default base URL applied when the YAML omits {@code base_url}. */
-  public static final String DEFAULT_BASE_URL = "";
-
-  /**
-   * Returns a {@link RestClientConfig} with every {@code null} field replaced by its default value.
-   *
-   * <p>If {@code raw} is {@code null} (i.e. the {@code rest_client} key was absent from the YAML),
-   * a fully-defaulted instance is returned. Otherwise the non-null fields of {@code raw} are
-   * preserved and only the missing ones are filled in.
-   *
-   * @param raw the config parsed from YAML, or {@code null} if the key was absent
-   * @return a non-null {@link RestClientConfig} with all fields populated
-   */
-  public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
-    if (raw == null) {
-      return new RestClientConfig(DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS);
+    public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
+        if (raw == null) {
+            return new RestClientConfig(DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS);
+        }
+        return new RestClientConfig(
+                raw.baseUrl() != null ? raw.baseUrl() : DEFAULT_BASE_URL,
+                raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS);
     }
-    return new RestClientConfig(
-        raw.baseUrl() != null ? raw.baseUrl() : DEFAULT_BASE_URL,
-        raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS);
-  }
 }

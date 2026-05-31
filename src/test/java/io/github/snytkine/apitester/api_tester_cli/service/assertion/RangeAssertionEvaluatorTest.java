@@ -29,153 +29,151 @@ import org.opentest4j.MultipleFailuresError;
 
 class RangeAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void integerAtMinBoundPasses() {
-    ApiResponse response = responseWithJson(Map.of("score", 0));
+    @Test
+    void integerAtMinBoundPasses() {
+        ApiResponse response = responseWithJson(Map.of("score", 0));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void integerAtMaxBoundPasses() {
-    ApiResponse response = responseWithJson(Map.of("score", 100));
+    @Test
+    void integerAtMaxBoundPasses() {
+        ApiResponse response = responseWithJson(Map.of("score", 100));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void integerWithinRangePasses() {
-    ApiResponse response = responseWithJson(Map.of("score", 50));
+    @Test
+    void integerWithinRangePasses() {
+        ApiResponse response = responseWithJson(Map.of("score", 50));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void integerBelowRangeFails() {
-    ApiResponse response = responseWithJson(Map.of("score", -1));
+    @Test
+    void integerBelowRangeFails() {
+        ApiResponse response = responseWithJson(Map.of("score", -1));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void integerAboveRangeFails() {
-    ApiResponse response = responseWithJson(Map.of("score", 101));
+    @Test
+    void integerAboveRangeFails() {
+        ApiResponse response = responseWithJson(Map.of("score", 101));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void doubleWithinRangePasses() {
-    ApiResponse response = responseWithJson(Map.of("ratio", 0.5));
+    @Test
+    void doubleWithinRangePasses() {
+        ApiResponse response = responseWithJson(Map.of("ratio", 0.5));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.ratio", 0.0, 1.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.ratio", 0.0, 1.0))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void numericStringWithinRangePasses() {
-    ApiResponse response = responseWithJson(Map.of("score", "42"));
+    @Test
+    void numericStringWithinRangePasses() {
+        ApiResponse response = responseWithJson(Map.of("score", "42"));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void nonNumericStringFails() {
-    ApiResponse response = responseWithJson(Map.of("score", "abc"));
+    @Test
+    void nonNumericStringFails() {
+        ApiResponse response = responseWithJson(Map.of("score", "abc"));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.score", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void booleanValueFails() {
-    ApiResponse response = responseWithJson(Map.of("flag", true));
+    @Test
+    void booleanValueFails() {
+        ApiResponse response = responseWithJson(Map.of("flag", true));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.flag", 0, 1))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.flag", 0, 1))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nullValueFails() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void nullValueFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json", 0, 100)).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("score", 50));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("score", 50));
 
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.missing", 0, 100))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.body.json.$.missing", 0, 100))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void statusCodeWithinRangePasses() {
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.statusCode", 200, 299))
-        .evaluate(new ApiResponse(200, Map.of(), null), collector);
+    @Test
+    void statusCodeWithinRangePasses() {
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.statusCode", 200, 299))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void statusCodeOutsideRangeFails() {
-    FailureCollector collector = new FailureCollector();
-    new RangeAssertionEvaluator(new RangeAssertion("response.statusCode", 200, 299))
-        .evaluate(new ApiResponse(404, Map.of(), null), collector);
+    @Test
+    void statusCodeOutsideRangeFails() {
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("response.statusCode", 200, 299))
+                .evaluate(new ApiResponse(404, Map.of(), null), collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

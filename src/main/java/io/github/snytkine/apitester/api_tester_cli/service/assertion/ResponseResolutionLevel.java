@@ -26,15 +26,15 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
  */
 enum ResponseResolutionLevel {
 
-  /**
-   * Only the HTTP status code and headers are needed. The response body is not consumed, allowing
-   * the underlying connection to be released without reading the payload.
-   */
-  STATUS_ONLY,
+    /**
+     * Only the HTTP status code and headers are needed. The response body is not consumed, allowing
+     * the underlying connection to be released without reading the payload.
+     */
+    STATUS_ONLY,
 
-  /**
-   * The full response is needed: status code, headers, and the body. The body is read and stored in
-   * {@link ApiResponse.Body} as both raw text and a parsed JSON object.
-   */
-  FULL
+    /**
+     * The full response is needed: status code, headers, and the body. The body is read and stored in
+     * {@link ApiResponse.Body} as both raw text and a parsed JSON object.
+     */
+    FULL
 }

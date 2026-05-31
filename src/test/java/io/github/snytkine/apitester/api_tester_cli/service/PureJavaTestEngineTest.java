@@ -37,34 +37,33 @@ import org.springframework.http.client.ClientHttpRequestFactory;
  */
 class PureJavaTestEngineTest {
 
-  private TestSuiteLoader loader;
-  private PureJavaTestEngine engine;
+    private TestSuiteLoader loader;
+    private PureJavaTestEngine engine;
 
-  @BeforeEach
-  void setUp() {
-    loader = new TestSuiteLoader();
-    ClientHttpRequestFactory factory = new HttpClientConfig().defaultClientHttpRequestFactory();
-    engine =
-        new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
-  }
+    @BeforeEach
+    void setUp() {
+        loader = new TestSuiteLoader();
+        ClientHttpRequestFactory factory = new HttpClientConfig().defaultClientHttpRequestFactory();
+        engine = new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
+    }
 
-  @Test
-  void runTestSuite1ReportsResultsWithoutUnexpectedFailures() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
-    TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+    @Test
+    void runTestSuite1ReportsResultsWithoutUnexpectedFailures() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
 
-    TestRunResult result = engine.runConfigurationSuite(testSuite);
+        TestRunResult result = engine.runConfigurationSuite(testSuite);
 
-    assertThat(result.failedCount())
-        .as(
-            "Expected no test failures but got %d. Failures: %s",
-            result.failedCount(),
-            result.results().stream()
-                .filter(r -> !r.passed())
-                .flatMap(r -> r.failures().stream())
-                .map(f -> f.message())
-                .toList())
-        .isZero();
-    assertThat(result.passedCount()).isEqualTo(testSuite.tests().size());
-  }
+        assertThat(result.failedCount())
+                .as(
+                        "Expected no test failures but got %d. Failures: %s",
+                        result.failedCount(),
+                        result.results().stream()
+                                .filter(r -> !r.passed())
+                                .flatMap(r -> r.failures().stream())
+                                .map(f -> f.message())
+                                .toList())
+                .isZero();
+        assertThat(result.passedCount()).isEqualTo(testSuite.tests().size());
+    }
 }

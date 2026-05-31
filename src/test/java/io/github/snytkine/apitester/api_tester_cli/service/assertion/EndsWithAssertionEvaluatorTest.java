@@ -29,71 +29,68 @@ import org.opentest4j.MultipleFailuresError;
 
 class EndsWithAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void matchingSuffixPasses() {
-    ApiResponse response = responseWithJson(Map.of("email", "user@example.com"));
+    @Test
+    void matchingSuffixPasses() {
+        ApiResponse response = responseWithJson(Map.of("email", "user@example.com"));
 
-    FailureCollector collector = new FailureCollector();
-    new EndsWithAssertionEvaluator(
-            new EndsWithAssertion("response.body.json.$.email", "@example.com"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new EndsWithAssertionEvaluator(new EndsWithAssertion("response.body.json.$.email", "@example.com"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void nonMatchingSuffixFails() {
-    ApiResponse response = responseWithJson(Map.of("email", "user@other.com"));
+    @Test
+    void nonMatchingSuffixFails() {
+        ApiResponse response = responseWithJson(Map.of("email", "user@other.com"));
 
-    FailureCollector collector = new FailureCollector();
-    new EndsWithAssertionEvaluator(
-            new EndsWithAssertion("response.body.json.$.email", "@example.com"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new EndsWithAssertionEvaluator(new EndsWithAssertion("response.body.json.$.email", "@example.com"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void numberValueFails() {
-    ApiResponse response = responseWithJson(Map.of("count", 42));
+    @Test
+    void numberValueFails() {
+        ApiResponse response = responseWithJson(Map.of("count", 42));
 
-    FailureCollector collector = new FailureCollector();
-    new EndsWithAssertionEvaluator(new EndsWithAssertion("response.body.json.$.count", "2"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new EndsWithAssertionEvaluator(new EndsWithAssertion("response.body.json.$.count", "2"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("email", "user@example.com"));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("email", "user@example.com"));
 
-    FailureCollector collector = new FailureCollector();
-    new EndsWithAssertionEvaluator(new EndsWithAssertion("response.body.json.$.missing", ".com"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new EndsWithAssertionEvaluator(new EndsWithAssertion("response.body.json.$.missing", ".com"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void headerMatchPasses() {
-    ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
+    @Test
+    void headerMatchPasses() {
+        ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
 
-    FailureCollector collector = new FailureCollector();
-    new EndsWithAssertionEvaluator(new EndsWithAssertion("response.headers.content-type", "/json"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new EndsWithAssertionEvaluator(new EndsWithAssertion("response.headers.content-type", "/json"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 }

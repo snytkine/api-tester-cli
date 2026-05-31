@@ -36,72 +36,71 @@ import java.util.List;
  */
 class ArrayContainsAllAssertionEvaluator implements AssertionEvaluator {
 
-  private final ArrayContainsAllAssertion assertion;
+    private final ArrayContainsAllAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the array_contains_all assertion to evaluate
-   */
-  ArrayContainsAllAssertionEvaluator(ArrayContainsAllAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves the path, confirms the value is a list, and records a failure listing every expected
-   * item that is absent.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (!(f.value() instanceof List<?> list)) {
-          collector.fail(
-              "Expected an array at path '%s' for array_contains_all but was: %s (%s)",
-              assertion.path(),
-              f.value(),
-              f.value() == null ? "null" : f.value().getClass().getSimpleName());
-          return;
-        }
-        List<Object> missing = new ArrayList<>();
-        for (Object expected : assertion.expected()) {
-          if (!containsMatch(list, expected)) {
-            missing.add(expected);
-          }
-        }
-        if (!missing.isEmpty()) {
-          collector.fail(
-              "Expected array at path '%s' to contain all of %s but missing: %s",
-              assertion.path(), assertion.expected(), missing);
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected array at path '%s' for array_contains_all but path does not exist",
-              assertion.path());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the array_contains_all assertion to evaluate
+     */
+    ArrayContainsAllAssertionEvaluator(ArrayContainsAllAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
 
-  /**
-   * Returns {@code true} if any element of {@code list} matches {@code target}. Number comparison
-   * uses {@code double} to handle mixed integer/floating-point representations.
-   *
-   * @param list the resolved array elements
-   * @param target the expected value to search for
-   * @return {@code true} if a match is found
-   */
-  private static boolean containsMatch(List<?> list, Object target) {
-    for (Object element : list) {
-      if (element instanceof Number e && target instanceof Number t) {
-        if (Double.compare(e.doubleValue(), t.doubleValue()) == 0) return true;
-      } else if (element == null ? target == null : element.equals(target)) {
-        return true;
-      }
+    /**
+     * Resolves the path, confirms the value is a list, and records a failure listing every expected
+     * item that is absent.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (!(f.value() instanceof List<?> list)) {
+                    collector.fail(
+                            "Expected an array at path '%s' for array_contains_all but was: %s (%s)",
+                            assertion.path(),
+                            f.value(),
+                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                    return;
+                }
+                List<Object> missing = new ArrayList<>();
+                for (Object expected : assertion.expected()) {
+                    if (!containsMatch(list, expected)) {
+                        missing.add(expected);
+                    }
+                }
+                if (!missing.isEmpty()) {
+                    collector.fail(
+                            "Expected array at path '%s' to contain all of %s but missing: %s",
+                            assertion.path(), assertion.expected(), missing);
+                }
+            }
+            case Result.Missing m ->
+                collector.fail(
+                        "Expected array at path '%s' for array_contains_all but path does not exist", assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
     }
-    return false;
-  }
+
+    /**
+     * Returns {@code true} if any element of {@code list} matches {@code target}. Number comparison
+     * uses {@code double} to handle mixed integer/floating-point representations.
+     *
+     * @param list the resolved array elements
+     * @param target the expected value to search for
+     * @return {@code true} if a match is found
+     */
+    private static boolean containsMatch(List<?> list, Object target) {
+        for (Object element : list) {
+            if (element instanceof Number e && target instanceof Number t) {
+                if (Double.compare(e.doubleValue(), t.doubleValue()) == 0) return true;
+            } else if (element == null ? target == null : element.equals(target)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

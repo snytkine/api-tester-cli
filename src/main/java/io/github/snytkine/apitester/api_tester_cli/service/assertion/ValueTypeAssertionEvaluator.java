@@ -46,67 +46,66 @@ import org.jspecify.annotations.Nullable;
  */
 class ValueTypeAssertionEvaluator implements AssertionEvaluator {
 
-  private static final Set<String> VALID_TYPES =
-      Set.of("string", "number", "boolean", "array", "object", "null");
+    private static final Set<String> VALID_TYPES = Set.of("string", "number", "boolean", "array", "object", "null");
 
-  private final ValueTypeAssertion assertion;
+    private final ValueTypeAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the value_type assertion to evaluate
-   */
-  ValueTypeAssertionEvaluator(ValueTypeAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Validates the expected type name, resolves the path, and records a failure when the actual
-   * runtime type does not match.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    if (!VALID_TYPES.contains(assertion.expected())) {
-      collector.fail(
-          "Unknown type name '%s' in value_type assertion at path '%s'. Valid types: %s",
-          assertion.expected(), assertion.path(), VALID_TYPES);
-      return;
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the value_type assertion to evaluate
+     */
+    ValueTypeAssertionEvaluator(ValueTypeAssertion assertion) {
+        this.assertion = assertion;
     }
 
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        String actualType = typeOf(f.value());
-        if (!assertion.expected().equals(actualType)) {
-          collector.fail(
-              "Expected value at path '%s' to be of type '%s' but was: '%s'",
-              assertion.path(), assertion.expected(), actualType);
+    /**
+     * Validates the expected type name, resolves the path, and records a failure when the actual
+     * runtime type does not match.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        if (!VALID_TYPES.contains(assertion.expected())) {
+            collector.fail(
+                    "Unknown type name '%s' in value_type assertion at path '%s'. Valid types: %s",
+                    assertion.expected(), assertion.path(), VALID_TYPES);
+            return;
         }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected value of type '%s' at path '%s' but path does not exist",
-              assertion.expected(), assertion.path());
-      case Result.Error e -> collector.fail(e.message());
-    }
-  }
 
-  /**
-   * Returns the JSON type name for the given Java value.
-   *
-   * @param value the resolved response value
-   * @return one of {@code string}, {@code number}, {@code boolean}, {@code array}, {@code object},
-   *     or {@code null}
-   */
-  private static String typeOf(@Nullable Object value) {
-    if (value == null) return "null";
-    if (value instanceof String) return "string";
-    if (value instanceof Number) return "number";
-    if (value instanceof Boolean) return "boolean";
-    if (value instanceof List) return "array";
-    if (value instanceof Map) return "object";
-    return value.getClass().getSimpleName();
-  }
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                String actualType = typeOf(f.value());
+                if (!assertion.expected().equals(actualType)) {
+                    collector.fail(
+                            "Expected value at path '%s' to be of type '%s' but was: '%s'",
+                            assertion.path(), assertion.expected(), actualType);
+                }
+            }
+            case Result.Missing m ->
+                collector.fail(
+                        "Expected value of type '%s' at path '%s' but path does not exist",
+                        assertion.expected(), assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
+
+    /**
+     * Returns the JSON type name for the given Java value.
+     *
+     * @param value the resolved response value
+     * @return one of {@code string}, {@code number}, {@code boolean}, {@code array}, {@code object},
+     *     or {@code null}
+     */
+    private static String typeOf(@Nullable Object value) {
+        if (value == null) return "null";
+        if (value instanceof String) return "string";
+        if (value instanceof Number) return "number";
+        if (value instanceof Boolean) return "boolean";
+        if (value instanceof List) return "array";
+        if (value instanceof Map) return "object";
+        return value.getClass().getSimpleName();
+    }
 }

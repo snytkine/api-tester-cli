@@ -35,9 +35,9 @@ import org.jspecify.annotations.Nullable;
  * suite-level HTTP client settings such as a base URL and connect timeout.
  */
 public record TestSuite(
-    String name,
-    @Nullable String description,
-    @Nullable @JsonProperty("rest_client") RestClientConfig restClientConfig,
-    @Nullable Map<String, String> variables,
-    List<TestCase> tests,
-    @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath) {}
+        String name,
+        @Nullable String description,
+        @Nullable @JsonProperty("rest_client") RestClientConfig restClientConfig,
+        @Nullable Map<String, String> variables,
+        List<TestCase> tests,
+        @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath) {}

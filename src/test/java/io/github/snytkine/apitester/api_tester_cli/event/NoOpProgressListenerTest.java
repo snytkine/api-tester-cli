@@ -25,32 +25,27 @@ import org.junit.jupiter.api.Test;
 /** Unit tests for {@link NoOpProgressListener}. */
 class NoOpProgressListenerTest {
 
-  @Test
-  void instanceIsSingleton() {
-    assertThat(NoOpProgressListener.INSTANCE).isSameAs(NoOpProgressListener.INSTANCE);
-  }
+    @Test
+    void instanceIsSingleton() {
+        assertThat(NoOpProgressListener.INSTANCE).isSameAs(NoOpProgressListener.INSTANCE);
+    }
 
-  @Test
-  void onProgressDoesNotThrowForAnyEvent() {
-    NoOpProgressListener listener = NoOpProgressListener.INSTANCE;
+    @Test
+    void onProgressDoesNotThrowForAnyEvent() {
+        NoOpProgressListener listener = NoOpProgressListener.INSTANCE;
 
-    assertThatNoException()
-        .isThrownBy(
-            () -> {
-              listener.onProgress(new TestProgressEvent.SuiteStarted("s", 2, Instant.now()));
-              listener.onProgress(new TestProgressEvent.TestStarted(0, "t1"));
-              listener.onProgress(
-                  new TestProgressEvent.TestCompleted(0, "t1", TestStatus.PASS, 10L, null));
-              listener.onProgress(new TestProgressEvent.TestStarted(1, "t2"));
-              listener.onProgress(
-                  new TestProgressEvent.TestCompleted(
-                      1, "t2", TestStatus.FAIL, 20L, "assertion failed"));
-              listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 30L));
-            });
-  }
+        assertThatNoException().isThrownBy(() -> {
+            listener.onProgress(new TestProgressEvent.SuiteStarted("s", 2, Instant.now()));
+            listener.onProgress(new TestProgressEvent.TestStarted(0, "t1"));
+            listener.onProgress(new TestProgressEvent.TestCompleted(0, "t1", TestStatus.PASS, 10L, null));
+            listener.onProgress(new TestProgressEvent.TestStarted(1, "t2"));
+            listener.onProgress(new TestProgressEvent.TestCompleted(1, "t2", TestStatus.FAIL, 20L, "assertion failed"));
+            listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 30L));
+        });
+    }
 
-  @Test
-  void implementsTestProgressListener() {
-    assertThat(NoOpProgressListener.INSTANCE).isInstanceOf(TestProgressListener.class);
-  }
+    @Test
+    void implementsTestProgressListener() {
+        assertThat(NoOpProgressListener.INSTANCE).isInstanceOf(TestProgressListener.class);
+    }
 }

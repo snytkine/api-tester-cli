@@ -39,125 +39,119 @@ import org.springframework.web.client.RestClient;
 @ExtendWith(MockitoExtension.class)
 class ResponseResolverTest {
 
-  @Mock private RestClient.ResponseSpec rawSpec;
-  @Mock private RestClient.ResponseSpec handledSpec;
+    @Mock
+    private RestClient.ResponseSpec rawSpec;
 
-  private ResponseResolver resolver;
+    @Mock
+    private RestClient.ResponseSpec handledSpec;
 
-  @BeforeEach
-  void setUp() {
-    resolver = new ResponseResolver();
-    when(rawSpec.onStatus(any(), any())).thenReturn(handledSpec);
-  }
+    private ResponseResolver resolver;
 
-  @Test
-  void statusOnlyResolutionWhenAllAssertionsAreStatusCode() {
-    when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+    @BeforeEach
+    void setUp() {
+        resolver = new ResponseResolver();
+        when(rawSpec.onStatus(any(), any())).thenReturn(handledSpec);
+    }
 
-    List<Assertion> assertions = List.of(new StatusCodeAssertion(200));
-    ApiResponse result = resolver.resolve(rawSpec, assertions);
+    @Test
+    void statusOnlyResolutionWhenAllAssertionsAreStatusCode() {
+        when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 
-    assertThat(result.statusCode()).isEqualTo(200);
-    assertThat(result.body()).isNull();
-  }
+        List<Assertion> assertions = List.of(new StatusCodeAssertion(200));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
 
-  @Test
-  void fullResolutionWhenNonStatusCodeAssertionPresent() {
-    when(handledSpec.toEntity(String.class)).thenReturn(ResponseEntity.ok("{\"key\":\"value\"}"));
+        assertThat(result.statusCode()).isEqualTo(200);
+        assertThat(result.body()).isNull();
+    }
 
-    List<Assertion> assertions =
-        List.of(
-            new StatusCodeAssertion(200),
-            new StringMatchAssertion("response.headers.content-type", "application/json", null));
-    ApiResponse result = resolver.resolve(rawSpec, assertions);
+    @Test
+    void fullResolutionWhenNonStatusCodeAssertionPresent() {
+        when(handledSpec.toEntity(String.class)).thenReturn(ResponseEntity.ok("{\"key\":\"value\"}"));
 
-    assertThat(result.statusCode()).isEqualTo(200);
-    assertThat(result.body()).isNotNull();
-    assertThat(result.body().text()).isEqualTo("{\"key\":\"value\"}");
-  }
+        List<Assertion> assertions = List.of(
+                new StatusCodeAssertion(200),
+                new StringMatchAssertion("response.headers.content-type", "application/json", null));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
 
-  @Test
-  void headersAreLowercasedInStatusOnlyMode() {
-    HttpHeaders headers = new HttpHeaders();
-    headers.set("Content-Type", "application/json");
-    headers.set("X-Request-Id", "abc123");
-    when(handledSpec.toBodilessEntity())
-        .thenReturn(new ResponseEntity<>(null, headers, HttpStatus.OK));
+        assertThat(result.statusCode()).isEqualTo(200);
+        assertThat(result.body()).isNotNull();
+        assertThat(result.body().text()).isEqualTo("{\"key\":\"value\"}");
+    }
 
-    ApiResponse result = resolver.resolve(rawSpec, List.of(new StatusCodeAssertion(200)));
+    @Test
+    void headersAreLowercasedInStatusOnlyMode() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Content-Type", "application/json");
+        headers.set("X-Request-Id", "abc123");
+        when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(null, headers, HttpStatus.OK));
 
-    assertThat(result.headers()).containsKey("content-type");
-    assertThat(result.headers()).containsKey("x-request-id");
-    assertThat(result.headers()).doesNotContainKey("Content-Type");
-    assertThat(result.headers()).doesNotContainKey("X-Request-Id");
-  }
+        ApiResponse result = resolver.resolve(rawSpec, List.of(new StatusCodeAssertion(200)));
 
-  @Test
-  void headersAreLowercasedInFullMode() {
-    HttpHeaders headers = new HttpHeaders();
-    headers.set("Content-Type", "application/json");
-    when(handledSpec.toEntity(String.class))
-        .thenReturn(new ResponseEntity<>("{}", headers, HttpStatus.OK));
+        assertThat(result.headers()).containsKey("content-type");
+        assertThat(result.headers()).containsKey("x-request-id");
+        assertThat(result.headers()).doesNotContainKey("Content-Type");
+        assertThat(result.headers()).doesNotContainKey("X-Request-Id");
+    }
 
-    List<Assertion> assertions =
-        List.of(
-            new StringMatchAssertion("response.headers.content-type", "application/json", null));
-    ApiResponse result = resolver.resolve(rawSpec, assertions);
+    @Test
+    void headersAreLowercasedInFullMode() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Content-Type", "application/json");
+        when(handledSpec.toEntity(String.class)).thenReturn(new ResponseEntity<>("{}", headers, HttpStatus.OK));
 
-    assertThat(result.headers()).containsEntry("content-type", "application/json");
-  }
+        List<Assertion> assertions =
+                List.of(new StringMatchAssertion("response.headers.content-type", "application/json", null));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
 
-  @Test
-  void jsonBodyIsParsedIntoObject() {
-    when(handledSpec.toEntity(String.class)).thenReturn(ResponseEntity.ok("{\"name\":\"Alice\"}"));
+        assertThat(result.headers()).containsEntry("content-type", "application/json");
+    }
 
-    List<Assertion> assertions =
-        List.of(new StringMatchAssertion("response.body.text", "any", null));
-    ApiResponse result = resolver.resolve(rawSpec, assertions);
+    @Test
+    void jsonBodyIsParsedIntoObject() {
+        when(handledSpec.toEntity(String.class)).thenReturn(ResponseEntity.ok("{\"name\":\"Alice\"}"));
 
-    assertThat(result.body()).isNotNull();
-    assertThat(result.body().json()).isInstanceOf(Map.class);
-    @SuppressWarnings("unchecked")
-    Map<String, Object> jsonMap = (Map<String, Object>) result.body().json();
-    assertThat(jsonMap).containsEntry("name", "Alice");
-  }
+        List<Assertion> assertions = List.of(new StringMatchAssertion("response.body.text", "any", null));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
 
-  @Test
-  void nonJsonBodyLeavesJsonNull() {
-    when(handledSpec.toEntity(String.class)).thenReturn(ResponseEntity.ok("plain text response"));
+        assertThat(result.body()).isNotNull();
+        assertThat(result.body().json()).isInstanceOf(Map.class);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> jsonMap = (Map<String, Object>) result.body().json();
+        assertThat(jsonMap).containsEntry("name", "Alice");
+    }
 
-    List<Assertion> assertions =
-        List.of(new StringMatchAssertion("response.body.text", "any", null));
-    ApiResponse result = resolver.resolve(rawSpec, assertions);
+    @Test
+    void nonJsonBodyLeavesJsonNull() {
+        when(handledSpec.toEntity(String.class)).thenReturn(ResponseEntity.ok("plain text response"));
 
-    assertThat(result.body()).isNotNull();
-    assertThat(result.body().text()).isEqualTo("plain text response");
-    assertThat(result.body().json()).isNull();
-  }
+        List<Assertion> assertions = List.of(new StringMatchAssertion("response.body.text", "any", null));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
 
-  @Test
-  void errorStatusCodesAreCapturedWithoutThrowing() {
-    HttpHeaders headers = new HttpHeaders();
-    when(handledSpec.toBodilessEntity())
-        .thenReturn(new ResponseEntity<>(null, headers, HttpStatus.NOT_FOUND));
+        assertThat(result.body()).isNotNull();
+        assertThat(result.body().text()).isEqualTo("plain text response");
+        assertThat(result.body().json()).isNull();
+    }
 
-    ApiResponse result = resolver.resolve(rawSpec, List.of(new StatusCodeAssertion(404)));
+    @Test
+    void errorStatusCodesAreCapturedWithoutThrowing() {
+        HttpHeaders headers = new HttpHeaders();
+        when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(null, headers, HttpStatus.NOT_FOUND));
 
-    assertThat(result.statusCode()).isEqualTo(404);
-  }
+        ApiResponse result = resolver.resolve(rawSpec, List.of(new StatusCodeAssertion(404)));
 
-  @Test
-  void nullBodyTextLeavesJsonNull() {
-    ResponseEntity<String> noContentEntity =
-        new ResponseEntity<>(null, new HttpHeaders(), HttpStatus.NO_CONTENT);
-    when(handledSpec.toEntity(String.class)).thenReturn(noContentEntity);
+        assertThat(result.statusCode()).isEqualTo(404);
+    }
 
-    List<Assertion> assertions =
-        List.of(new StringMatchAssertion("response.body.text", "any", null));
-    ApiResponse result = resolver.resolve(rawSpec, assertions);
+    @Test
+    void nullBodyTextLeavesJsonNull() {
+        ResponseEntity<String> noContentEntity = new ResponseEntity<>(null, new HttpHeaders(), HttpStatus.NO_CONTENT);
+        when(handledSpec.toEntity(String.class)).thenReturn(noContentEntity);
 
-    assertThat(result.body()).isNotNull();
-    assertThat(result.body().text()).isNull();
-    assertThat(result.body().json()).isNull();
-  }
+        List<Assertion> assertions = List.of(new StringMatchAssertion("response.body.text", "any", null));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
+
+        assertThat(result.body()).isNotNull();
+        assertThat(result.body().text()).isNull();
+        assertThat(result.body().json()).isNull();
+    }
 }

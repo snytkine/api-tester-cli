@@ -29,62 +29,57 @@ import org.opentest4j.MultipleFailuresError;
 
 class LessThanOrEqualAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void lowerValuePasses() {
-    ApiResponse response = responseWithJson(Map.of("count", 3));
+    @Test
+    void lowerValuePasses() {
+        ApiResponse response = responseWithJson(Map.of("count", 3));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanOrEqualAssertionEvaluator(
-            new LessThanOrEqualAssertion("response.body.json.$.count", 5))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void equalValuePasses() {
-    ApiResponse response = responseWithJson(Map.of("count", 5));
+    @Test
+    void equalValuePasses() {
+        ApiResponse response = responseWithJson(Map.of("count", 5));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanOrEqualAssertionEvaluator(
-            new LessThanOrEqualAssertion("response.body.json.$.count", 5))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void higherValueFails() {
-    ApiResponse response = responseWithJson(Map.of("count", 10));
+    @Test
+    void higherValueFails() {
+        ApiResponse response = responseWithJson(Map.of("count", 10));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanOrEqualAssertionEvaluator(
-            new LessThanOrEqualAssertion("response.body.json.$.count", 5))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("count", 3));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("count", 3));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanOrEqualAssertionEvaluator(
-            new LessThanOrEqualAssertion("response.body.json.$.missing", 5))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.missing", 5))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

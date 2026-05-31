@@ -30,105 +30,101 @@ import org.opentest4j.MultipleFailuresError;
 
 class ValueTypeAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void stringTypePasses() {
-    ApiResponse response = responseWithJson(Map.of("name", "Alice"));
+    @Test
+    void stringTypePasses() {
+        ApiResponse response = responseWithJson(Map.of("name", "Alice"));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.name", "string"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.name", "string"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void numberTypePasses() {
-    ApiResponse response = responseWithJson(Map.of("age", 30));
+    @Test
+    void numberTypePasses() {
+        ApiResponse response = responseWithJson(Map.of("age", 30));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.age", "number"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.age", "number"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void booleanTypePasses() {
-    ApiResponse response = responseWithJson(Map.of("active", true));
+    @Test
+    void booleanTypePasses() {
+        ApiResponse response = responseWithJson(Map.of("active", true));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(
-            new ValueTypeAssertion("response.body.json.$.active", "boolean"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.active", "boolean"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void arrayTypePasses() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("a", "b")));
+    @Test
+    void arrayTypePasses() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("a", "b")));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.tags", "array"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.tags", "array"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void objectTypePasses() {
-    ApiResponse response = responseWithJson(Map.of("address", Map.of("city", "NY")));
+    @Test
+    void objectTypePasses() {
+        ApiResponse response = responseWithJson(Map.of("address", Map.of("city", "NY")));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(
-            new ValueTypeAssertion("response.body.json.$.address", "object"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.address", "object"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void wrongTypeFails() {
-    ApiResponse response = responseWithJson(Map.of("age", 30));
+    @Test
+    void wrongTypeFails() {
+        ApiResponse response = responseWithJson(Map.of("age", 30));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.age", "string"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.age", "string"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void unknownTypeNameFails() {
-    ApiResponse response = responseWithJson(Map.of("name", "Alice"));
+    @Test
+    void unknownTypeNameFails() {
+        ApiResponse response = responseWithJson(Map.of("name", "Alice"));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.name", "text"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.name", "text"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("name", "Alice"));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("name", "Alice"));
 
-    FailureCollector collector = new FailureCollector();
-    new ValueTypeAssertionEvaluator(
-            new ValueTypeAssertion("response.body.json.$.missing", "string"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ValueTypeAssertionEvaluator(new ValueTypeAssertion("response.body.json.$.missing", "string"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

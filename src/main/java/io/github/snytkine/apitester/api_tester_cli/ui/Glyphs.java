@@ -26,27 +26,25 @@ package io.github.snytkine.apitester.api_tester_cli.ui;
  */
 public final class Glyphs {
 
-  /**
-   * Ten-frame Braille spinner sequence for animating running tests.
-   *
-   * <p>Used in Phase 5+ to display a cycling animation while a test is in progress. Each frame is
-   * one Unicode character wide.
-   */
-  public static final String[] SPINNER_FRAMES = {
-    "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"
-  };
+    /**
+     * Ten-frame Braille spinner sequence for animating running tests.
+     *
+     * <p>Used in Phase 5+ to display a cycling animation while a test is in progress. Each frame is
+     * one Unicode character wide.
+     */
+    public static final String[] SPINNER_FRAMES = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
 
-  /** Glyph displayed when a test case passes all assertions. */
-  public static final String PASS = "✓";
+    /** Glyph displayed when a test case passes all assertions. */
+    public static final String PASS = "✓";
 
-  /** Glyph displayed when a test case fails one or more assertions or throws an error. */
-  public static final String FAIL = "✗";
+    /** Glyph displayed when a test case fails one or more assertions or throws an error. */
+    public static final String FAIL = "✗";
 
-  /** Glyph displayed while a test case is currently running (static placeholder for Phase 4). */
-  public static final String RUNNING = "▶";
+    /** Glyph displayed while a test case is currently running (static placeholder for Phase 4). */
+    public static final String RUNNING = "▶";
 
-  /** Glyph displayed for a test case that has not yet started. */
-  public static final String PENDING = "·";
+    /** Glyph displayed for a test case that has not yet started. */
+    public static final String PENDING = "·";
 
-  private Glyphs() {}
+    private Glyphs() {}
 }

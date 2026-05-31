@@ -19,9 +19,16 @@ package io.github.snytkine.apitester.api_tester_cli;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootTest
+/**
+ * Verifies that the Spring application context loads without errors.
+ *
+ * <p>{@code spring.shell.interactive.enabled=false} is required because Spring Shell normally
+ * starts an interactive REPL that blocks waiting for terminal input. Without this property the
+ * test hangs indefinitely instead of completing.
+ */
+@SpringBootTest(properties = "spring.shell.interactive.enabled=false")
 class ApiTesterCliApplicationTests {
 
-  @Test
-  void contextLoads() {}
+    @Test
+    void contextLoads() {}
 }

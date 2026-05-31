@@ -46,96 +46,95 @@ import org.jspecify.annotations.Nullable;
  */
 final class ResponseValueExtractor {
 
-  private static final String RESPONSE_PREFIX = "response.";
-  private static final String BODY_JSON_DOT = "body.json.";
+    private static final String RESPONSE_PREFIX = "response.";
+    private static final String BODY_JSON_DOT = "body.json.";
 
-  private ResponseValueExtractor() {}
-
-  /**
-   * The outcome of resolving a path against an {@link ApiResponse}.
-   *
-   * <p>Three subtypes cover all cases:
-   *
-   * <ul>
-   *   <li>{@link Found} — the path resolved; {@code value} may be {@code null} for explicit JSON
-   *       nulls or absent optional fields such as missing headers
-   *   <li>{@link Missing} — the path segment does not exist (e.g. JSONPath node not found, absent
-   *       header, absent body)
-   *   <li>{@link Error} — the path syntax is unsupported or another resolution error occurred
-   * </ul>
-   */
-  sealed interface Result permits Result.Found, Result.Missing, Result.Error {
+    private ResponseValueExtractor() {}
 
     /**
-     * The path resolved successfully. {@code value} may be {@code null} when the response field
-     * exists but carries a {@code null} or absent value.
+     * The outcome of resolving a path against an {@link ApiResponse}.
+     *
+     * <p>Three subtypes cover all cases:
+     *
+     * <ul>
+     *   <li>{@link Found} — the path resolved; {@code value} may be {@code null} for explicit JSON
+     *       nulls or absent optional fields such as missing headers
+     *   <li>{@link Missing} — the path segment does not exist (e.g. JSONPath node not found, absent
+     *       header, absent body)
+     *   <li>{@link Error} — the path syntax is unsupported or another resolution error occurred
+     * </ul>
      */
-    record Found(@Nullable Object value) implements Result {}
+    sealed interface Result permits Result.Found, Result.Missing, Result.Error {
+
+        /**
+         * The path resolved successfully. {@code value} may be {@code null} when the response field
+         * exists but carries a {@code null} or absent value.
+         */
+        record Found(@Nullable Object value) implements Result {}
+
+        /**
+         * The path does not resolve to any node in the response (e.g. header absent, JSONPath miss).
+         */
+        record Missing(String path) implements Result {}
+
+        /** The path syntax is not supported or evaluation raised an unexpected exception. */
+        record Error(String message) implements Result {}
+    }
 
     /**
-     * The path does not resolve to any node in the response (e.g. header absent, JSONPath miss).
+     * Resolves {@code path} against the given {@code response}.
+     *
+     * @param response the captured HTTP response
+     * @param path the full path expression starting with {@code response.}
+     * @return a {@link Result} describing the outcome
      */
-    record Missing(String path) implements Result {}
+    static Result extract(ApiResponse response, String path) {
+        if (!path.startsWith(RESPONSE_PREFIX)) {
+            return new Result.Error("Unsupported path '%s': must start with 'response.'".formatted(path));
+        }
+        String remaining = path.substring(RESPONSE_PREFIX.length());
 
-    /** The path syntax is not supported or evaluation raised an unexpected exception. */
-    record Error(String message) implements Result {}
-  }
+        if (remaining.equals("statusCode")) {
+            return new Result.Found(response.statusCode());
+        }
 
-  /**
-   * Resolves {@code path} against the given {@code response}.
-   *
-   * @param response the captured HTTP response
-   * @param path the full path expression starting with {@code response.}
-   * @return a {@link Result} describing the outcome
-   */
-  static Result extract(ApiResponse response, String path) {
-    if (!path.startsWith(RESPONSE_PREFIX)) {
-      return new Result.Error("Unsupported path '%s': must start with 'response.'".formatted(path));
+        if (remaining.startsWith("headers.")) {
+            String name = remaining.substring("headers.".length()).toLowerCase();
+            if (response.headers() == null || !response.headers().containsKey(name)) {
+                return new Result.Missing(path);
+            }
+            return new Result.Found(response.headers().get(name));
+        }
+
+        if (remaining.equals("body.text")) {
+            if (response.body() == null) {
+                return new Result.Missing(path);
+            }
+            return new Result.Found(response.body().text());
+        }
+
+        if (remaining.equals("body.json")) {
+            if (response.body() == null) {
+                return new Result.Missing(path);
+            }
+            return new Result.Found(response.body().json());
+        }
+
+        if (remaining.startsWith(BODY_JSON_DOT)) {
+            String jsonPathExpr = remaining.substring(BODY_JSON_DOT.length());
+            if (response.body() == null || response.body().text() == null) {
+                return new Result.Missing(path);
+            }
+            try {
+                Object value = JsonPath.read(response.body().text(), jsonPathExpr);
+                return new Result.Found(value);
+            } catch (PathNotFoundException e) {
+                return new Result.Missing(path);
+            } catch (Exception e) {
+                return new Result.Error("Failed to evaluate JSONPath '%s': %s".formatted(jsonPathExpr, e.getMessage()));
+            }
+        }
+
+        return new Result.Error("Unsupported path '%s'".formatted(path));
     }
-    String remaining = path.substring(RESPONSE_PREFIX.length());
-
-    if (remaining.equals("statusCode")) {
-      return new Result.Found(response.statusCode());
-    }
-
-    if (remaining.startsWith("headers.")) {
-      String name = remaining.substring("headers.".length()).toLowerCase();
-      if (response.headers() == null || !response.headers().containsKey(name)) {
-        return new Result.Missing(path);
-      }
-      return new Result.Found(response.headers().get(name));
-    }
-
-    if (remaining.equals("body.text")) {
-      if (response.body() == null) {
-        return new Result.Missing(path);
-      }
-      return new Result.Found(response.body().text());
-    }
-
-    if (remaining.equals("body.json")) {
-      if (response.body() == null) {
-        return new Result.Missing(path);
-      }
-      return new Result.Found(response.body().json());
-    }
-
-    if (remaining.startsWith(BODY_JSON_DOT)) {
-      String jsonPathExpr = remaining.substring(BODY_JSON_DOT.length());
-      if (response.body() == null || response.body().text() == null) {
-        return new Result.Missing(path);
-      }
-      try {
-        Object value = JsonPath.read(response.body().text(), jsonPathExpr);
-        return new Result.Found(value);
-      } catch (PathNotFoundException e) {
-        return new Result.Missing(path);
-      } catch (Exception e) {
-        return new Result.Error(
-            "Failed to evaluate JSONPath '%s': %s".formatted(jsonPathExpr, e.getMessage()));
-      }
-    }
-
-    return new Result.Error("Unsupported path '%s'".formatted(path));
-  }
 }

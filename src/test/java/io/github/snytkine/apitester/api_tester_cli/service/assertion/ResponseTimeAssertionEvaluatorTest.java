@@ -28,48 +28,44 @@ import org.opentest4j.MultipleFailuresError;
 
 class ResponseTimeAssertionEvaluatorTest {
 
-  private static ApiResponse responseWithTime(long responseTimeMs) {
-    return new ApiResponse(200, Map.of(), null, responseTimeMs);
-  }
+    private static ApiResponse responseWithTime(long responseTimeMs) {
+        return new ApiResponse(200, Map.of(), null, responseTimeMs);
+    }
 
-  @Test
-  void responseWithinThresholdPasses() {
-    FailureCollector collector = new FailureCollector();
-    new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500))
-        .evaluate(responseWithTime(200), collector);
+    @Test
+    void responseWithinThresholdPasses() {
+        FailureCollector collector = new FailureCollector();
+        new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500)).evaluate(responseWithTime(200), collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void responseExactlyAtThresholdPasses() {
-    FailureCollector collector = new FailureCollector();
-    new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500))
-        .evaluate(responseWithTime(500), collector);
+    @Test
+    void responseExactlyAtThresholdPasses() {
+        FailureCollector collector = new FailureCollector();
+        new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500)).evaluate(responseWithTime(500), collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void responseExceedingThresholdFails() {
-    FailureCollector collector = new FailureCollector();
-    new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500))
-        .evaluate(responseWithTime(501), collector);
+    @Test
+    void responseExceedingThresholdFails() {
+        FailureCollector collector = new FailureCollector();
+        new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500)).evaluate(responseWithTime(501), collector);
 
-    assertThatThrownBy(collector::assertAll)
-        .isInstanceOf(MultipleFailuresError.class)
-        .hasMessageContaining("500 ms")
-        .hasMessageContaining("501 ms");
-  }
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("500 ms")
+                .hasMessageContaining("501 ms");
+    }
 
-  @Test
-  void nullResponseTimeFails() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void nullResponseTimeFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ResponseTimeAssertionEvaluator(new ResponseTimeAssertion(500)).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

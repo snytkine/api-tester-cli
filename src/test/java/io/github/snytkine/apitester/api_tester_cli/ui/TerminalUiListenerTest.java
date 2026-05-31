@@ -27,80 +27,78 @@ import org.junit.jupiter.api.Test;
 
 class TerminalUiListenerTest {
 
-  @Test
-  void onProgressEnqueuesSuiteStarted() {
-    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiListener listener = new TerminalUiListener(queue);
-    TestProgressEvent event = new TestProgressEvent.SuiteStarted("suite", 3, Instant.now());
+    @Test
+    void onProgressEnqueuesSuiteStarted() {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiListener listener = new TerminalUiListener(queue);
+        TestProgressEvent event = new TestProgressEvent.SuiteStarted("suite", 3, Instant.now());
 
-    listener.onProgress(event);
+        listener.onProgress(event);
 
-    assertThat(queue.poll()).isSameAs(event);
-  }
+        assertThat(queue.poll()).isSameAs(event);
+    }
 
-  @Test
-  void onProgressEnqueuesTestStarted() {
-    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiListener listener = new TerminalUiListener(queue);
-    TestProgressEvent event = new TestProgressEvent.TestStarted(0, "my-test");
+    @Test
+    void onProgressEnqueuesTestStarted() {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiListener listener = new TerminalUiListener(queue);
+        TestProgressEvent event = new TestProgressEvent.TestStarted(0, "my-test");
 
-    listener.onProgress(event);
+        listener.onProgress(event);
 
-    assertThat(queue.poll()).isSameAs(event);
-  }
+        assertThat(queue.poll()).isSameAs(event);
+    }
 
-  @Test
-  void onProgressEnqueuesTestCompleted() {
-    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiListener listener = new TerminalUiListener(queue);
-    TestProgressEvent event =
-        new TestProgressEvent.TestCompleted(0, "my-test", TestStatus.PASS, 50L, null);
+    @Test
+    void onProgressEnqueuesTestCompleted() {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiListener listener = new TerminalUiListener(queue);
+        TestProgressEvent event = new TestProgressEvent.TestCompleted(0, "my-test", TestStatus.PASS, 50L, null);
 
-    listener.onProgress(event);
+        listener.onProgress(event);
 
-    assertThat(queue.poll()).isSameAs(event);
-  }
+        assertThat(queue.poll()).isSameAs(event);
+    }
 
-  @Test
-  void onProgressEnqueuesSuiteCompleted() {
-    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiListener listener = new TerminalUiListener(queue);
-    TestProgressEvent event = new TestProgressEvent.SuiteCompleted(2, 1, 300L);
+    @Test
+    void onProgressEnqueuesSuiteCompleted() {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiListener listener = new TerminalUiListener(queue);
+        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(2, 1, 300L);
 
-    listener.onProgress(event);
+        listener.onProgress(event);
 
-    assertThat(queue.poll()).isSameAs(event);
-  }
+        assertThat(queue.poll()).isSameAs(event);
+    }
 
-  @Test
-  void multipleEventsAreEnqueuedInOrder() {
-    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiListener listener = new TerminalUiListener(queue);
+    @Test
+    void multipleEventsAreEnqueuedInOrder() {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiListener listener = new TerminalUiListener(queue);
 
-    TestProgressEvent e1 = new TestProgressEvent.SuiteStarted("suite", 1, Instant.now());
-    TestProgressEvent e2 = new TestProgressEvent.TestStarted(0, "test");
-    TestProgressEvent e3 =
-        new TestProgressEvent.TestCompleted(0, "test", TestStatus.PASS, 100L, null);
-    TestProgressEvent e4 = new TestProgressEvent.SuiteCompleted(1, 0, 100L);
+        TestProgressEvent e1 = new TestProgressEvent.SuiteStarted("suite", 1, Instant.now());
+        TestProgressEvent e2 = new TestProgressEvent.TestStarted(0, "test");
+        TestProgressEvent e3 = new TestProgressEvent.TestCompleted(0, "test", TestStatus.PASS, 100L, null);
+        TestProgressEvent e4 = new TestProgressEvent.SuiteCompleted(1, 0, 100L);
 
-    listener.onProgress(e1);
-    listener.onProgress(e2);
-    listener.onProgress(e3);
-    listener.onProgress(e4);
+        listener.onProgress(e1);
+        listener.onProgress(e2);
+        listener.onProgress(e3);
+        listener.onProgress(e4);
 
-    assertThat(queue.poll()).isSameAs(e1);
-    assertThat(queue.poll()).isSameAs(e2);
-    assertThat(queue.poll()).isSameAs(e3);
-    assertThat(queue.poll()).isSameAs(e4);
-    assertThat(queue).isEmpty();
-  }
+        assertThat(queue.poll()).isSameAs(e1);
+        assertThat(queue.poll()).isSameAs(e2);
+        assertThat(queue.poll()).isSameAs(e3);
+        assertThat(queue.poll()).isSameAs(e4);
+        assertThat(queue).isEmpty();
+    }
 
-  @Test
-  void onProgressIsNonBlockingAndDoesNotThrow() {
-    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiListener listener = new TerminalUiListener(queue);
-    TestProgressEvent event = new TestProgressEvent.SuiteCompleted(0, 0, 0L);
+    @Test
+    void onProgressIsNonBlockingAndDoesNotThrow() {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiListener listener = new TerminalUiListener(queue);
+        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(0, 0, 0L);
 
-    assertThatNoException().isThrownBy(() -> listener.onProgress(event));
-  }
+        assertThatNoException().isThrownBy(() -> listener.onProgress(event));
+    }
 }

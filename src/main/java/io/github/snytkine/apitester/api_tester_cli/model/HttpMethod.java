@@ -19,17 +19,17 @@ package io.github.snytkine.apitester.api_tester_cli.model;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 public enum HttpMethod {
-  GET,
-  POST,
-  PUT,
-  PATCH,
-  DELETE,
-  HEAD,
-  OPTIONS,
-  TRACE;
+    GET,
+    POST,
+    PUT,
+    PATCH,
+    DELETE,
+    HEAD,
+    OPTIONS,
+    TRACE;
 
-  @JsonCreator
-  public static HttpMethod fromValue(String value) {
-    return HttpMethod.valueOf(value.toUpperCase());
-  }
+    @JsonCreator
+    public static HttpMethod fromValue(String value) {
+        return HttpMethod.valueOf(value.toUpperCase());
+    }
 }

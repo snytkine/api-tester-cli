@@ -46,64 +46,61 @@ import org.thymeleaf.templateresolver.StringTemplateResolver;
 @Service
 public class TestSuiteLoader {
 
-  private final ObjectMapper yamlMapper;
-  private final TemplateEngine templateEngine;
+    private final ObjectMapper yamlMapper;
+    private final TemplateEngine templateEngine;
 
-  public TestSuiteLoader() {
-    this.yamlMapper =
-        new ObjectMapper(new YAMLFactory())
-            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    public TestSuiteLoader() {
+        this.yamlMapper =
+                new ObjectMapper(new YAMLFactory()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    StringTemplateResolver resolver = new StringTemplateResolver();
-    resolver.setTemplateMode(TemplateMode.TEXT);
-    this.templateEngine = new TemplateEngine();
-    this.templateEngine.setTemplateResolver(resolver);
-  }
+        StringTemplateResolver resolver = new StringTemplateResolver();
+        resolver.setTemplateMode(TemplateMode.TEXT);
+        this.templateEngine = new TemplateEngine();
+        this.templateEngine.setTemplateResolver(resolver);
+    }
 
-  public TestSuite load(Path filePath) throws IOException {
-    TestSuite testSuite = yamlMapper.readValue(filePath.toFile(), TestSuite.class);
-    return new TestSuite(
-        testSuite.name(),
-        testSuite.description(),
-        RestClientConfig.withDefaults(testSuite.restClientConfig()),
-        testSuite.variables(),
-        testSuite.tests(),
-        filePath);
-  }
+    public TestSuite load(Path filePath) throws IOException {
+        TestSuite testSuite = yamlMapper.readValue(filePath.toFile(), TestSuite.class);
+        return new TestSuite(
+                testSuite.name(),
+                testSuite.description(),
+                RestClientConfig.withDefaults(testSuite.restClientConfig()),
+                testSuite.variables(),
+                testSuite.tests(),
+                filePath);
+    }
 
-  public TestSuite load(Path filePath, CliVariables cliVariables) throws IOException {
-    String templateContent = Files.readString(filePath);
-    // Immutable snapshot — shields in-flight processing from concurrent caller mutations.
-    Map<String, String> cli = Map.copyOf(cliVariables.cli());
+    public TestSuite load(Path filePath, CliVariables cliVariables) throws IOException {
+        String templateContent = Files.readString(filePath);
+        // Immutable snapshot — shields in-flight processing from concurrent caller mutations.
+        Map<String, String> cli = Map.copyOf(cliVariables.cli());
 
-    // Step 1: process the full YAML template with only cli in context.
-    // suite.variables is seeded as an empty map so that any suite.variables.* references
-    // in test cases resolve to empty string rather than throwing a null access error.
-    // The resulting variables map (resolved from cli) becomes suite.variables for Step 2.
-    Context step1Context = new Context();
-    step1Context.setVariable("cli", cli);
-    step1Context.setVariable("suite", Map.of("variables", Map.of()));
-    String step1Yaml = templateEngine.process(templateContent, step1Context);
-    TestSuite step1TestSuite = yamlMapper.readValue(step1Yaml, TestSuite.class);
-    Map<String, String> resolvedVariables =
-        step1TestSuite.variables() != null
-            ? new LinkedHashMap<>(step1TestSuite.variables())
-            : Map.of();
+        // Step 1: process the full YAML template with only cli in context.
+        // suite.variables is seeded as an empty map so that any suite.variables.* references
+        // in test cases resolve to empty string rather than throwing a null access error.
+        // The resulting variables map (resolved from cli) becomes suite.variables for Step 2.
+        Context step1Context = new Context();
+        step1Context.setVariable("cli", cli);
+        step1Context.setVariable("suite", Map.of("variables", Map.of()));
+        String step1Yaml = templateEngine.process(templateContent, step1Context);
+        TestSuite step1TestSuite = yamlMapper.readValue(step1Yaml, TestSuite.class);
+        Map<String, String> resolvedVariables =
+                step1TestSuite.variables() != null ? new LinkedHashMap<>(step1TestSuite.variables()) : Map.of();
 
-    // Step 2: process the full YAML template again with suite.variables populated from Step 1,
-    // so that expressions like [[${suite.variables.api_base_url}]] in test cases are resolved.
-    Context step2Context = new Context();
-    step2Context.setVariable("cli", cli);
-    step2Context.setVariable("suite", Map.of("variables", resolvedVariables));
-    String step2Yaml = templateEngine.process(templateContent, step2Context);
+        // Step 2: process the full YAML template again with suite.variables populated from Step 1,
+        // so that expressions like [[${suite.variables.api_base_url}]] in test cases are resolved.
+        Context step2Context = new Context();
+        step2Context.setVariable("cli", cli);
+        step2Context.setVariable("suite", Map.of("variables", resolvedVariables));
+        String step2Yaml = templateEngine.process(templateContent, step2Context);
 
-    TestSuite processedTestSuite = yamlMapper.readValue(step2Yaml, TestSuite.class);
-    return new TestSuite(
-        processedTestSuite.name(),
-        processedTestSuite.description(),
-        RestClientConfig.withDefaults(processedTestSuite.restClientConfig()),
-        resolvedVariables,
-        processedTestSuite.tests(),
-        filePath);
-  }
+        TestSuite processedTestSuite = yamlMapper.readValue(step2Yaml, TestSuite.class);
+        return new TestSuite(
+                processedTestSuite.name(),
+                processedTestSuite.description(),
+                RestClientConfig.withDefaults(processedTestSuite.restClientConfig()),
+                resolvedVariables,
+                processedTestSuite.tests(),
+                filePath);
+    }
 }

@@ -26,18 +26,18 @@ import java.util.List;
  * did not pass, preserving the full actual/expected detail for each.
  */
 public record TestCaseResult(
-    /** Name of the test case as declared in the suite YAML. */
-    String name,
+        /** Name of the test case as declared in the suite YAML. */
+        String name,
 
-    /** {@code true} if all assertions passed, {@code false} otherwise. */
-    boolean passed,
+        /** {@code true} if all assertions passed, {@code false} otherwise. */
+        boolean passed,
 
-    /** Number of assertions that passed for this test case. */
-    int passedAssertions,
+        /** Number of assertions that passed for this test case. */
+        int passedAssertions,
 
-    /**
-     * Individual failures collected during assertion evaluation. Empty when {@code passed} is
-     * {@code true}. For non-assertion errors (e.g. network failures) this contains a single entry
-     * with only a message and {@code null} actual/expected values.
-     */
-    List<AssertionFailure> failures) {}
+        /**
+         * Individual failures collected during assertion evaluation. Empty when {@code passed} is
+         * {@code true}. For non-assertion errors (e.g. network failures) this contains a single entry
+         * with only a message and {@code null} actual/expected values.
+         */
+        List<AssertionFailure> failures) {}

@@ -30,69 +30,68 @@ import org.opentest4j.MultipleFailuresError;
 
 class ArraySizeAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void correctSizePasses() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("a", "b", "c")));
+    @Test
+    void correctSizePasses() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("a", "b", "c")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 3))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 3))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void wrongSizeFails() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("a", "b")));
+    @Test
+    void wrongSizeFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("a", "b")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 3))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 3))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void emptyArrayWithZeroExpectedPasses() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of()));
+    @Test
+    void emptyArrayWithZeroExpectedPasses() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of()));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 0))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void nonArrayValueFails() {
-    ApiResponse response = responseWithJson(Map.of("tags", "not-an-array"));
+    @Test
+    void nonArrayValueFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", "not-an-array"));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 1))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.tags", 1))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("a")));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("a")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.missing", 1))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json.$.missing", 1))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

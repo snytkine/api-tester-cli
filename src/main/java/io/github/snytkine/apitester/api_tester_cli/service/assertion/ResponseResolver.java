@@ -46,103 +46,99 @@ import org.springframework.web.client.RestClient;
 @Component
 public class ResponseResolver {
 
-  private final ObjectMapper jsonMapper;
+    private final ObjectMapper jsonMapper;
 
-  /**
-   * Constructs the resolver with an {@link ObjectMapper} for JSON body parsing. No extra modules
-   * are registered; standard Jackson databind covers all response body types encountered in
-   * practice and avoids classpath-scanning module discovery that is incompatible with GraalVM
-   * native compilation.
-   */
-  public ResponseResolver() {
-    this.jsonMapper = new ObjectMapper();
-  }
-
-  /**
-   * Determines the minimum {@link ResponseResolutionLevel} required by the given assertions.
-   *
-   * <p>Returns {@link ResponseResolutionLevel#STATUS_ONLY} when every assertion is a {@link
-   * StatusCodeAssertion}; otherwise returns {@link ResponseResolutionLevel#FULL}.
-   *
-   * @param assertions the assertions to examine
-   * @return the minimum resolution level needed
-   */
-  private ResponseResolutionLevel determineLevel(List<Assertion> assertions) {
-    return assertions.stream().allMatch(a -> a instanceof StatusCodeAssertion)
-        ? ResponseResolutionLevel.STATUS_ONLY
-        : ResponseResolutionLevel.FULL;
-  }
-
-  /**
-   * Resolves a {@link RestClient.ResponseSpec} into an {@link ApiResponse} using the minimum
-   * extraction level dictated by the assertion list.
-   *
-   * <p>The response body is read at most once. All HTTP status codes (including 4xx and 5xx) are
-   * captured rather than thrown as exceptions.
-   *
-   * @param responseSpec the response spec to consume
-   * @param assertions the assertions that will be evaluated against the result
-   * @return a fully populated {@link ApiResponse}
-   */
-  public ApiResponse resolve(RestClient.ResponseSpec responseSpec, List<Assertion> assertions) {
-    // Suppress Spring's default error-throwing for all status codes.
-    RestClient.ResponseSpec spec = responseSpec.onStatus(status -> true, (req, res) -> {});
-
-    if (determineLevel(assertions) == ResponseResolutionLevel.STATUS_ONLY) {
-      long startNs = System.nanoTime();
-      ResponseEntity<Void> entity = spec.toBodilessEntity();
-      long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;
-      return new ApiResponse(
-          entity.getStatusCode().value(),
-          flattenHeaders(entity.getHeaders()),
-          null,
-          responseTimeMs);
+    /**
+     * Constructs the resolver with an {@link ObjectMapper} for JSON body parsing. No extra modules
+     * are registered; standard Jackson databind covers all response body types encountered in
+     * practice and avoids classpath-scanning module discovery that is incompatible with GraalVM
+     * native compilation.
+     */
+    public ResponseResolver() {
+        this.jsonMapper = new ObjectMapper();
     }
 
-    long startNs = System.nanoTime();
-    ResponseEntity<String> entity = spec.toEntity(String.class);
-    long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;
-    String bodyText = entity.getBody();
-    return new ApiResponse(
-        entity.getStatusCode().value(),
-        flattenHeaders(entity.getHeaders()),
-        new ApiResponse.Body(bodyText, tryParseJson(bodyText)),
-        responseTimeMs);
-  }
+    /**
+     * Determines the minimum {@link ResponseResolutionLevel} required by the given assertions.
+     *
+     * <p>Returns {@link ResponseResolutionLevel#STATUS_ONLY} when every assertion is a {@link
+     * StatusCodeAssertion}; otherwise returns {@link ResponseResolutionLevel#FULL}.
+     *
+     * @param assertions the assertions to examine
+     * @return the minimum resolution level needed
+     */
+    private ResponseResolutionLevel determineLevel(List<Assertion> assertions) {
+        return assertions.stream().allMatch(a -> a instanceof StatusCodeAssertion)
+                ? ResponseResolutionLevel.STATUS_ONLY
+                : ResponseResolutionLevel.FULL;
+    }
 
-  /**
-   * Flattens Spring's multi-value {@link HttpHeaders} into a single-value map with lower-cased
-   * header names. When a header has multiple values only the first is kept.
-   *
-   * @param headers the headers from a Spring {@link ResponseEntity}
-   * @return a mutable, lower-cased, single-value header map
-   */
-  private Map<String, String> flattenHeaders(HttpHeaders headers) {
-    Map<String, String> flat = new LinkedHashMap<>();
-    headers.forEach(
-        (name, values) -> {
-          if (!values.isEmpty()) {
-            flat.put(name.toLowerCase(), values.get(0));
-          }
+    /**
+     * Resolves a {@link RestClient.ResponseSpec} into an {@link ApiResponse} using the minimum
+     * extraction level dictated by the assertion list.
+     *
+     * <p>The response body is read at most once. All HTTP status codes (including 4xx and 5xx) are
+     * captured rather than thrown as exceptions.
+     *
+     * @param responseSpec the response spec to consume
+     * @param assertions the assertions that will be evaluated against the result
+     * @return a fully populated {@link ApiResponse}
+     */
+    public ApiResponse resolve(RestClient.ResponseSpec responseSpec, List<Assertion> assertions) {
+        // Suppress Spring's default error-throwing for all status codes.
+        RestClient.ResponseSpec spec = responseSpec.onStatus(status -> true, (req, res) -> {});
+
+        if (determineLevel(assertions) == ResponseResolutionLevel.STATUS_ONLY) {
+            long startNs = System.nanoTime();
+            ResponseEntity<Void> entity = spec.toBodilessEntity();
+            long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;
+            return new ApiResponse(
+                    entity.getStatusCode().value(), flattenHeaders(entity.getHeaders()), null, responseTimeMs);
+        }
+
+        long startNs = System.nanoTime();
+        ResponseEntity<String> entity = spec.toEntity(String.class);
+        long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;
+        String bodyText = entity.getBody();
+        return new ApiResponse(
+                entity.getStatusCode().value(),
+                flattenHeaders(entity.getHeaders()),
+                new ApiResponse.Body(bodyText, tryParseJson(bodyText)),
+                responseTimeMs);
+    }
+
+    /**
+     * Flattens Spring's multi-value {@link HttpHeaders} into a single-value map with lower-cased
+     * header names. When a header has multiple values only the first is kept.
+     *
+     * @param headers the headers from a Spring {@link ResponseEntity}
+     * @return a mutable, lower-cased, single-value header map
+     */
+    private Map<String, String> flattenHeaders(HttpHeaders headers) {
+        Map<String, String> flat = new LinkedHashMap<>();
+        headers.forEach((name, values) -> {
+            if (!values.isEmpty()) {
+                flat.put(name.toLowerCase(), values.get(0));
+            }
         });
-    return flat;
-  }
+        return flat;
+    }
 
-  /**
-   * Attempts to parse {@code text} as JSON using Jackson.
-   *
-   * @param text the raw response body text, may be {@code null} or blank
-   * @return the parsed JSON value (a {@link Map}, {@link List}, or scalar), or {@code null} if
-   *     {@code text} is absent or not valid JSON
-   */
-  @Nullable private Object tryParseJson(@Nullable String text) {
-    if (text == null || text.isBlank()) {
-      return null;
+    /**
+     * Attempts to parse {@code text} as JSON using Jackson.
+     *
+     * @param text the raw response body text, may be {@code null} or blank
+     * @return the parsed JSON value (a {@link Map}, {@link List}, or scalar), or {@code null} if
+     *     {@code text} is absent or not valid JSON
+     */
+    @Nullable private Object tryParseJson(@Nullable String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        try {
+            return jsonMapper.readValue(text, Object.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
-    try {
-      return jsonMapper.readValue(text, Object.class);
-    } catch (Exception e) {
-      return null;
-    }
-  }
 }

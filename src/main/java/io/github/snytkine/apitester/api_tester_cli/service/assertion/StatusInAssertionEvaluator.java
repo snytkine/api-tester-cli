@@ -29,36 +29,34 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class StatusInAssertionEvaluator implements AssertionEvaluator {
 
-  private final StatusInAssertion assertion;
+    private final StatusInAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the status_in assertion to evaluate
-   */
-  StatusInAssertionEvaluator(StatusInAssertion assertion) {
-    this.assertion = assertion;
-  }
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the status_in assertion to evaluate
+     */
+    StatusInAssertionEvaluator(StatusInAssertion assertion) {
+        this.assertion = assertion;
+    }
 
-  /**
-   * Checks the response status code against the expected list and records a failure when it is
-   * absent or not listed.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    if (response.statusCode() == null) {
-      collector.fail(
-          "Expected status code to be one of %s but response has no status code",
-          assertion.expected());
-      return;
+    /**
+     * Checks the response status code against the expected list and records a failure when it is
+     * absent or not listed.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        if (response.statusCode() == null) {
+            collector.fail(
+                    "Expected status code to be one of %s but response has no status code", assertion.expected());
+            return;
+        }
+        if (!assertion.expected().contains(response.statusCode())) {
+            collector.fail(
+                    "Expected status code to be one of %s but was: %d", assertion.expected(), response.statusCode());
+        }
     }
-    if (!assertion.expected().contains(response.statusCode())) {
-      collector.fail(
-          "Expected status code to be one of %s but was: %d",
-          assertion.expected(), response.statusCode());
-    }
-  }
 }

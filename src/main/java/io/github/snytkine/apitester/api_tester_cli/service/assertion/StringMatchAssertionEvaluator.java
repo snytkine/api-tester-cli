@@ -44,101 +44,98 @@ import org.jspecify.annotations.Nullable;
  */
 class StringMatchAssertionEvaluator implements AssertionEvaluator {
 
-  private static final String PREFIX = "response.";
-  private static final String BODY_JSON_PREFIX = "body.json.";
+    private static final String PREFIX = "response.";
+    private static final String BODY_JSON_PREFIX = "body.json.";
 
-  private final StringMatchAssertion assertion;
+    private final StringMatchAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the string_match assertion to evaluate
-   */
-  StringMatchAssertionEvaluator(StringMatchAssertion assertion) {
-    this.assertion = assertion;
-  }
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the string_match assertion to evaluate
+     */
+    StringMatchAssertionEvaluator(StringMatchAssertion assertion) {
+        this.assertion = assertion;
+    }
 
-  /**
-   * Resolves the assertion's {@code path} against {@code response}, converts the result to a
-   * string, and asserts that it exactly equals the expected value.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    String path = assertion.path();
-    if (!path.startsWith(PREFIX)) {
-      collector.fail("Unsupported path '%s': must start with 'response.'", path);
-      return;
+    /**
+     * Resolves the assertion's {@code path} against {@code response}, converts the result to a
+     * string, and asserts that it exactly equals the expected value.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        String path = assertion.path();
+        if (!path.startsWith(PREFIX)) {
+            collector.fail("Unsupported path '%s': must start with 'response.'", path);
+            return;
+        }
+        String remaining = path.substring(PREFIX.length());
+        Object resolved = resolve(response, remaining, path, collector);
+        if (resolved == null) {
+            return;
+        }
+        String actual = String.valueOf(resolved);
+        boolean caseSensitive = assertion.caseSensitive() == null || assertion.caseSensitive();
+        if (caseSensitive) {
+            collector.assertThat(actual).as("Value at path '%s'", path).isEqualTo(assertion.expected());
+        } else {
+            collector
+                    .assertThat(actual)
+                    .as("Value at path '%s' (ignoring case)", path)
+                    .isEqualToIgnoringCase(assertion.expected());
+        }
     }
-    String remaining = path.substring(PREFIX.length());
-    Object resolved = resolve(response, remaining, path, collector);
-    if (resolved == null) {
-      return;
-    }
-    String actual = String.valueOf(resolved);
-    boolean caseSensitive = assertion.caseSensitive() == null || assertion.caseSensitive();
-    if (caseSensitive) {
-      collector.assertThat(actual).as("Value at path '%s'", path).isEqualTo(assertion.expected());
-    } else {
-      collector
-          .assertThat(actual)
-          .as("Value at path '%s' (ignoring case)", path)
-          .isEqualToIgnoringCase(assertion.expected());
-    }
-  }
 
-  /**
-   * Navigates the {@code remaining} path segment within {@code response} and returns the resolved
-   * value, or {@code null} and records a failure when the path is unsupported.
-   *
-   * @param response the captured HTTP response
-   * @param remaining the path segment after the {@code response.} prefix
-   * @param fullPath the original full path, used in failure messages
-   * @param collector the shared failure collector
-   * @return the resolved value, or {@code null} if resolution failed
-   */
-  @Nullable private Object resolve(
-      ApiResponse response, String remaining, String fullPath, FailureCollector collector) {
-    if (remaining.equals("statusCode")) {
-      return response.statusCode();
-    }
-    if (remaining.startsWith("headers.")) {
-      String name = remaining.substring("headers.".length()).toLowerCase();
-      if (response.headers() == null) {
-        collector.fail("No headers present in response when evaluating path '%s'", fullPath);
+    /**
+     * Navigates the {@code remaining} path segment within {@code response} and returns the resolved
+     * value, or {@code null} and records a failure when the path is unsupported.
+     *
+     * @param response the captured HTTP response
+     * @param remaining the path segment after the {@code response.} prefix
+     * @param fullPath the original full path, used in failure messages
+     * @param collector the shared failure collector
+     * @return the resolved value, or {@code null} if resolution failed
+     */
+    @Nullable private Object resolve(ApiResponse response, String remaining, String fullPath, FailureCollector collector) {
+        if (remaining.equals("statusCode")) {
+            return response.statusCode();
+        }
+        if (remaining.startsWith("headers.")) {
+            String name = remaining.substring("headers.".length()).toLowerCase();
+            if (response.headers() == null) {
+                collector.fail("No headers present in response when evaluating path '%s'", fullPath);
+                return null;
+            }
+            return response.headers().get(name);
+        }
+        if (remaining.equals("body.text")) {
+            return response.body() != null ? response.body().text() : null;
+        }
+        if (remaining.equals("body.json")) {
+            return response.body() != null ? String.valueOf(response.body().json()) : null;
+        }
+        if (remaining.startsWith(BODY_JSON_PREFIX)) {
+            String jsonPathExpr = remaining.substring(BODY_JSON_PREFIX.length());
+            if (response.body() == null || response.body().text() == null) {
+                collector.fail("Response body is absent when evaluating path '%s'", fullPath);
+                return null;
+            }
+            try {
+                return JsonPath.read(response.body().text(), jsonPathExpr);
+            } catch (PathNotFoundException e) {
+                collector.fail(
+                        "JSONPath expression '%s' not found in response body (path '%s')", jsonPathExpr, fullPath);
+                return null;
+            } catch (Exception e) {
+                collector.fail(
+                        "Failed to evaluate JSONPath '%s' in path '%s': %s", jsonPathExpr, fullPath, e.getMessage());
+                return null;
+            }
+        }
+        collector.fail("Unsupported path segment '%s' in path '%s'", remaining, fullPath);
         return null;
-      }
-      return response.headers().get(name);
     }
-    if (remaining.equals("body.text")) {
-      return response.body() != null ? response.body().text() : null;
-    }
-    if (remaining.equals("body.json")) {
-      return response.body() != null ? String.valueOf(response.body().json()) : null;
-    }
-    if (remaining.startsWith(BODY_JSON_PREFIX)) {
-      String jsonPathExpr = remaining.substring(BODY_JSON_PREFIX.length());
-      if (response.body() == null || response.body().text() == null) {
-        collector.fail("Response body is absent when evaluating path '%s'", fullPath);
-        return null;
-      }
-      try {
-        return JsonPath.read(response.body().text(), jsonPathExpr);
-      } catch (PathNotFoundException e) {
-        collector.fail(
-            "JSONPath expression '%s' not found in response body (path '%s')",
-            jsonPathExpr, fullPath);
-        return null;
-      } catch (Exception e) {
-        collector.fail(
-            "Failed to evaluate JSONPath '%s' in path '%s': %s",
-            jsonPathExpr, fullPath, e.getMessage());
-        return null;
-      }
-    }
-    collector.fail("Unsupported path segment '%s' in path '%s'", remaining, fullPath);
-    return null;
-  }
 }

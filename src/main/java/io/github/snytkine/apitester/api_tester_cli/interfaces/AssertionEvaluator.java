@@ -32,12 +32,12 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 @FunctionalInterface
 public interface AssertionEvaluator {
 
-  /**
-   * Evaluates this assertion against the given response, recording any failures in {@code
-   * collector}.
-   *
-   * @param response the captured HTTP response to assert against
-   * @param collector the shared failure collector for this test case
-   */
-  void evaluate(ApiResponse response, FailureCollector collector);
+    /**
+     * Evaluates this assertion against the given response, recording any failures in {@code
+     * collector}.
+     *
+     * @param response the captured HTTP response to assert against
+     * @param collector the shared failure collector for this test case
+     */
+    void evaluate(ApiResponse response, FailureCollector collector);
 }

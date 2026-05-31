@@ -31,57 +31,51 @@ import org.jspecify.annotations.Nullable;
  * boundaries without additional synchronisation.
  */
 public sealed interface TestProgressEvent
-    permits TestProgressEvent.SuiteStarted,
-        TestProgressEvent.TestStarted,
-        TestProgressEvent.TestCompleted,
-        TestProgressEvent.SuiteCompleted {
+        permits TestProgressEvent.SuiteStarted,
+                TestProgressEvent.TestStarted,
+                TestProgressEvent.TestCompleted,
+                TestProgressEvent.SuiteCompleted {
 
-  /**
-   * Fired once before any test cases begin. Carries enough information for the UI to pre-allocate
-   * one row per test.
-   *
-   * @param suiteName the {@code name} field from the suite YAML
-   * @param totalTestCount number of test cases in the suite
-   * @param startedAt wall-clock timestamp when the suite run began
-   */
-  record SuiteStarted(String suiteName, int totalTestCount, Instant startedAt)
-      implements TestProgressEvent {}
+    /**
+     * Fired once before any test cases begin. Carries enough information for the UI to pre-allocate
+     * one row per test.
+     *
+     * @param suiteName the {@code name} field from the suite YAML
+     * @param totalTestCount number of test cases in the suite
+     * @param startedAt wall-clock timestamp when the suite run began
+     */
+    record SuiteStarted(String suiteName, int totalTestCount, Instant startedAt) implements TestProgressEvent {}
 
-  /**
-   * Fired immediately before a test case's HTTP request is dispatched.
-   *
-   * @param testIndex zero-based position of the test case in the suite's test list
-   * @param testName the {@code name} field from the test case YAML
-   */
-  record TestStarted(int testIndex, String testName) implements TestProgressEvent {}
+    /**
+     * Fired immediately before a test case's HTTP request is dispatched.
+     *
+     * @param testIndex zero-based position of the test case in the suite's test list
+     * @param testName the {@code name} field from the test case YAML
+     */
+    record TestStarted(int testIndex, String testName) implements TestProgressEvent {}
 
-  /**
-   * Fired after all assertions for a test case have been evaluated (or an exception has been
-   * caught).
-   *
-   * @param testIndex zero-based position of the test case in the suite's test list
-   * @param testName the {@code name} field from the test case YAML
-   * @param status {@link TestStatus#PASS}, {@link TestStatus#FAIL}, or {@link TestStatus#ERROR}
-   * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event
-   * @param failureSummary first failure message when {@code status != PASS}; {@code null} otherwise
-   */
-  record TestCompleted(
-      int testIndex,
-      String testName,
-      TestStatus status,
-      long durationMs,
-      @Nullable String failureSummary)
-      implements TestProgressEvent {}
+    /**
+     * Fired after all assertions for a test case have been evaluated (or an exception has been
+     * caught).
+     *
+     * @param testIndex zero-based position of the test case in the suite's test list
+     * @param testName the {@code name} field from the test case YAML
+     * @param status {@link TestStatus#PASS}, {@link TestStatus#FAIL}, or {@link TestStatus#ERROR}
+     * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event
+     * @param failureSummary first failure message when {@code status != PASS}; {@code null} otherwise
+     */
+    record TestCompleted(
+            int testIndex, String testName, TestStatus status, long durationMs, @Nullable String failureSummary)
+            implements TestProgressEvent {}
 
-  /**
-   * Fired once after all test cases have completed (or failed). The UI render loop uses this as
-   * its shutdown signal.
-   *
-   * @param passCount number of test cases with status {@link TestStatus#PASS}
-   * @param failCount number of test cases with status {@link TestStatus#FAIL} or {@link
-   *     TestStatus#ERROR}
-   * @param totalDurationMs total elapsed time in milliseconds for the entire suite run
-   */
-  record SuiteCompleted(long passCount, long failCount, long totalDurationMs)
-      implements TestProgressEvent {}
+    /**
+     * Fired once after all test cases have completed (or failed). The UI render loop uses this as its
+     * shutdown signal.
+     *
+     * @param passCount number of test cases with status {@link TestStatus#PASS}
+     * @param failCount number of test cases with status {@link TestStatus#FAIL} or {@link
+     *     TestStatus#ERROR}
+     * @param totalDurationMs total elapsed time in milliseconds for the entire suite run
+     */
+    record SuiteCompleted(long passCount, long failCount, long totalDurationMs) implements TestProgressEvent {}
 }

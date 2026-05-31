@@ -30,86 +30,79 @@ import org.opentest4j.MultipleFailuresError;
 
 class ArrayContainsAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void stringPresentPasses() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("java", "spring", "graal")));
+    @Test
+    void stringPresentPasses() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("java", "spring", "graal")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArrayContainsAssertionEvaluator(
-            new ArrayContainsAssertion("response.body.json.$.tags", "spring"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json.$.tags", "spring"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void stringAbsentFails() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("java", "graal")));
+    @Test
+    void stringAbsentFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("java", "graal")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArrayContainsAssertionEvaluator(
-            new ArrayContainsAssertion("response.body.json.$.tags", "spring"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json.$.tags", "spring"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void numberPresentPasses() {
-    ApiResponse response = responseWithJson(Map.of("codes", List.of(200, 201, 204)));
+    @Test
+    void numberPresentPasses() {
+        ApiResponse response = responseWithJson(Map.of("codes", List.of(200, 201, 204)));
 
-    FailureCollector collector = new FailureCollector();
-    new ArrayContainsAssertionEvaluator(
-            new ArrayContainsAssertion("response.body.json.$.codes", 201))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json.$.codes", 201))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void integerMatchesDoubleEquivalentPasses() {
-    ApiResponse response = responseWithJson(Map.of("scores", List.of(1, 2, 3)));
+    @Test
+    void integerMatchesDoubleEquivalentPasses() {
+        ApiResponse response = responseWithJson(Map.of("scores", List.of(1, 2, 3)));
 
-    FailureCollector collector = new FailureCollector();
-    new ArrayContainsAssertionEvaluator(
-            new ArrayContainsAssertion("response.body.json.$.scores", 2.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json.$.scores", 2.0))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void nonArrayValueFails() {
-    ApiResponse response = responseWithJson(Map.of("tags", "not-an-array"));
+    @Test
+    void nonArrayValueFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", "not-an-array"));
 
-    FailureCollector collector = new FailureCollector();
-    new ArrayContainsAssertionEvaluator(
-            new ArrayContainsAssertion("response.body.json.$.tags", "java"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json.$.tags", "java"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("tags", List.of("java")));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("java")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArrayContainsAssertionEvaluator(
-            new ArrayContainsAssertion("response.body.json.$.missing", "java"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json.$.missing", "java"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

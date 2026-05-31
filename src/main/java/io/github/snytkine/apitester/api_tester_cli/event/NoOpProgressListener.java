@@ -17,8 +17,8 @@
 package io.github.snytkine.apitester.api_tester_cli.event;
 
 /**
- * Silent {@link TestProgressListener} used when the terminal UI is disabled (non-TTY output,
- * {@code --no-ui} flag, or {@code NO_COLOR} environment variable set).
+ * Silent {@link TestProgressListener} used when the terminal UI is disabled (non-TTY output, {@code
+ * --no-ui} flag, or {@code NO_COLOR} environment variable set).
  *
  * <p>All events are silently discarded. The singleton {@link #INSTANCE} should be preferred over
  * constructing new instances.
@@ -27,14 +27,14 @@ package io.github.snytkine.apitester.api_tester_cli.event;
  */
 public final class NoOpProgressListener implements TestProgressListener {
 
-  /** Shared singleton; avoids repeated allocation in the common non-UI path. */
-  public static final NoOpProgressListener INSTANCE = new NoOpProgressListener();
+    /** Shared singleton; avoids repeated allocation in the common non-UI path. */
+    public static final NoOpProgressListener INSTANCE = new NoOpProgressListener();
 
-  private NoOpProgressListener() {}
+    private NoOpProgressListener() {}
 
-  /** Discards the event without any side effects. */
-  @Override
-  public void onProgress(TestProgressEvent event) {
-    // intentionally no-op
-  }
+    /** Discards the event without any side effects. */
+    @Override
+    public void onProgress(TestProgressEvent event) {
+        // intentionally no-op
+    }
 }

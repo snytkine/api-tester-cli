@@ -19,5 +19,4 @@ package io.github.snytkine.apitester.api_tester_cli.model;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
-public record Request(
-    HttpMethod method, String url, Map<String, String> headers, @Nullable RequestBody body) {}
+public record Request(HttpMethod method, String url, Map<String, String> headers, @Nullable RequestBody body) {}

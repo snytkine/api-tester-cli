@@ -37,36 +37,35 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class NotNullAssertionEvaluator implements AssertionEvaluator {
 
-  private final NotNullAssertion assertion;
+    private final NotNullAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the not_null assertion to evaluate
-   */
-  NotNullAssertionEvaluator(NotNullAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves {@code assertion.path()} and records a failure if the value is missing or {@code
-   * null}.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (f.value() == null) {
-          collector.fail("Expected non-null value at path '%s' but was null", assertion.path());
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected non-null value at path '%s' but path does not exist", assertion.path());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the not_null assertion to evaluate
+     */
+    NotNullAssertionEvaluator(NotNullAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Resolves {@code assertion.path()} and records a failure if the value is missing or {@code
+     * null}.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (f.value() == null) {
+                    collector.fail("Expected non-null value at path '%s' but was null", assertion.path());
+                }
+            }
+            case Result.Missing m ->
+                collector.fail("Expected non-null value at path '%s' but path does not exist", assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
 }

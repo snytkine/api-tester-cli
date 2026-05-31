@@ -29,69 +29,68 @@ import org.opentest4j.MultipleFailuresError;
 
 class LessThanAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void lowerValuePasses() {
-    ApiResponse response = responseWithJson(Map.of("price", 9.99));
+    @Test
+    void lowerValuePasses() {
+        ApiResponse response = responseWithJson(Map.of("price", 9.99));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void equalValueFails() {
-    ApiResponse response = responseWithJson(Map.of("price", 10.0));
+    @Test
+    void equalValueFails() {
+        ApiResponse response = responseWithJson(Map.of("price", 10.0));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void higherValueFails() {
-    ApiResponse response = responseWithJson(Map.of("price", 15.0));
+    @Test
+    void higherValueFails() {
+        ApiResponse response = responseWithJson(Map.of("price", 15.0));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void numericStringPasses() {
-    ApiResponse response = responseWithJson(Map.of("price", "5.0"));
+    @Test
+    void numericStringPasses() {
+        ApiResponse response = responseWithJson(Map.of("price", "5.0"));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("price", 5.0));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("price", 5.0));
 
-    FailureCollector collector = new FailureCollector();
-    new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.missing", 10.0))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.missing", 10.0))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

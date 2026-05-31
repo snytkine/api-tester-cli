@@ -29,39 +29,39 @@ import org.opentest4j.MultipleFailuresError;
 
 class StatusInAssertionEvaluatorTest {
 
-  @Test
-  void statusInListPasses() {
-    FailureCollector collector = new FailureCollector();
-    new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200, 201, 204)))
-        .evaluate(new ApiResponse(201, Map.of(), null), collector);
+    @Test
+    void statusInListPasses() {
+        FailureCollector collector = new FailureCollector();
+        new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200, 201, 204)))
+                .evaluate(new ApiResponse(201, Map.of(), null), collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void statusNotInListFails() {
-    FailureCollector collector = new FailureCollector();
-    new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200, 201, 204)))
-        .evaluate(new ApiResponse(400, Map.of(), null), collector);
+    @Test
+    void statusNotInListFails() {
+        FailureCollector collector = new FailureCollector();
+        new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200, 201, 204)))
+                .evaluate(new ApiResponse(400, Map.of(), null), collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nullStatusCodeFails() {
-    FailureCollector collector = new FailureCollector();
-    new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200, 201)))
-        .evaluate(new ApiResponse(null, Map.of(), null), collector);
+    @Test
+    void nullStatusCodeFails() {
+        FailureCollector collector = new FailureCollector();
+        new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200, 201)))
+                .evaluate(new ApiResponse(null, Map.of(), null), collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void singleValueListPasses() {
-    FailureCollector collector = new FailureCollector();
-    new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200)))
-        .evaluate(new ApiResponse(200, Map.of(), null), collector);
+    @Test
+    void singleValueListPasses() {
+        FailureCollector collector = new FailureCollector();
+        new StatusInAssertionEvaluator(new StatusInAssertion(List.of(200)))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 }

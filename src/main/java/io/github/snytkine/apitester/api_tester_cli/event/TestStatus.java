@@ -24,7 +24,7 @@ package io.github.snytkine.apitester.api_tester_cli.event;
  * before or during assertion evaluation (e.g. network error, JSON parse error).
  */
 public enum TestStatus {
-  PASS,
-  FAIL,
-  ERROR
+    PASS,
+    FAIL,
+    ERROR
 }

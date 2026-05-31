@@ -35,39 +35,38 @@ import org.springframework.web.client.RestClient;
 @Configuration
 public class HttpClientConfig {
 
-  /**
-   * Creates a default {@link ClientHttpRequestFactory} backed by Java's built-in {@link HttpClient}
-   * when no other {@link ClientHttpRequestFactory} bean is present in the application context.
-   *
-   * <p>The factory is configured with a 30-second connect timeout, HTTP/2 with HTTP/1.1 fallback,
-   * and normal redirect following. This bean is skipped entirely when the application registers its
-   * own {@link ClientHttpRequestFactory}.
-   *
-   * @return a {@link JdkClientHttpRequestFactory} wrapping a custom {@link HttpClient}
-   */
-  @Bean
-  @ConditionalOnMissingBean(ClientHttpRequestFactory.class)
-  public ClientHttpRequestFactory defaultClientHttpRequestFactory() {
-    HttpClient httpClient =
-        HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .version(HttpClient.Version.HTTP_2)
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
-    return new JdkClientHttpRequestFactory(httpClient);
-  }
+    /**
+     * Creates a default {@link ClientHttpRequestFactory} backed by Java's built-in {@link HttpClient}
+     * when no other {@link ClientHttpRequestFactory} bean is present in the application context.
+     *
+     * <p>The factory is configured with a 30-second connect timeout, HTTP/2 with HTTP/1.1 fallback,
+     * and normal redirect following. This bean is skipped entirely when the application registers its
+     * own {@link ClientHttpRequestFactory}.
+     *
+     * @return a {@link JdkClientHttpRequestFactory} wrapping a custom {@link HttpClient}
+     */
+    @Bean
+    @ConditionalOnMissingBean(ClientHttpRequestFactory.class)
+    public ClientHttpRequestFactory defaultClientHttpRequestFactory() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(30))
+                .version(HttpClient.Version.HTTP_2)
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+        return new JdkClientHttpRequestFactory(httpClient);
+    }
 
-  /**
-   * Creates a {@link RestClient} bean using the provided {@link ClientHttpRequestFactory}.
-   *
-   * <p>The injected factory is either a custom bean registered elsewhere in the application context
-   * or the default JDK-backed factory produced by {@link #defaultClientHttpRequestFactory()}.
-   *
-   * @param requestFactory the HTTP transport factory to use
-   * @return a fully configured {@link RestClient} bean
-   */
-  @Bean
-  public RestClient restClient(ClientHttpRequestFactory requestFactory) {
-    return RestClient.builder().requestFactory(requestFactory).build();
-  }
+    /**
+     * Creates a {@link RestClient} bean using the provided {@link ClientHttpRequestFactory}.
+     *
+     * <p>The injected factory is either a custom bean registered elsewhere in the application context
+     * or the default JDK-backed factory produced by {@link #defaultClientHttpRequestFactory()}.
+     *
+     * @param requestFactory the HTTP transport factory to use
+     * @return a fully configured {@link RestClient} bean
+     */
+    @Bean
+    public RestClient restClient(ClientHttpRequestFactory requestFactory) {
+        return RestClient.builder().requestFactory(requestFactory).build();
+    }
 }

@@ -38,173 +38,164 @@ import org.junit.jupiter.api.Test;
 
 class TestSuiteLoaderTest {
 
-  private TestSuiteLoader loader;
+    private TestSuiteLoader loader;
 
-  @BeforeEach
-  void setUp() {
-    loader = new TestSuiteLoader();
-  }
+    @BeforeEach
+    void setUp() {
+        loader = new TestSuiteLoader();
+    }
 
-  @Test
-  void loadWithCliVariablesReplacesTemplateVariables() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite.yml").toURI());
-    CliVariables cliVariables =
-        new CliVariables(
-            Map.of(
+    @Test
+    void loadWithCliVariablesReplacesTemplateVariables() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite.yml").toURI());
+        CliVariables cliVariables = new CliVariables(Map.of(
                 "api_base_url", "https://api.example.com",
                 "admin_system", "admin-prod"));
 
-    TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, cliVariables);
 
-    assertThat(testSuite.filePath()).isEqualTo(path);
-    Map<String, String> variables = testSuite.variables();
-    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
-    assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
-    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
-    assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
-  }
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        Map<String, String> variables = testSuite.variables();
+        assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+        assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
+        assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+        assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
+    }
 
-  @Test
-  void loadWithPartialCliVariablesLeavesUnresolvedExpressionsAsIs() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-partial.yml").toURI());
-    CliVariables cliVariables = new CliVariables(Map.of("api_base_url", "https://api.example.com"));
+    @Test
+    void loadWithPartialCliVariablesLeavesUnresolvedExpressionsAsIs() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-partial.yml").toURI());
+        CliVariables cliVariables = new CliVariables(Map.of("api_base_url", "https://api.example.com"));
 
-    TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, cliVariables);
 
-    assertThat(testSuite.filePath()).isEqualTo(path);
-    Map<String, String> variables = testSuite.variables();
-    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
-    assertThat(variables.get("admin_system")).isEmpty();
-    assertThat(variables.get("environment")).isEmpty();
-    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
-    assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
-  }
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        Map<String, String> variables = testSuite.variables();
+        assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+        assertThat(variables.get("admin_system")).isEmpty();
+        assertThat(variables.get("environment")).isEmpty();
+        assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+        assertThat(variables.get("request_id")).hasSize(12).matches("[A-Z0-9]{12}");
+    }
 
-  @Test
-  void twoStepLoadResolvesSuiteVariableReferencesInTestCases() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-two-step.yml").toURI());
-    CliVariables cliVariables =
-        new CliVariables(
-            Map.of(
+    @Test
+    void twoStepLoadResolvesSuiteVariableReferencesInTestCases() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-two-step.yml").toURI());
+        CliVariables cliVariables = new CliVariables(Map.of(
                 "api_base_url", "https://api.example.com",
                 "admin_system", "admin-prod"));
 
-    TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, cliVariables);
 
-    assertThat(testSuite.filePath()).isEqualTo(path);
-    Map<String, String> variables = testSuite.variables();
-    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
-    assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
-    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
-    String requestId = variables.get("request_id");
-    assertThat(requestId).hasSize(12).matches("[A-Z0-9]{12}");
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        Map<String, String> variables = testSuite.variables();
+        assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+        assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
+        assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+        String requestId = variables.get("request_id");
+        assertThat(requestId).hasSize(12).matches("[A-Z0-9]{12}");
 
-    Request request = testSuite.tests().get(0).request();
-    assertThat(request.url()).isEqualTo("https://api.example.com/login");
-    assertThat(request.headers().get("x-admin")).isEqualTo("admin-prod");
-    assertThat(request.headers().get("x-request-id")).isEqualTo(requestId);
-  }
+        Request request = testSuite.tests().get(0).request();
+        assertThat(request.url()).isEqualTo("https://api.example.com/login");
+        assertThat(request.headers().get("x-admin")).isEqualTo("admin-prod");
+        assertThat(request.headers().get("x-request-id")).isEqualTo(requestId);
+    }
 
-  @Test
-  void elvisOperatorUsesProvidedValueWhenVariableExists() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
-    CliVariables cliVariables =
-        new CliVariables(
-            Map.of(
+    @Test
+    void elvisOperatorUsesProvidedValueWhenVariableExists() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
+        CliVariables cliVariables = new CliVariables(Map.of(
                 "api_base_url", "api-example-com",
                 "environment", "production",
                 "timeout", "60"));
 
-    TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, cliVariables);
 
-    assertThat(testSuite.filePath()).isEqualTo(path);
-    Map<String, String> variables = testSuite.variables();
-    assertThat(variables.get("api_base_url")).isEqualTo("api-example-com");
-    assertThat(variables.get("environment")).isEqualTo("production");
-    assertThat(variables.get("timeout")).isEqualTo("60");
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        Map<String, String> variables = testSuite.variables();
+        assertThat(variables.get("api_base_url")).isEqualTo("api-example-com");
+        assertThat(variables.get("environment")).isEqualTo("production");
+        assertThat(variables.get("timeout")).isEqualTo("60");
 
-    Request request = testSuite.tests().get(0).request();
-    assertThat(request.url()).isEqualTo("api-example-com/health");
-    assertThat(request.headers().get("x-environment")).isEqualTo("production");
-  }
+        Request request = testSuite.tests().get(0).request();
+        assertThat(request.url()).isEqualTo("api-example-com/health");
+        assertThat(request.headers().get("x-environment")).isEqualTo("production");
+    }
 
-  @Test
-  void loadTestSuite2ResolvesAllVariablesAndParsesAllAssertionTypes() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-2.yml").toURI());
-    CliVariables cliVariables =
-        new CliVariables(
-            Map.of(
+    @Test
+    void loadTestSuite2ResolvesAllVariablesAndParsesAllAssertionTypes() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-2.yml").toURI());
+        CliVariables cliVariables = new CliVariables(Map.of(
                 "api_base_url", "https://api.example.com",
                 "admin_system", "admin-prod"));
 
-    TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, cliVariables);
 
-    assertThat(testSuite.filePath()).isEqualTo(path);
-    assertThat(testSuite.name()).isEqualTo("Test Suite for My Application v1.0");
-    assertThat(testSuite.tests()).hasSize(1);
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        assertThat(testSuite.name()).isEqualTo("Test Suite for My Application v1.0");
+        assertThat(testSuite.tests()).hasSize(1);
 
-    Map<String, String> variables = testSuite.variables();
-    assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
-    assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
-    assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
-    String requestId = variables.get("request_id");
-    assertThat(requestId).hasSize(12).matches("[A-Z0-9]{12}");
+        Map<String, String> variables = testSuite.variables();
+        assertThat(variables.get("api_base_url")).isEqualTo("https://api.example.com");
+        assertThat(variables.get("admin_system")).isEqualTo("admin-prod");
+        assertThat(variables.get("last_updated")).isEqualTo(LocalDate.now().toString());
+        String requestId = variables.get("request_id");
+        assertThat(requestId).hasSize(12).matches("[A-Z0-9]{12}");
 
-    TestCase testCase = testSuite.tests().get(0);
-    assertThat(testCase.name()).isEqualTo("Test User Login");
-    assertThat(testCase.variables().get("username")).isEqualTo("testuser");
-    assertThat(testCase.variables().get("password")).isEqualTo("password123");
-    assertThat(testCase.variables().get("id")).isEqualTo("login_test_001");
+        TestCase testCase = testSuite.tests().get(0);
+        assertThat(testCase.name()).isEqualTo("Test User Login");
+        assertThat(testCase.variables().get("username")).isEqualTo("testuser");
+        assertThat(testCase.variables().get("password")).isEqualTo("password123");
+        assertThat(testCase.variables().get("id")).isEqualTo("login_test_001");
 
-    Request request = testCase.request();
-    assertThat(request.method()).isEqualTo(HttpMethod.POST);
-    assertThat(request.url()).isEqualTo("https://api.example.com/login");
-    assertThat(request.headers().get("Content-Type")).isEqualTo("application/json");
-    assertThat(request.headers().get("x-username")).isEqualTo("testuser");
-    assertThat(request.headers().get("x-request-id")).isEqualTo(requestId);
-    assertThat(request.body().type()).isEqualTo(BodyType.FILE);
-    assertThat(request.body().content()).isEqualTo("login_request_body.json");
+        Request request = testCase.request();
+        assertThat(request.method()).isEqualTo(HttpMethod.POST);
+        assertThat(request.url()).isEqualTo("https://api.example.com/login");
+        assertThat(request.headers().get("Content-Type")).isEqualTo("application/json");
+        assertThat(request.headers().get("x-username")).isEqualTo("testuser");
+        assertThat(request.headers().get("x-request-id")).isEqualTo(requestId);
+        assertThat(request.body().type()).isEqualTo(BodyType.FILE);
+        assertThat(request.body().content()).isEqualTo("login_request_body.json");
 
-    List<Assertion> assertions = testCase.assertions();
-    assertThat(assertions).hasSize(4);
+        List<Assertion> assertions = testCase.assertions();
+        assertThat(assertions).hasSize(4);
 
-    assertThat(assertions.get(0)).isInstanceOf(StatusCodeAssertion.class);
-    assertThat(((StatusCodeAssertion) assertions.get(0)).expected()).isEqualTo(200);
+        assertThat(assertions.get(0)).isInstanceOf(StatusCodeAssertion.class);
+        assertThat(((StatusCodeAssertion) assertions.get(0)).expected()).isEqualTo(200);
 
-    assertThat(assertions.get(1)).isInstanceOf(JsonSchemaAssertion.class);
-    JsonSchemaAssertion schemaAssertion = (JsonSchemaAssertion) assertions.get(1);
-    assertThat(schemaAssertion.path()).isEqualTo("response.body.json");
-    assertThat(schemaAssertion.expected().type()).isEqualTo("file");
-    assertThat(schemaAssertion.expected().content())
-        .isEqualTo("schemas/login_response_schema.json");
+        assertThat(assertions.get(1)).isInstanceOf(JsonSchemaAssertion.class);
+        JsonSchemaAssertion schemaAssertion = (JsonSchemaAssertion) assertions.get(1);
+        assertThat(schemaAssertion.path()).isEqualTo("response.body.json");
+        assertThat(schemaAssertion.expected().type()).isEqualTo("file");
+        assertThat(schemaAssertion.expected().content()).isEqualTo("schemas/login_response_schema.json");
 
-    assertThat(assertions.get(2)).isInstanceOf(StringMatchAssertion.class);
-    StringMatchAssertion pathAssertion = (StringMatchAssertion) assertions.get(2);
-    assertThat(pathAssertion.path()).isEqualTo("response.headers.content-type");
-    assertThat(pathAssertion.expected()).isEqualTo("application/json");
+        assertThat(assertions.get(2)).isInstanceOf(StringMatchAssertion.class);
+        StringMatchAssertion pathAssertion = (StringMatchAssertion) assertions.get(2);
+        assertThat(pathAssertion.path()).isEqualTo("response.headers.content-type");
+        assertThat(pathAssertion.expected()).isEqualTo("application/json");
 
-    assertThat(assertions.get(3)).isInstanceOf(JsonMatchAssertion.class);
-    JsonMatchAssertion matchAssertion = (JsonMatchAssertion) assertions.get(3);
-    assertThat(matchAssertion.path()).isEqualTo("response.body.json");
-    assertThat(matchAssertion.expected().content()).isEqualTo("expected_login_response.json");
-    assertThat(matchAssertion.expected().ignore()).containsExactly("timestamp", "session_id");
-  }
+        assertThat(assertions.get(3)).isInstanceOf(JsonMatchAssertion.class);
+        JsonMatchAssertion matchAssertion = (JsonMatchAssertion) assertions.get(3);
+        assertThat(matchAssertion.path()).isEqualTo("response.body.json");
+        assertThat(matchAssertion.expected().content()).isEqualTo("expected_login_response.json");
+        assertThat(matchAssertion.expected().ignore()).containsExactly("timestamp", "session_id");
+    }
 
-  @Test
-  void elvisOperatorUsesDefaultValueWhenVariableIsMissing() throws Exception {
-    Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
-    CliVariables cliVariables = new CliVariables(Map.of());
+    @Test
+    void elvisOperatorUsesDefaultValueWhenVariableIsMissing() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
+        CliVariables cliVariables = new CliVariables(Map.of());
 
-    TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, cliVariables);
 
-    assertThat(testSuite.filePath()).isEqualTo(path);
-    Map<String, String> variables = testSuite.variables();
-    assertThat(variables.get("api_base_url")).isEqualTo("https://localhost:8080");
-    assertThat(variables.get("environment")).isEqualTo("staging");
-    assertThat(variables.get("timeout")).isEqualTo("30");
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        Map<String, String> variables = testSuite.variables();
+        assertThat(variables.get("api_base_url")).isEqualTo("https://localhost:8080");
+        assertThat(variables.get("environment")).isEqualTo("staging");
+        assertThat(variables.get("timeout")).isEqualTo("30");
 
-    Request request = testSuite.tests().get(0).request();
-    assertThat(request.url()).isEqualTo("https://localhost:8080/health");
-    assertThat(request.headers().get("x-environment")).isEqualTo("staging");
-  }
+        Request request = testSuite.tests().get(0).request();
+        assertThat(request.url()).isEqualTo("https://localhost:8080/health");
+        assertThat(request.headers().get("x-environment")).isEqualTo("staging");
+    }
 }

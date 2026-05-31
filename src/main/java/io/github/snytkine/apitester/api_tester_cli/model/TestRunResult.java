@@ -27,11 +27,11 @@ import java.util.List;
  * and inspect each {@link TestCaseResult#failures()}.
  */
 public record TestRunResult(
-    /** Number of test cases where all assertions passed. */
-    long passedCount,
+        /** Number of test cases where all assertions passed. */
+        long passedCount,
 
-    /** Number of test cases where at least one assertion failed, or an error occurred. */
-    long failedCount,
+        /** Number of test cases where at least one assertion failed, or an error occurred. */
+        long failedCount,
 
-    /** Per-test-case results in execution order. */
-    List<TestCaseResult> results) {}
+        /** Per-test-case results in execution order. */
+        List<TestCaseResult> results) {}

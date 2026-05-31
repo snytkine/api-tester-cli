@@ -41,102 +41,97 @@ import org.springframework.shell.core.command.ParsedInput;
 
 class RunSuiteCommandTest {
 
-  private TestEngine mockEngine;
-  private RunSuiteCommand command;
+    private TestEngine mockEngine;
+    private RunSuiteCommand command;
 
-  @BeforeEach
-  void setUp() {
-    mockEngine = mock(TestEngine.class);
-    command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine, null);
-  }
-
-  @Test
-  void buildCliVariablesParsesKeyValueFormat() {
-    List<CommandArgument> args =
-        List.of(
-            new CommandArgument(0, "api_base_url=https://api.example.com"),
-            new CommandArgument(1, "admin_system=IBM"));
-
-    Map<String, String> result = command.buildCliVariables(args);
-
-    assertThat(result)
-        .containsEntry("api_base_url", "https://api.example.com")
-        .containsEntry("admin_system", "IBM");
-  }
-
-  @Test
-  void buildCliVariablesSkipsEntriesWithoutEqualsSign() {
-    List<CommandArgument> args =
-        List.of(
-            new CommandArgument(0, "api_base_url=https://api.example.com"),
-            new CommandArgument(1, "not-a-variable"),
-            new CommandArgument(2, "admin_system=IBM"));
-
-    Map<String, String> result = command.buildCliVariables(args);
-
-    assertThat(result)
-        .hasSize(2)
-        .containsEntry("api_base_url", "https://api.example.com")
-        .containsEntry("admin_system", "IBM");
-  }
-
-  @Test
-  void buildCliVariablesReturnsEmptyMapForEmptyArguments() {
-    assertThat(command.buildCliVariables(List.of())).isEmpty();
-  }
-
-  @Test
-  void runSuitePassesResolvedVariablesToEngine() throws Exception {
-    String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-    TestRunResult fakeResult =
-        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
-    when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
-
-    command.runSuite(
-        suite, false, false, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
-
-    verify(mockEngine).runConfigurationSuite(any(), any());
-  }
-
-  @Test
-  void runSuiteInvokesEngineEvenWithNoVariables() throws Exception {
-    String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-    TestRunResult fakeResult =
-        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
-    when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
-
-    command.runSuite(suite, false, false, buildContext());
-
-    verify(mockEngine).runConfigurationSuite(any(), any());
-  }
-
-  @Test
-  void runSuiteWithNoUiFlagStillPrintsJson() throws Exception {
-    String suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-    TestRunResult fakeResult =
-        new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
-    when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
-
-    command.runSuite(suite, true, false, buildContext());
-
-    verify(mockEngine).runConfigurationSuite(any(), any());
-  }
-
-  @Test
-  void runSuiteThrowsWhenFileDoesNotExist() {
-    assertThatThrownBy(
-            () -> command.runSuite("/nonexistent/path/suite.yml", false, false, buildContext()))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("Test suite file not found");
-  }
-
-  private CommandContext buildContext(String... argValues) {
-    List<CommandArgument> arguments = new ArrayList<>();
-    for (int i = 0; i < argValues.length; i++) {
-      arguments.add(new CommandArgument(i, argValues[i]));
+    @BeforeEach
+    void setUp() {
+        mockEngine = mock(TestEngine.class);
+        command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine, null);
     }
-    ParsedInput parsedInput = new ParsedInput("run-suite", List.of(), List.of(), arguments);
-    return new CommandContext(
-        parsedInput, new CommandRegistry(), new PrintWriter(System.out), null);
-  }
+
+    @Test
+    void buildCliVariablesParsesKeyValueFormat() {
+        List<CommandArgument> args = List.of(
+                new CommandArgument(0, "api_base_url=https://api.example.com"),
+                new CommandArgument(1, "admin_system=IBM"));
+
+        Map<String, String> result = command.buildCliVariables(args);
+
+        assertThat(result)
+                .containsEntry("api_base_url", "https://api.example.com")
+                .containsEntry("admin_system", "IBM");
+    }
+
+    @Test
+    void buildCliVariablesSkipsEntriesWithoutEqualsSign() {
+        List<CommandArgument> args = List.of(
+                new CommandArgument(0, "api_base_url=https://api.example.com"),
+                new CommandArgument(1, "not-a-variable"),
+                new CommandArgument(2, "admin_system=IBM"));
+
+        Map<String, String> result = command.buildCliVariables(args);
+
+        assertThat(result)
+                .hasSize(2)
+                .containsEntry("api_base_url", "https://api.example.com")
+                .containsEntry("admin_system", "IBM");
+    }
+
+    @Test
+    void buildCliVariablesReturnsEmptyMapForEmptyArguments() {
+        assertThat(command.buildCliVariables(List.of())).isEmpty();
+    }
+
+    @Test
+    void runSuitePassesResolvedVariablesToEngine() throws Exception {
+        String suite =
+                Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+        when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
+
+        verify(mockEngine).runConfigurationSuite(any(), any());
+    }
+
+    @Test
+    void runSuiteInvokesEngineEvenWithNoVariables() throws Exception {
+        String suite =
+                Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+        when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, buildContext());
+
+        verify(mockEngine).runConfigurationSuite(any(), any());
+    }
+
+    @Test
+    void runSuiteWithNoUiFlagStillPrintsJson() throws Exception {
+        String suite =
+                Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+        when(mockEngine.runConfigurationSuite(any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, true, false, buildContext());
+
+        verify(mockEngine).runConfigurationSuite(any(), any());
+    }
+
+    @Test
+    void runSuiteThrowsWhenFileDoesNotExist() {
+        assertThatThrownBy(() -> command.runSuite("/nonexistent/path/suite.yml", false, false, buildContext()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Test suite file not found");
+    }
+
+    private CommandContext buildContext(String... argValues) {
+        List<CommandArgument> arguments = new ArrayList<>();
+        for (int i = 0; i < argValues.length; i++) {
+            arguments.add(new CommandArgument(i, argValues[i]));
+        }
+        ParsedInput parsedInput = new ParsedInput("run-suite", List.of(), List.of(), arguments);
+        return new CommandContext(parsedInput, new CommandRegistry(), new PrintWriter(System.out), null);
+    }
 }

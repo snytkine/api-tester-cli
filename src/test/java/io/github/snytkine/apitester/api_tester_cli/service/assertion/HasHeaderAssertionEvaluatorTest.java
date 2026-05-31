@@ -28,47 +28,43 @@ import org.opentest4j.MultipleFailuresError;
 
 class HasHeaderAssertionEvaluatorTest {
 
-  @Test
-  void presentHeaderPasses() {
-    ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
+    @Test
+    void presentHeaderPasses() {
+        ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
 
-    FailureCollector collector = new FailureCollector();
-    new HasHeaderAssertionEvaluator(new HasHeaderAssertion("content-type"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new HasHeaderAssertionEvaluator(new HasHeaderAssertion("content-type")).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void absentHeaderFails() {
-    ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
+    @Test
+    void absentHeaderFails() {
+        ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
 
-    FailureCollector collector = new FailureCollector();
-    new HasHeaderAssertionEvaluator(new HasHeaderAssertion("x-request-id"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new HasHeaderAssertionEvaluator(new HasHeaderAssertion("x-request-id")).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nullHeadersFails() {
-    ApiResponse response = new ApiResponse(200, null, null);
+    @Test
+    void nullHeadersFails() {
+        ApiResponse response = new ApiResponse(200, null, null);
 
-    FailureCollector collector = new FailureCollector();
-    new HasHeaderAssertionEvaluator(new HasHeaderAssertion("content-type"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new HasHeaderAssertionEvaluator(new HasHeaderAssertion("content-type")).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void headerNameCaseInsensitivePasses() {
-    ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
+    @Test
+    void headerNameCaseInsensitivePasses() {
+        ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
 
-    FailureCollector collector = new FailureCollector();
-    new HasHeaderAssertionEvaluator(new HasHeaderAssertion("Content-Type"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new HasHeaderAssertionEvaluator(new HasHeaderAssertion("Content-Type")).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 }

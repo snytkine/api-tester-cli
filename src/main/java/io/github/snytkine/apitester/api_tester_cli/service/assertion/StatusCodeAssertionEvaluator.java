@@ -27,28 +27,25 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class StatusCodeAssertionEvaluator implements AssertionEvaluator {
 
-  private final StatusCodeAssertion assertion;
+    private final StatusCodeAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the status code assertion to evaluate
-   */
-  StatusCodeAssertionEvaluator(StatusCodeAssertion assertion) {
-    this.assertion = assertion;
-  }
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the status code assertion to evaluate
+     */
+    StatusCodeAssertionEvaluator(StatusCodeAssertion assertion) {
+        this.assertion = assertion;
+    }
 
-  /**
-   * Asserts that the response status code equals the expected value.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    collector
-        .assertThat(response.statusCode())
-        .as("HTTP status code")
-        .isEqualTo(assertion.expected());
-  }
+    /**
+     * Asserts that the response status code equals the expected value.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        collector.assertThat(response.statusCode()).as("HTTP status code").isEqualTo(assertion.expected());
+    }
 }

@@ -32,10 +32,10 @@ import org.opentest4j.MultipleFailuresError;
 
 class JsonSchemaAssertionEvaluatorTest {
 
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-  private static final String OBJECT_SCHEMA_DRAFT7 =
-      """
+    private static final String OBJECT_SCHEMA_DRAFT7 =
+            """
       {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "type": "object",
@@ -48,8 +48,8 @@ class JsonSchemaAssertionEvaluatorTest {
       }
       """;
 
-  private static final String OBJECT_SCHEMA_2020 =
-      """
+    private static final String OBJECT_SCHEMA_2020 =
+            """
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -60,8 +60,8 @@ class JsonSchemaAssertionEvaluatorTest {
       }
       """;
 
-  private static final String ARRAY_SCHEMA =
-      """
+    private static final String ARRAY_SCHEMA =
+            """
       {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "array",
@@ -75,124 +75,117 @@ class JsonSchemaAssertionEvaluatorTest {
       }
       """;
 
-  private static JsonSchemaAssertionEvaluator evaluatorFor(String path, String schema) {
-    ObjectExpectedValue expected = new ObjectExpectedValue("inline", schema, List.of());
-    return new JsonSchemaAssertionEvaluator(
-        new JsonSchemaAssertion(path, expected), null, OBJECT_MAPPER);
-  }
+    private static JsonSchemaAssertionEvaluator evaluatorFor(String path, String schema) {
+        ObjectExpectedValue expected = new ObjectExpectedValue("inline", schema, List.of());
+        return new JsonSchemaAssertionEvaluator(new JsonSchemaAssertion(path, expected), null, OBJECT_MAPPER);
+    }
 
-  private static ApiResponse responseWithJson(String text, Object json) {
-    return new ApiResponse(200, Map.of(), new ApiResponse.Body(text, json));
-  }
+    private static ApiResponse responseWithJson(String text, Object json) {
+        return new ApiResponse(200, Map.of(), new ApiResponse.Body(text, json));
+    }
 
-  @Test
-  void validObjectPassesSchemaValidation() {
-    ApiResponse response =
-        responseWithJson("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30));
+    @Test
+    void validObjectPassesSchemaValidation() {
+        ApiResponse response = responseWithJson("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30));
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void objectMissingRequiredFieldRecordsSchemaViolation() {
-    ApiResponse response = responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice"));
+    @Test
+    void objectMissingRequiredFieldRecordsSchemaViolation() {
+        ApiResponse response = responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice"));
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll)
-        .isInstanceOf(MultipleFailuresError.class)
-        .hasMessageContaining("JSON schema violation");
-  }
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("JSON schema violation");
+    }
 
-  @Test
-  void objectWithWrongTypeRecordsSchemaViolation() {
-    ApiResponse response =
-        responseWithJson(
-            "{\"name\":\"Alice\",\"age\":\"thirty\"}", Map.of("name", "Alice", "age", "thirty"));
+    @Test
+    void objectWithWrongTypeRecordsSchemaViolation() {
+        ApiResponse response =
+                responseWithJson("{\"name\":\"Alice\",\"age\":\"thirty\"}", Map.of("name", "Alice", "age", "thirty"));
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll)
-        .isInstanceOf(MultipleFailuresError.class)
-        .hasMessageContaining("JSON schema violation");
-  }
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("JSON schema violation");
+    }
 
-  @Test
-  void validArrayPassesSchemaValidation() {
-    String text = "[{\"id\":1},{\"id\":2}]";
-    Object json = List.of(Map.of("id", 1), Map.of("id", 2));
+    @Test
+    void validArrayPassesSchemaValidation() {
+        String text = "[{\"id\":1},{\"id\":2}]";
+        Object json = List.of(Map.of("id", 1), Map.of("id", 2));
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json", ARRAY_SCHEMA)
-        .evaluate(responseWithJson(text, json), collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", ARRAY_SCHEMA).evaluate(responseWithJson(text, json), collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void draft2020SchemaIsRecognisedAndUsedCorrectly() {
-    ApiResponse response = responseWithJson("{\"id\":\"abc\"}", Map.of("id", "abc"));
+    @Test
+    void draft2020SchemaIsRecognisedAndUsedCorrectly() {
+        ApiResponse response = responseWithJson("{\"id\":\"abc\"}", Map.of("id", "abc"));
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_2020).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", OBJECT_SCHEMA_2020).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void nullBodyRecordsFailure() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void nullBodyRecordsFailure() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void unsupportedPathRecordsFailure() {
-    ApiResponse response =
-        responseWithJson("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30));
+    @Test
+    void unsupportedPathRecordsFailure() {
+        ApiResponse response = responseWithJson("{\"name\":\"Alice\",\"age\":30}", Map.of("name", "Alice", "age", 30));
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("invalid.path", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("invalid.path", OBJECT_SCHEMA_DRAFT7).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll)
-        .isInstanceOf(MultipleFailuresError.class)
-        .hasMessageContaining("response.");
-  }
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("response.");
+    }
 
-  @Test
-  void jsonpathSubexpressionExtractsNestedTarget() {
-    String text = "{\"data\":{\"id\":\"abc\"}}";
-    Object json = Map.of("data", Map.of("id", "abc"));
-    ApiResponse response = responseWithJson(text, json);
+    @Test
+    void jsonpathSubexpressionExtractsNestedTarget() {
+        String text = "{\"data\":{\"id\":\"abc\"}}";
+        Object json = Map.of("data", Map.of("id", "abc"));
+        ApiResponse response = responseWithJson(text, json);
 
-    FailureCollector collector = new FailureCollector();
-    evaluatorFor("response.body.json.$.data", OBJECT_SCHEMA_2020).evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json.$.data", OBJECT_SCHEMA_2020).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void fileNotFoundRecordsFailure() {
-    ObjectExpectedValue expected =
-        new ObjectExpectedValue("file", "nonexistent-schema.json", List.of());
-    Path tmpDir = Path.of(System.getProperty("java.io.tmpdir"));
-    JsonSchemaAssertionEvaluator ev =
-        new JsonSchemaAssertionEvaluator(
-            new JsonSchemaAssertion("response.body.json", expected), tmpDir, OBJECT_MAPPER);
+    @Test
+    void fileNotFoundRecordsFailure() {
+        ObjectExpectedValue expected = new ObjectExpectedValue("file", "nonexistent-schema.json", List.of());
+        Path tmpDir = Path.of(System.getProperty("java.io.tmpdir"));
+        JsonSchemaAssertionEvaluator ev = new JsonSchemaAssertionEvaluator(
+                new JsonSchemaAssertion("response.body.json", expected), tmpDir, OBJECT_MAPPER);
 
-    ApiResponse response = responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice"));
+        ApiResponse response = responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice"));
 
-    FailureCollector collector = new FailureCollector();
-    ev.evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        ev.evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

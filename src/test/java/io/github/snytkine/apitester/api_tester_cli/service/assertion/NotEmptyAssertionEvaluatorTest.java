@@ -28,81 +28,78 @@ import org.opentest4j.MultipleFailuresError;
 
 class NotEmptyAssertionEvaluatorTest {
 
-  @Test
-  void nonEmptyStringHeaderPasses() {
-    ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
+    @Test
+    void nonEmptyStringHeaderPasses() {
+        ApiResponse response = new ApiResponse(200, Map.of("content-type", "application/json"), null);
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.headers.content-type"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.headers.content-type"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void emptyStringHeaderFails() {
-    ApiResponse response = new ApiResponse(200, Map.of("x-custom", ""), null);
+    @Test
+    void emptyStringHeaderFails() {
+        ApiResponse response = new ApiResponse(200, Map.of("x-custom", ""), null);
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.headers.x-custom"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.headers.x-custom"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void absentHeaderFails() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void absentHeaderFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.headers.x-custom"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.headers.x-custom"))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nonEmptyBodyTextPasses() {
-    ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("hello", null));
+    @Test
+    void nonEmptyBodyTextPasses() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("hello", null));
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.text"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.text")).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void emptyBodyTextFails() {
-    ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("", null));
+    @Test
+    void emptyBodyTextFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("", null));
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.text"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.text")).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nonNullNonStringJsonValuePasses() {
-    ApiResponse response =
-        new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"count\":42}", Map.of("count", 42)));
+    @Test
+    void nonNullNonStringJsonValuePasses() {
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"count\":42}", Map.of("count", 42)));
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.json.$.count"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.json.$.count"))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void missingPathFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.json"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.json")).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

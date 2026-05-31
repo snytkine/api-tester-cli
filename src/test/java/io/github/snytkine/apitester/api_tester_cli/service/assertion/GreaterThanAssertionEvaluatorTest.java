@@ -29,80 +29,79 @@ import org.opentest4j.MultipleFailuresError;
 
 class GreaterThanAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void higherValuePasses() {
-    ApiResponse response = responseWithJson(Map.of("score", 100));
+    @Test
+    void higherValuePasses() {
+        ApiResponse response = responseWithJson(Map.of("score", 100));
 
-    FailureCollector collector = new FailureCollector();
-    new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void equalValueFails() {
-    ApiResponse response = responseWithJson(Map.of("score", 50));
+    @Test
+    void equalValueFails() {
+        ApiResponse response = responseWithJson(Map.of("score", 50));
 
-    FailureCollector collector = new FailureCollector();
-    new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void lowerValueFails() {
-    ApiResponse response = responseWithJson(Map.of("score", 10));
+    @Test
+    void lowerValueFails() {
+        ApiResponse response = responseWithJson(Map.of("score", 10));
 
-    FailureCollector collector = new FailureCollector();
-    new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void numericStringPasses() {
-    ApiResponse response = responseWithJson(Map.of("score", "100"));
+    @Test
+    void numericStringPasses() {
+        ApiResponse response = responseWithJson(Map.of("score", "100"));
 
-    FailureCollector collector = new FailureCollector();
-    new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void nonNumericStringFails() {
-    ApiResponse response = responseWithJson(Map.of("score", "high"));
+    @Test
+    void nonNumericStringFails() {
+        ApiResponse response = responseWithJson(Map.of("score", "high"));
 
-    FailureCollector collector = new FailureCollector();
-    new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.score", 50))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingPathFails() {
-    ApiResponse response = responseWithJson(Map.of("score", 100));
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("score", 100));
 
-    FailureCollector collector = new FailureCollector();
-    new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.missing", 50))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.missing", 50))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

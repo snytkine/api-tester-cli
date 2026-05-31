@@ -26,35 +26,35 @@ import java.util.concurrent.LinkedBlockingQueue;
  *
  * <p>Test worker threads (producers) are never blocked: {@link LinkedBlockingQueue#offer(Object)}
  * is used rather than {@code put}, so an unexpectedly slow render thread can never stall a test.
- * Events are tiny immutable records; dropping them is theoretically possible only if the queue
- * were bounded and full, which cannot happen with an unbounded {@link LinkedBlockingQueue}.
+ * Events are tiny immutable records; dropping them is theoretically possible only if the queue were
+ * bounded and full, which cannot happen with an unbounded {@link LinkedBlockingQueue}.
  *
  * <p>Thread-safety: this class is thread-safe. {@link LinkedBlockingQueue#offer} is internally
  * synchronized and safe for concurrent invocations from multiple producer threads.
  */
 public final class TerminalUiListener implements TestProgressListener {
 
-  private final LinkedBlockingQueue<TestProgressEvent> queue;
+    private final LinkedBlockingQueue<TestProgressEvent> queue;
 
-  /**
-   * Constructs the listener with the shared event queue.
-   *
-   * @param queue the blocking queue shared with a {@link TerminalUiController}; must not be null
-   */
-  public TerminalUiListener(LinkedBlockingQueue<TestProgressEvent> queue) {
-    this.queue = queue;
-  }
+    /**
+     * Constructs the listener with the shared event queue.
+     *
+     * @param queue the blocking queue shared with a {@link TerminalUiController}; must not be null
+     */
+    public TerminalUiListener(LinkedBlockingQueue<TestProgressEvent> queue) {
+        this.queue = queue;
+    }
 
-  /**
-   * Enqueues {@code event} into the shared queue without blocking.
-   *
-   * <p>If the queue were to reject the offer (not possible with an unbounded {@link
-   * LinkedBlockingQueue}), the event would be silently dropped rather than blocking the caller.
-   *
-   * @param event the progress event to enqueue; must not be null
-   */
-  @Override
-  public void onProgress(TestProgressEvent event) {
-    queue.offer(event);
-  }
+    /**
+     * Enqueues {@code event} into the shared queue without blocking.
+     *
+     * <p>If the queue were to reject the offer (not possible with an unbounded {@link
+     * LinkedBlockingQueue}), the event would be silently dropped rather than blocking the caller.
+     *
+     * @param event the progress event to enqueue; must not be null
+     */
+    @Override
+    public void onProgress(TestProgressEvent event) {
+        queue.offer(event);
+    }
 }

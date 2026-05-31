@@ -27,30 +27,29 @@ import org.jspecify.annotations.Nullable;
  * milliseconds.
  */
 public record ApiResponse(
-    @Nullable Integer statusCode,
-    @Nullable Map<String, String> headers,
-    @Nullable Body body,
-    @Nullable Long responseTimeMs) {
+        @Nullable Integer statusCode,
+        @Nullable Map<String, String> headers,
+        @Nullable Body body,
+        @Nullable Long responseTimeMs) {
 
-  /**
-   * Convenience constructor for use in tests and contexts where response time is not relevant.
-   * Delegates to the canonical constructor with {@code responseTimeMs} set to {@code null}.
-   *
-   * @param statusCode the HTTP status code
-   * @param headers the response headers
-   * @param body the response body, or {@code null} when the body was not consumed
-   */
-  public ApiResponse(
-      @Nullable Integer statusCode, @Nullable Map<String, String> headers, @Nullable Body body) {
-    this(statusCode, headers, body, null);
-  }
+    /**
+     * Convenience constructor for use in tests and contexts where response time is not relevant.
+     * Delegates to the canonical constructor with {@code responseTimeMs} set to {@code null}.
+     *
+     * @param statusCode the HTTP status code
+     * @param headers the response headers
+     * @param body the response body, or {@code null} when the body was not consumed
+     */
+    public ApiResponse(@Nullable Integer statusCode, @Nullable Map<String, String> headers, @Nullable Body body) {
+        this(statusCode, headers, body, null);
+    }
 
-  /**
-   * The response payload in two representations: raw text and a parsed JSON object.
-   *
-   * <p>{@code text} always contains the raw response body string. {@code json} holds the result of
-   * parsing {@code text} as JSON (a {@link java.util.Map}, {@link java.util.List}, or scalar) and
-   * is {@code null} when the body is absent or not valid JSON.
-   */
-  public record Body(@Nullable String text, @Nullable Object json) {}
+    /**
+     * The response payload in two representations: raw text and a parsed JSON object.
+     *
+     * <p>{@code text} always contains the raw response body string. {@code json} holds the result of
+     * parsing {@code text} as JSON (a {@link java.util.Map}, {@link java.util.List}, or scalar) and
+     * is {@code null} when the body is absent or not valid JSON.
+     */
+    public record Body(@Nullable String text, @Nullable Object json) {}
 }

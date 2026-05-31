@@ -19,14 +19,14 @@ package io.github.snytkine.apitester.api_tester_cli.model;
 import com.fasterxml.jackson.annotation.JsonCreator;
 
 public enum BodyType {
-  STRING,
-  FILE,
-  JSON,
-  XML,
-  FORM_DATA;
+    STRING,
+    FILE,
+    JSON,
+    XML,
+    FORM_DATA;
 
-  @JsonCreator
-  public static BodyType fromValue(String value) {
-    return BodyType.valueOf(value.toUpperCase().replace("-", "_"));
-  }
+    @JsonCreator
+    public static BodyType fromValue(String value) {
+        return BodyType.valueOf(value.toUpperCase().replace("-", "_"));
+    }
 }

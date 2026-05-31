@@ -30,126 +30,128 @@ import org.junit.jupiter.params.provider.CsvSource;
  */
 class TtyDetectorTest {
 
-  // --- shouldUseUi (pure-logic overload) ---
+    // --- shouldUseUi (pure-logic overload) ---
 
-  @Test
-  void forceUiReturnsTrueRegardlessOfOtherConditions() {
-    assertThat(TtyDetector.shouldUseUi(true, false, false, true, true, 0)).isTrue();
-    assertThat(TtyDetector.shouldUseUi(true, true, false, true, true, 0)).isTrue();
-    assertThat(TtyDetector.shouldUseUi(true, false, false, false, false, 200)).isTrue();
-  }
+    @Test
+    void forceUiReturnsTrueRegardlessOfOtherConditions() {
+        assertThat(TtyDetector.shouldUseUi(true, false, false, true, true, 0)).isTrue();
+        assertThat(TtyDetector.shouldUseUi(true, true, false, true, true, 0)).isTrue();
+        assertThat(TtyDetector.shouldUseUi(true, false, false, false, false, 200))
+                .isTrue();
+    }
 
-  @Test
-  void noUiReturnsFalseWhenForceUiIsAbsent() {
-    assertThat(TtyDetector.shouldUseUi(false, true, true, false, false, 200)).isFalse();
-  }
+    @Test
+    void noUiReturnsFalseWhenForceUiIsAbsent() {
+        assertThat(TtyDetector.shouldUseUi(false, true, true, false, false, 200))
+                .isFalse();
+    }
 
-  @Test
-  void forceUiTakesPrecedenceOverNoUi() {
-    assertThat(TtyDetector.shouldUseUi(true, true, true, false, false, 200)).isTrue();
-  }
+    @Test
+    void forceUiTakesPrecedenceOverNoUi() {
+        assertThat(TtyDetector.shouldUseUi(true, true, true, false, false, 200)).isTrue();
+    }
 
-  @Test
-  void noTtyReturnsFalse() {
-    assertThat(TtyDetector.shouldUseUi(false, false, false, false, false, 200)).isFalse();
-  }
+    @Test
+    void noTtyReturnsFalse() {
+        assertThat(TtyDetector.shouldUseUi(false, false, false, false, false, 200))
+                .isFalse();
+    }
 
-  @Test
-  void noColorReturnsFalse() {
-    assertThat(TtyDetector.shouldUseUi(false, false, true, true, false, 200)).isFalse();
-  }
+    @Test
+    void noColorReturnsFalse() {
+        assertThat(TtyDetector.shouldUseUi(false, false, true, true, false, 200))
+                .isFalse();
+    }
 
-  @Test
-  void ciEnvironmentReturnsFalse() {
-    assertThat(TtyDetector.shouldUseUi(false, false, true, false, true, 200)).isFalse();
-  }
+    @Test
+    void ciEnvironmentReturnsFalse() {
+        assertThat(TtyDetector.shouldUseUi(false, false, true, false, true, 200))
+                .isFalse();
+    }
 
-  @Test
-  void narrowTerminalReturnsFalse() {
-    assertThat(
-            TtyDetector.shouldUseUi(
-                false, false, true, false, false, TtyDetector.MIN_TERMINAL_WIDTH - 1))
-        .isFalse();
-  }
+    @Test
+    void narrowTerminalReturnsFalse() {
+        assertThat(TtyDetector.shouldUseUi(false, false, true, false, false, TtyDetector.MIN_TERMINAL_WIDTH - 1))
+                .isFalse();
+    }
 
-  @Test
-  void exactMinWidthReturnsTrue() {
-    assertThat(
-            TtyDetector.shouldUseUi(
-                false, false, true, false, false, TtyDetector.MIN_TERMINAL_WIDTH))
-        .isTrue();
-  }
+    @Test
+    void exactMinWidthReturnsTrue() {
+        assertThat(TtyDetector.shouldUseUi(false, false, true, false, false, TtyDetector.MIN_TERMINAL_WIDTH))
+                .isTrue();
+    }
 
-  @Test
-  void allConditionsFavourableReturnsTrue() {
-    assertThat(TtyDetector.shouldUseUi(false, false, true, false, false, 120)).isTrue();
-  }
+    @Test
+    void allConditionsFavourableReturnsTrue() {
+        assertThat(TtyDetector.shouldUseUi(false, false, true, false, false, 120))
+                .isTrue();
+    }
 
-  // --- parseColumns ---
+    // --- parseColumns ---
 
-  @Test
-  void parseColumnsReturnsEightyForNull() {
-    assertThat(TtyDetector.parseColumns(null)).isEqualTo(80);
-  }
+    @Test
+    void parseColumnsReturnsEightyForNull() {
+        assertThat(TtyDetector.parseColumns(null)).isEqualTo(80);
+    }
 
-  @Test
-  void parseColumnsReturnsEightyForNonInteger() {
-    assertThat(TtyDetector.parseColumns("abc")).isEqualTo(80);
-    assertThat(TtyDetector.parseColumns("")).isEqualTo(80);
-  }
+    @Test
+    void parseColumnsReturnsEightyForNonInteger() {
+        assertThat(TtyDetector.parseColumns("abc")).isEqualTo(80);
+        assertThat(TtyDetector.parseColumns("")).isEqualTo(80);
+    }
 
-  @ParameterizedTest
-  @CsvSource({"40,40", "80,80", "120,120", "220,220"})
-  void parseColumnsParsesValidIntegers(String input, int expected) {
-    assertThat(TtyDetector.parseColumns(input)).isEqualTo(expected);
-  }
+    @ParameterizedTest
+    @CsvSource({"40,40", "80,80", "120,120", "220,220"})
+    void parseColumnsParsesValidIntegers(String input, int expected) {
+        assertThat(TtyDetector.parseColumns(input)).isEqualTo(expected);
+    }
 
-  @Test
-  void parseColumnsTrimsWhitespace() {
-    assertThat(TtyDetector.parseColumns("  80  ")).isEqualTo(80);
-  }
+    @Test
+    void parseColumnsTrimsWhitespace() {
+        assertThat(TtyDetector.parseColumns("  80  ")).isEqualTo(80);
+    }
 
-  // --- public shouldUseUi (environment-reading overload) ---
+    // --- public shouldUseUi (environment-reading overload) ---
 
-  @Test
-  void shouldUseUiWithForceFlagReturnsTrueRegardlessOfEnvironment() {
-    // --ui flag: always true, even without a real TTY in the test process
-    assertThat(TtyDetector.shouldUseUi(true, false)).isTrue();
-  }
+    @Test
+    void shouldUseUiWithForceFlagReturnsTrueRegardlessOfEnvironment() {
+        // --ui flag: always true, even without a real TTY in the test process
+        assertThat(TtyDetector.shouldUseUi(true, false)).isTrue();
+    }
 
-  @Test
-  void shouldUseUiWithNoUiFlagReturnsFalse() {
-    assertThat(TtyDetector.shouldUseUi(false, true)).isFalse();
-  }
+    @Test
+    void shouldUseUiWithNoUiFlagReturnsFalse() {
+        assertThat(TtyDetector.shouldUseUi(false, true)).isFalse();
+    }
 
-  @Test
-  void shouldUseUiWithoutFlagsReturnsFalseInTestEnvironment() {
-    // Test processes have no console attached, so this should return false.
-    assertThat(TtyDetector.shouldUseUi(false, false)).isFalse();
-  }
+    @Test
+    void shouldUseUiWithoutFlagsReturnsFalseInTestEnvironment() {
+        // Test processes have no console attached, so this should return false.
+        assertThat(TtyDetector.shouldUseUi(false, false)).isFalse();
+    }
 
-  // --- isTty / supportsColor / isCI / getTerminalWidth (smoke tests) ---
+    // --- isTty / supportsColor / isCI / getTerminalWidth (smoke tests) ---
 
-  @Test
-  void isTtyReturnsBooleanWithoutThrowing() {
-    boolean result = TtyDetector.isTty();
-    assertThat(result).isIn(true, false);
-  }
+    @Test
+    void isTtyReturnsBooleanWithoutThrowing() {
+        boolean result = TtyDetector.isTty();
+        assertThat(result).isIn(true, false);
+    }
 
-  @Test
-  void supportsColorReturnsBooleanWithoutThrowing() {
-    boolean result = TtyDetector.supportsColor();
-    assertThat(result).isIn(true, false);
-  }
+    @Test
+    void supportsColorReturnsBooleanWithoutThrowing() {
+        boolean result = TtyDetector.supportsColor();
+        assertThat(result).isIn(true, false);
+    }
 
-  @Test
-  void isCiReturnsBooleanWithoutThrowing() {
-    boolean result = TtyDetector.isCI();
-    assertThat(result).isIn(true, false);
-  }
+    @Test
+    void isCiReturnsBooleanWithoutThrowing() {
+        boolean result = TtyDetector.isCI();
+        assertThat(result).isIn(true, false);
+    }
 
-  @Test
-  void getTerminalWidthReturnsPositiveValue() {
-    assertThat(TtyDetector.getTerminalWidth()).isGreaterThan(0);
-  }
+    @Test
+    void getTerminalWidthReturnsPositiveValue() {
+        assertThat(TtyDetector.getTerminalWidth()).isGreaterThan(0);
+    }
 }

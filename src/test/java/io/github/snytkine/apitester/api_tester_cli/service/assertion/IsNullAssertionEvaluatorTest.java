@@ -28,71 +28,64 @@ import org.opentest4j.MultipleFailuresError;
 
 class IsNullAssertionEvaluatorTest {
 
-  @Test
-  void absentHeaderPasses() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void absentHeaderPasses() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    new IsNullAssertionEvaluator(new IsNullAssertion("response.headers.x-custom"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new IsNullAssertionEvaluator(new IsNullAssertion("response.headers.x-custom")).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void presentHeaderFails() {
-    ApiResponse response = new ApiResponse(200, Map.of("x-custom", "value"), null);
+    @Test
+    void presentHeaderFails() {
+        ApiResponse response = new ApiResponse(200, Map.of("x-custom", "value"), null);
 
-    FailureCollector collector = new FailureCollector();
-    new IsNullAssertionEvaluator(new IsNullAssertion("response.headers.x-custom"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new IsNullAssertionEvaluator(new IsNullAssertion("response.headers.x-custom")).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void missingJsonPathPasses() {
-    ApiResponse response =
-        new ApiResponse(
-            200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+    @Test
+    void missingJsonPathPasses() {
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
 
-    FailureCollector collector = new FailureCollector();
-    new IsNullAssertionEvaluator(new IsNullAssertion("response.body.json.$.missing"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new IsNullAssertionEvaluator(new IsNullAssertion("response.body.json.$.missing")).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void presentJsonFieldFails() {
-    ApiResponse response =
-        new ApiResponse(
-            200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+    @Test
+    void presentJsonFieldFails() {
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
 
-    FailureCollector collector = new FailureCollector();
-    new IsNullAssertionEvaluator(new IsNullAssertion("response.body.json.$.name"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new IsNullAssertionEvaluator(new IsNullAssertion("response.body.json.$.name")).evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nullBodyJsonPasses() {
-    ApiResponse response = new ApiResponse(200, Map.of(), null);
+    @Test
+    void nullBodyJsonPasses() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
 
-    FailureCollector collector = new FailureCollector();
-    new IsNullAssertionEvaluator(new IsNullAssertion("response.body.json"))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new IsNullAssertionEvaluator(new IsNullAssertion("response.body.json")).evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void unsupportedPathFails() {
-    FailureCollector collector = new FailureCollector();
-    new IsNullAssertionEvaluator(new IsNullAssertion("invalid.path"))
-        .evaluate(new ApiResponse(200, Map.of(), null), collector);
+    @Test
+    void unsupportedPathFails() {
+        FailureCollector collector = new FailureCollector();
+        new IsNullAssertionEvaluator(new IsNullAssertion("invalid.path"))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

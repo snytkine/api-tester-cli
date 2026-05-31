@@ -31,45 +31,43 @@ import java.util.List;
  */
 class ArrayIsNotEmptyAssertionEvaluator implements AssertionEvaluator {
 
-  private final ArrayIsNotEmptyAssertion assertion;
+    private final ArrayIsNotEmptyAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the array_is_not_empty assertion to evaluate
-   */
-  ArrayIsNotEmptyAssertionEvaluator(ArrayIsNotEmptyAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves the path, confirms the value is a list, and checks it has at least one element.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (!(f.value() instanceof List<?> list)) {
-          collector.fail(
-              "Expected an array at path '%s' for array_is_not_empty but was: %s (%s)",
-              assertion.path(),
-              f.value(),
-              f.value() == null ? "null" : f.value().getClass().getSimpleName());
-          return;
-        }
-        if (list.isEmpty()) {
-          collector.fail(
-              "Expected array at path '%s' to be non-empty but was empty", assertion.path());
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected array at path '%s' for array_is_not_empty but path does not exist",
-              assertion.path());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the array_is_not_empty assertion to evaluate
+     */
+    ArrayIsNotEmptyAssertionEvaluator(ArrayIsNotEmptyAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Resolves the path, confirms the value is a list, and checks it has at least one element.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (!(f.value() instanceof List<?> list)) {
+                    collector.fail(
+                            "Expected an array at path '%s' for array_is_not_empty but was: %s (%s)",
+                            assertion.path(),
+                            f.value(),
+                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                    return;
+                }
+                if (list.isEmpty()) {
+                    collector.fail("Expected array at path '%s' to be non-empty but was empty", assertion.path());
+                }
+            }
+            case Result.Missing m ->
+                collector.fail(
+                        "Expected array at path '%s' for array_is_not_empty but path does not exist", assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
 }

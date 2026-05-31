@@ -21,8 +21,8 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 public record TestCase(
-    String name,
-    @Nullable String description,
-    Map<String, String> variables,
-    Request request,
-    List<Assertion> assertions) {}
+        String name,
+        @Nullable String description,
+        Map<String, String> variables,
+        Request request,
+        List<Assertion> assertions) {}

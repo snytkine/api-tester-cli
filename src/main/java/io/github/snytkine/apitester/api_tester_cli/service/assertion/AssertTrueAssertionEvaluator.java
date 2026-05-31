@@ -31,36 +31,34 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class AssertTrueAssertionEvaluator implements AssertionEvaluator {
 
-  private final AssertTrueAssertion assertion;
+    private final AssertTrueAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the assert_true assertion to evaluate
-   */
-  AssertTrueAssertionEvaluator(AssertTrueAssertion assertion) {
-    this.assertion = assertion;
-  }
-
-  /**
-   * Resolves the path and records a failure if the value is not exactly {@code Boolean.TRUE}.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    switch (ResponseValueExtractor.extract(response, assertion.path())) {
-      case Result.Found f -> {
-        if (!Boolean.TRUE.equals(f.value())) {
-          collector.fail(
-              "Expected boolean true at path '%s' but was: %s", assertion.path(), f.value());
-        }
-      }
-      case Result.Missing m ->
-          collector.fail(
-              "Expected boolean true at path '%s' but path does not exist", assertion.path());
-      case Result.Error e -> collector.fail(e.message());
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the assert_true assertion to evaluate
+     */
+    AssertTrueAssertionEvaluator(AssertTrueAssertion assertion) {
+        this.assertion = assertion;
     }
-  }
+
+    /**
+     * Resolves the path and records a failure if the value is not exactly {@code Boolean.TRUE}.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case Result.Found f -> {
+                if (!Boolean.TRUE.equals(f.value())) {
+                    collector.fail("Expected boolean true at path '%s' but was: %s", assertion.path(), f.value());
+                }
+            }
+            case Result.Missing m ->
+                collector.fail("Expected boolean true at path '%s' but path does not exist", assertion.path());
+            case Result.Error e -> collector.fail(e.message());
+        }
+    }
 }

@@ -34,33 +34,33 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  */
 class ResponseTimeAssertionEvaluator implements AssertionEvaluator {
 
-  private final ResponseTimeAssertion assertion;
+    private final ResponseTimeAssertion assertion;
 
-  /**
-   * Constructs the evaluator for the given assertion.
-   *
-   * @param assertion the response_time assertion to evaluate
-   */
-  ResponseTimeAssertionEvaluator(ResponseTimeAssertion assertion) {
-    this.assertion = assertion;
-  }
+    /**
+     * Constructs the evaluator for the given assertion.
+     *
+     * @param assertion the response_time assertion to evaluate
+     */
+    ResponseTimeAssertionEvaluator(ResponseTimeAssertion assertion) {
+        this.assertion = assertion;
+    }
 
-  /**
-   * Checks that the response was received within the configured threshold.
-   *
-   * @param response the captured HTTP response
-   * @param collector the shared failure collector
-   */
-  @Override
-  public void evaluate(ApiResponse response, FailureCollector collector) {
-    if (response.responseTimeMs() == null) {
-      collector.fail("Response time was not measured for this response");
-      return;
+    /**
+     * Checks that the response was received within the configured threshold.
+     *
+     * @param response the captured HTTP response
+     * @param collector the shared failure collector
+     */
+    @Override
+    public void evaluate(ApiResponse response, FailureCollector collector) {
+        if (response.responseTimeMs() == null) {
+            collector.fail("Response time was not measured for this response");
+            return;
+        }
+        long actual = response.responseTimeMs();
+        long limit = assertion.milliseconds();
+        if (actual > limit) {
+            collector.fail("Expected response within %d ms but took %d ms", limit, actual);
+        }
     }
-    long actual = response.responseTimeMs();
-    long limit = assertion.milliseconds();
-    if (actual > limit) {
-      collector.fail("Expected response within %d ms but took %d ms", limit, actual);
-    }
-  }
 }

@@ -30,58 +30,57 @@ import org.opentest4j.MultipleFailuresError;
 
 class ArraySizeMinAssertionEvaluatorTest {
 
-  private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private static ApiResponse responseWithJson(Object json) {
-    try {
-      return new ApiResponse(
-          200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
-  }
 
-  @Test
-  void sizeAboveMinPasses() {
-    ApiResponse response = responseWithJson(Map.of("items", List.of("a", "b", "c")));
+    @Test
+    void sizeAboveMinPasses() {
+        ApiResponse response = responseWithJson(Map.of("items", List.of("a", "b", "c")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 2))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 2))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void sizeEqualToMinPasses() {
-    ApiResponse response = responseWithJson(Map.of("items", List.of("a", "b")));
+    @Test
+    void sizeEqualToMinPasses() {
+        ApiResponse response = responseWithJson(Map.of("items", List.of("a", "b")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 2))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 2))
+                .evaluate(response, collector);
 
-    assertThatCode(collector::assertAll).doesNotThrowAnyException();
-  }
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
 
-  @Test
-  void sizeBelowMinFails() {
-    ApiResponse response = responseWithJson(Map.of("items", List.of("a")));
+    @Test
+    void sizeBelowMinFails() {
+        ApiResponse response = responseWithJson(Map.of("items", List.of("a")));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 2))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 2))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 
-  @Test
-  void nonArrayValueFails() {
-    ApiResponse response = responseWithJson(Map.of("items", "not-an-array"));
+    @Test
+    void nonArrayValueFails() {
+        ApiResponse response = responseWithJson(Map.of("items", "not-an-array"));
 
-    FailureCollector collector = new FailureCollector();
-    new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 1))
-        .evaluate(response, collector);
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.items", 1))
+                .evaluate(response, collector);
 
-    assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
-  }
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }
