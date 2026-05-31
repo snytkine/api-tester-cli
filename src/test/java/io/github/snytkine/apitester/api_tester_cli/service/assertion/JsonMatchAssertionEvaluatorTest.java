@@ -21,8 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;

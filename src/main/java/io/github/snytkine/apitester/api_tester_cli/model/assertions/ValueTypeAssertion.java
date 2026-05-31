@@ -14,12 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import java.util.List;
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the HTTP response status code is one of the values in {@code
- * expected}. Useful when multiple status codes are acceptable (e.g. {@code [200, 201, 204]}).
+ * Assertion that passes when the JSON value at {@code path} is of the type named by {@code
+ * expected}.
+ *
+ * <p>Valid type names: {@code string}, {@code number}, {@code boolean}, {@code array}, {@code
+ * object}, {@code null}. An unrecognised type name is treated as an evaluator error.
  */
-public record StatusInAssertion(List<Integer> expected) implements Assertion {}
+public record ValueTypeAssertion(String path, String expected) implements Assertion {}

@@ -18,7 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.ArraySizeMinAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMinAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.List;

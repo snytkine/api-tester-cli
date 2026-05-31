@@ -14,10 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-/**
- * Assertion that passes when the JSON array at {@code path} has exactly {@code expected} elements.
- * Fails if the value at {@code path} is not an array.
- */
-public record ArraySizeAssertion(String path, int expected) implements Assertion {}
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+
+public record JsonMatchAssertion(String path, ObjectExpectedValue expected) implements Assertion {}

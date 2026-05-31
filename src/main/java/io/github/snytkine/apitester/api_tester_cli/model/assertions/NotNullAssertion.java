@@ -14,14 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the HTTP response is received within the specified number of
- * milliseconds.
+ * Assertion that passes when the value at the given {@code path} is present and not {@code null}.
  *
- * <p>The {@code milliseconds} value is the maximum allowed round-trip time from sending the request
- * to receiving the complete response. The assertion fails if the actual response time exceeds this
- * threshold.
+ * <p>The {@code path} follows the same {@code response.*} convention as {@link
+ * StringMatchAssertion}. The assertion fails if the path does not exist in the response or if the
+ * resolved value is {@code null}.
  */
-public record ResponseTimeAssertion(long milliseconds) implements Assertion {}
+public record NotNullAssertion(String path) implements Assertion {}

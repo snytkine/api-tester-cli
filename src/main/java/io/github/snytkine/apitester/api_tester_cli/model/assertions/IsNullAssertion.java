@@ -14,10 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the JSON array at {@code path} exists and has zero elements. Fails if
- * the value at {@code path} is not an array or has one or more elements.
+ * Assertion that passes when the property at the given {@code path} either does not exist in the
+ * response or has a {@code null} value.
+ *
+ * <p>The {@code path} follows the same {@code response.*} convention as {@link
+ * StringMatchAssertion}. The assertion fails only when the path resolves to a non-null value.
  */
-public record ArrayIsEmptyAssertion(String path) implements Assertion {}
+public record IsNullAssertion(String path) implements Assertion {}

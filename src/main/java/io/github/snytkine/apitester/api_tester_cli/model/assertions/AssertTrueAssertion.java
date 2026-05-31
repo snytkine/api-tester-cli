@@ -14,10 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the JSON array at {@code path} has at least {@code min} elements.
- * Fails if the value at {@code path} is not an array.
+ * Assertion that passes only when the value at {@code path} is the boolean literal {@code true}.
+ *
+ * <p>All other values — including the string {@code "true"}, the integer {@code 1}, and {@code
+ * null} — are treated as a failed assertion.
  */
-public record ArraySizeMinAssertion(String path, int min) implements Assertion {}
+public record AssertTrueAssertion(String path) implements Assertion {}

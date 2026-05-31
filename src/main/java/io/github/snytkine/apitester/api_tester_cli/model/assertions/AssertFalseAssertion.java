@@ -14,12 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes only when the value at {@code path} is the boolean literal {@code true}.
+ * Assertion that passes only when the value at {@code path} is the boolean literal {@code false}.
  *
- * <p>All other values — including the string {@code "true"}, the integer {@code 1}, and {@code
+ * <p>All other values — including the string {@code "false"}, the integer {@code 0}, and {@code
  * null} — are treated as a failed assertion.
  */
-public record AssertTrueAssertion(String path) implements Assertion {}
+public record AssertFalseAssertion(String path) implements Assertion {}

@@ -14,13 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the value at the given {@code path} is present and not {@code null}.
- *
- * <p>The {@code path} follows the same {@code response.*} convention as {@link
- * StringMatchAssertion}. The assertion fails if the path does not exist in the response or if the
- * resolved value is {@code null}.
+ * Assertion that passes when the string value at {@code path} starts with the {@code expected}
+ * prefix. Non-string values and missing paths are treated as failures.
  */
-public record NotNullAssertion(String path) implements Assertion {}
+public record StartsWithAssertion(String path, String expected) implements Assertion {}

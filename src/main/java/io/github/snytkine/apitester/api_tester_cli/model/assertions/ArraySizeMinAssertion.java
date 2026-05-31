@@ -14,10 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the JSON array at {@code path} has at most {@code max} elements. Fails
- * if the value at {@code path} is not an array.
+ * Assertion that passes when the JSON array at {@code path} has at least {@code min} elements.
+ * Fails if the value at {@code path} is not an array.
  */
-public record ArraySizeMaxAssertion(String path, int max) implements Assertion {}
+public record ArraySizeMinAssertion(String path, int min) implements Assertion {}

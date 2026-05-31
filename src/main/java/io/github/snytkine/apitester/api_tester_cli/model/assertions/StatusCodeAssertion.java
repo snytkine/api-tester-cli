@@ -14,10 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-/**
- * Assertion that passes when the response contains a header with the given {@code name}, regardless
- * of its value. Header name matching is case-insensitive. Fails when the header is absent.
- */
-public record HasHeaderAssertion(String name) implements Assertion {}
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+
+public record StatusCodeAssertion(int expected) implements Assertion {}

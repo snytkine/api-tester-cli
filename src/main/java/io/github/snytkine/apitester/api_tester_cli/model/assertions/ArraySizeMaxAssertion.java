@@ -14,11 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the numeric value at {@code path} is strictly greater than {@code
- * expected}. String values are parsed as {@code double} before comparison. Non-numeric,
- * non-parseable, and missing values fail the assertion.
+ * Assertion that passes when the JSON array at {@code path} has at most {@code max} elements. Fails
+ * if the value at {@code path} is not an array.
  */
-public record GreaterThanAssertion(String path, double expected) implements Assertion {}
+public record ArraySizeMaxAssertion(String path, int max) implements Assertion {}

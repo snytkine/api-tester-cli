@@ -14,10 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the string value at {@code path} starts with the {@code expected}
- * prefix. Non-string values and missing paths are treated as failures.
+ * Assertion that passes when the numeric value at {@code path} is greater than or equal to {@code
+ * expected}. String values are parsed as {@code double} before comparison. Non-numeric,
+ * non-parseable, and missing values fail the assertion.
  */
-public record StartsWithAssertion(String path, String expected) implements Assertion {}
+public record GreaterThanOrEqualAssertion(String path, double expected) implements Assertion {}

@@ -18,7 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.HasHeaderAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.HasHeaderAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 
 /**

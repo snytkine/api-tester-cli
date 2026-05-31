@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.ArraySizeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.List;
 import java.util.Map;

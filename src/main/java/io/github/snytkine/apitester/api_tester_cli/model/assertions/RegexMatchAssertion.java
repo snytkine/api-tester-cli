@@ -14,10 +14,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the string value at {@code path} ends with the {@code expected}
- * suffix. Non-string values and missing paths are treated as failures.
+ * Assertion that passes when the string value at {@code path} matches the regular expression in
+ * {@code expected}.
+ *
+ * <p>The match is a full-string match (equivalent to anchoring the pattern with {@code ^...$}).
+ * Non-string values, {@code null}, and missing paths are treated as failures. An invalid regex
+ * pattern records a failure at evaluation time rather than at parse time.
  */
-public record EndsWithAssertion(String path, String expected) implements Assertion {}
+public record RegexMatchAssertion(String path, String expected) implements Assertion {}

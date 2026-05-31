@@ -14,11 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+import java.util.List;
 
 /**
- * Assertion that passes when the numeric value at {@code path} is less than or equal to {@code
- * expected}. String values are parsed as {@code double} before comparison. Non-numeric,
- * non-parseable, and missing values fail the assertion.
+ * Assertion that passes when the HTTP response status code is one of the values in {@code
+ * expected}. Useful when multiple status codes are acceptable (e.g. {@code [200, 201, 204]}).
  */
-public record LessThanOrEqualAssertion(String path, double expected) implements Assertion {}
+public record StatusInAssertion(List<Integer> expected) implements Assertion {}

@@ -22,8 +22,8 @@ import static org.mockito.Mockito.when;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-import io.github.snytkine.apitester.api_tester_cli.model.StatusCodeAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.StringMatchAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;

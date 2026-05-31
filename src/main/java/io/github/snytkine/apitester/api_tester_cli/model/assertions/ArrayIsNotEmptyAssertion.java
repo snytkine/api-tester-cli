@@ -14,13 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the JSON value at {@code path} is of the type named by {@code
- * expected}.
- *
- * <p>Valid type names: {@code string}, {@code number}, {@code boolean}, {@code array}, {@code
- * object}, {@code null}. An unrecognised type name is treated as an evaluator error.
+ * Assertion that passes when the JSON array at {@code path} exists and has at least one element.
+ * Fails if the value at {@code path} is not an array or has zero elements.
  */
-public record ValueTypeAssertion(String path, String expected) implements Assertion {}
+public record ArrayIsNotEmptyAssertion(String path) implements Assertion {}

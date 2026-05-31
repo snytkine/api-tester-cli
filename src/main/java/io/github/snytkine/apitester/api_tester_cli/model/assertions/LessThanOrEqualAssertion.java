@@ -14,14 +14,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
+
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the value at the given {@code path} is present, not {@code null}, and
- * — if the value is a string — not an empty string.
- *
- * <p>The {@code path} follows the same {@code response.*} convention as {@link
- * StringMatchAssertion}. Non-string non-null values (numbers, booleans, objects, arrays) always
- * pass the emptiness check; only string values are additionally tested for blankness.
+ * Assertion that passes when the numeric value at {@code path} is less than or equal to {@code
+ * expected}. String values are parsed as {@code double} before comparison. Non-numeric,
+ * non-parseable, and missing values fail the assertion.
  */
-public record NotEmptyAssertion(String path) implements Assertion {}
+public record LessThanOrEqualAssertion(String path, double expected) implements Assertion {}

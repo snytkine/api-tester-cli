@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.ResponseTimeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.ResponseTimeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

@@ -14,6 +14,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-public record JsonMatchAssertion(String path, ObjectExpectedValue expected) implements Assertion {}
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+
+/**
+ * Assertion that passes when the JSON array at {@code path} contains {@code expected}. Number
+ * comparison is performed as {@code double} so that integer and floating-point representations of
+ * the same value are treated as equal. Fails if the value at {@code path} is not an array or does
+ * not contain the expected item.
+ */
+public record ArrayContainsAssertion(String path, Object expected) implements Assertion {}

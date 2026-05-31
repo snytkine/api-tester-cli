@@ -14,13 +14,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import java.util.List;
+import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 
 /**
- * Assertion that passes when the JSON array at {@code path} contains every value in {@code
- * expected}. Number comparison is performed as {@code double}. Fails if the value at {@code path}
- * is not an array or if any expected item is missing.
+ * Assertion that passes when the numeric value at {@code path} is between {@code min} and {@code
+ * max} inclusive.
+ *
+ * <p>If the value at the path is a string it will be parsed as a {@code double} before comparison.
+ * The assertion fails if the value is neither a number nor a parseable string.
  */
-public record ArrayContainsAllAssertion(String path, List<Object> expected) implements Assertion {}
+public record RangeAssertion(String path, double min, double max) implements Assertion {}

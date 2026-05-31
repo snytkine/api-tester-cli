@@ -20,7 +20,7 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.StringMatchAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import org.jspecify.annotations.Nullable;
 
