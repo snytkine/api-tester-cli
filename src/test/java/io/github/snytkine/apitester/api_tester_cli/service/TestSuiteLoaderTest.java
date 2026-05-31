@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
@@ -149,7 +150,8 @@ class TestSuiteLoaderTest {
         assertThat(testCase.variables().get("password")).isEqualTo("password123");
         assertThat(testCase.variables().get("id")).isEqualTo("login_test_001");
 
-        Request request = testCase.request();
+        assertThat(testCase.request()).isInstanceOf(PayloadRequest.class);
+        PayloadRequest request = (PayloadRequest) testCase.request();
         assertThat(request.method()).isEqualTo(HttpMethod.POST);
         assertThat(request.url()).isEqualTo("https://api.example.com/login");
         assertThat(request.headers().get("Content-Type")).isEqualTo("application/json");

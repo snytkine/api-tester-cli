@@ -18,11 +18,14 @@ package io.github.snytkine.apitester.api_tester_cli;
 
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
+import io.github.snytkine.apitester.api_tester_cli.model.BodylessRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestDeserializer;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
@@ -86,6 +89,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     AssertFalseAssertion.class,
     AssertTrueAssertion.class,
     AssertionFailure.class,
+    BodylessRequest.class,
     BodyType.class,
     CliVariables.class,
     EndsWithAssertion.class,
@@ -102,10 +106,12 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     NotNullAssertion.class,
     ObjectExpectedValue.class,
     OneOfAssertion.class,
+    PayloadRequest.class,
     RangeAssertion.class,
     RegexMatchAssertion.class,
     Request.class,
     RequestBody.class,
+    RequestDeserializer.class,
     ResponseTimeAssertion.class,
     RestClientConfig.class,
     StartsWithAssertion.class,

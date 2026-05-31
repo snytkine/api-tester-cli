@@ -87,14 +87,22 @@
       }
     },
     "Request": {
+      "description": "HTTP request definition; the permitted shape depends on the method value",
+      "oneOf": [
+        {"$ref": "#/$defs/PayloadRequest"},
+        {"$ref": "#/$defs/BodylessRequest"}
+      ]
+    },
+    "PayloadRequest": {
       "type": "object",
+      "description": "An HTTP request whose method supports a body: POST, PUT, PATCH, or DELETE",
       "required": ["method", "url"],
       "additionalProperties": false,
       "properties": {
         "method": {
           "type": "string",
-          "description": "HTTP method",
-          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE"]
+          "description": "HTTP method that supports a request body",
+          "enum": ["POST", "PUT", "PATCH", "DELETE"]
         },
         "url": {
           "type": "string",
@@ -109,6 +117,30 @@
         },
         "body": {
           "$ref": "#/$defs/RequestBody"
+        }
+      }
+    },
+    "BodylessRequest": {
+      "type": "object",
+      "description": "An HTTP request whose method does not carry a body: GET, HEAD, OPTIONS, or TRACE",
+      "required": ["method", "url"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "description": "HTTP method that does not support a request body",
+          "enum": ["GET", "HEAD", "OPTIONS", "TRACE"]
+        },
+        "url": {
+          "type": "string",
+          "description": "Target URL or path (relative to rest_client.base_url when set)"
+        },
+        "headers": {
+          "type": "object",
+          "description": "HTTP headers to include in the request",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

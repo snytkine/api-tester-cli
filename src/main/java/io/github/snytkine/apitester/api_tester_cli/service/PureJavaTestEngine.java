@@ -24,6 +24,7 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
@@ -245,17 +246,11 @@ public class PureJavaTestEngine implements TestEngine {
      * Builds a {@link RestClient.RequestBodySpec} from the test case's request definition, applying
      * headers and, when applicable, attaching a resolved request body.
      *
-     * <p>A body is attached only when both of the following are true:
-     *
-     * <ul>
-     *   <li>The HTTP method normally supports a request body ({@code POST}, {@code PUT}, {@code
-     *       PATCH}, {@code DELETE}).
-     *   <li>The test case declares a non-null {@link RequestBody}.
-     * </ul>
-     *
-     * <p>Body content is resolved via {@link #loadBodyContent}: {@code FILE} bodies are read from
-     * disk relative to the suite directory and processed through the Thymeleaf template engine;
-     * {@code STRING} bodies are used as literal text without any template processing.
+     * <p>A body is attached when the test case's request is a {@link PayloadRequest} with a
+     * non-null {@link RequestBody}. Body content is resolved via {@link #loadBodyContent}: {@code
+     * FILE} bodies are read from disk relative to the suite directory and processed through the
+     * Thymeleaf template engine; {@code STRING} bodies are used as literal text without any
+     * template processing.
      *
      * @param restClient the client to use for building the request
      * @param config the test case whose request is being built
@@ -280,33 +275,13 @@ public class PureJavaTestEngine implements TestEngine {
             }
         }
 
-        if (config.request().body() != null) {
-            if (supportsBody(config.request().method())) {
-                Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
-                String content = loadBodyContent(config.request().body(), suiteDir, suiteVariables, testVariables);
-                requestSpec.body(content);
-            } else {
-                log.warn(
-                        "HTTP method {} does not support a request body; body skipped for test case '{}'.",
-                        config.request().method(),
-                        config.name());
-            }
+        if (config.request() instanceof PayloadRequest pr && pr.body() != null) {
+            Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
+            String content = loadBodyContent(pr.body(), suiteDir, suiteVariables, testVariables);
+            requestSpec.body(content);
         }
 
         return requestSpec;
-    }
-
-    /**
-     * Returns {@code true} for HTTP methods that conventionally carry a request body.
-     *
-     * @param method the HTTP method to check
-     * @return {@code true} for {@code POST}, {@code PUT}, {@code PATCH}, and {@code DELETE}
-     */
-    static boolean supportsBody(HttpMethod method) {
-        return switch (method) {
-            case POST, PUT, PATCH, DELETE -> true;
-            default -> false;
-        };
     }
 
     /**

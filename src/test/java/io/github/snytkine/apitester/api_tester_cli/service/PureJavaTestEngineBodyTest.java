@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
-import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -33,31 +32,12 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 /**
- * Unit tests for {@link PureJavaTestEngine#loadBodyContent} and {@link
- * PureJavaTestEngine#supportsBody}.
+ * Unit tests for {@link PureJavaTestEngine#loadBodyContent}.
  *
- * <p>Both methods are package-private static helpers, tested here in the same package to avoid
- * exposing them in the public API.
+ * <p>This is a package-private static helper, tested here in the same package to avoid exposing it
+ * in the public API.
  */
 class PureJavaTestEngineBodyTest {
-
-    // --- supportsBody ---
-
-    @ParameterizedTest
-    @EnumSource(
-            value = HttpMethod.class,
-            names = {"POST", "PUT", "PATCH", "DELETE"})
-    void supportsBodyReturnsTrueForBodyBearingMethods(HttpMethod method) {
-        assertThat(PureJavaTestEngine.supportsBody(method)).isTrue();
-    }
-
-    @ParameterizedTest
-    @EnumSource(
-            value = HttpMethod.class,
-            names = {"GET", "HEAD", "OPTIONS", "TRACE"})
-    void supportsBodyReturnsFalseForNonBodyMethods(HttpMethod method) {
-        assertThat(PureJavaTestEngine.supportsBody(method)).isFalse();
-    }
 
     // --- loadBodyContent: STRING type ---
 
