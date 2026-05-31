@@ -16,8 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-
 /**
  * Assertion that passes when the JSON value at {@code path} is of the type named by {@code
  * expected}.

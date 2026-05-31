@@ -16,8 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-
 /**
  * Assertion that passes when the string value at {@code path} ends with the {@code expected}
  * suffix. Non-string values and missing paths are treated as failures.

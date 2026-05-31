@@ -16,8 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-
 /**
  * Assertion that passes when the property at the given {@code path} either does not exist in the
  * response or has a {@code null} value.

@@ -14,41 +14,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.github.snytkine.apitester.api_tester_cli.model;
+package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContainsAllAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContainsAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayIsEmptyAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayIsNotEmptyAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMaxAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMinAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertFalseAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertTrueAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.EndsWithAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanOrEqualAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.HasHeaderAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.IsNullAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonMatchAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonSchemaAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.LessThanAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.LessThanOrEqualAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.NotEmptyAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.NotNullAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.OneOfAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.RangeAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.RegexMatchAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ResponseTimeAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.StartsWithAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusInAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringContainsAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
-import io.github.snytkine.apitester.api_tester_cli.model.assertions.ValueTypeAssertion;
 
+/**
+ * Sealed marker interface for all assertion types supported in a test-suite YAML.
+ *
+ * <p>Jackson uses {@link JsonTypeInfo} and {@link JsonSubTypes} to deserialise the {@code type}
+ * discriminator field in YAML into the correct concrete record type. Every permitted subtype must
+ * be listed both in the {@code permits} clause and in the {@code @JsonSubTypes} annotation.
+ *
+ * <p>All permitted subtypes live in the same package ({@code model.assertions}) as required by the
+ * Java sealed-type rules for the unnamed module.
+ */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
     @JsonSubTypes.Type(value = ArrayContainsAllAssertion.class, name = "array_contains_all"),

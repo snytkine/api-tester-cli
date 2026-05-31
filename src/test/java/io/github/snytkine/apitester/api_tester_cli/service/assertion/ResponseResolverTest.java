@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import java.util.List;

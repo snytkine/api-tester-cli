@@ -18,7 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
 import java.util.LinkedHashMap;
 import java.util.List;

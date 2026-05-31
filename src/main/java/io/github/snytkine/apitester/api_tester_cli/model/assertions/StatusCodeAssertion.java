@@ -16,6 +16,4 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-
 public record StatusCodeAssertion(int expected) implements Assertion {}

@@ -18,7 +18,6 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.snytkine.apitester.api_tester_cli.config.HttpClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
@@ -28,42 +27,84 @@ import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpRequestFactory;
 
 /**
- * Integration test that loads {@code test-suite-1.yml} and runs it through {@link
- * PureJavaTestEngine} against the live {@code https://api.restful-api.dev} endpoint. The purpose is
- * to surface any exception thrown during request execution so the root cause can be identified.
+ * Stub-based unit tests for {@link PureJavaTestEngine} that exercise the engine's assertion
+ * evaluation logic without making real network connections.
+ *
+ * <p>All HTTP transport is handled by a {@link StubClientHttpRequestFactory} which returns
+ * pre-configured responses. The tests verify that the engine correctly maps stub responses to pass
+ * or fail outcomes for a variety of assertion types.
  */
 class PureJavaTestEngineTest {
 
+    private static final String ITEMS_JSON = "[{\"id\":1,\"name\":\"Widget\"},{\"id\":2,\"name\":\"Gadget\"}]";
+
     private TestSuiteLoader loader;
-    private PureJavaTestEngine engine;
 
     @BeforeEach
     void setUp() {
         loader = new TestSuiteLoader();
-        ClientHttpRequestFactory factory = new HttpClientConfig().defaultClientHttpRequestFactory();
-        engine = new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
+    }
+
+    private PureJavaTestEngine engineWith(ClientHttpRequestFactory factory) {
+        return new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
     }
 
     @Test
-    void runTestSuite1ReportsResultsWithoutUnexpectedFailures() throws Exception {
-        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
-        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+    void allAssertionsPassWhenResponseMatchesExpectations() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/items", 200, ITEMS_JSON, "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(
+                getClass().getResource("/test-suite-stub-assertions.yml").toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
 
-        TestRunResult result = engine.runConfigurationSuite(testSuite);
+        TestRunResult result = engine.runConfigurationSuite(suite);
 
-        assertThat(result.failedCount())
-                .as(
-                        "Expected no test failures but got %d. Failures: %s",
-                        result.failedCount(),
-                        result.results().stream()
-                                .filter(r -> !r.passed())
-                                .flatMap(r -> r.failures().stream())
-                                .map(f -> f.message())
-                                .toList())
-                .isZero();
-        assertThat(result.passedCount()).isEqualTo(testSuite.tests().size());
+        assertThat(result.failedCount()).isZero();
+        assertThat(result.passedCount()).isEqualTo(suite.tests().size());
+    }
+
+    @Test
+    void statusCodeAssertionFailsWhenServerReturns404() throws Exception {
+        var factory = new StubClientHttpRequestFactory()
+                .stub("/objects", 404, "{\"error\":\"not found\"}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(suite);
+
+        assertThat(result.failedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void responseTimeAssertionPassesWhenResponseIsImmediate() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(
+                getClass().getResource("/test-suite-stub-response-time.yml").toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(suite);
+
+        assertThat(result.failedCount()).isZero();
+    }
+
+    @Test
+    void responseTimeAssertionFailsWhenResponseExceedsLimit() throws Exception {
+        var factory = new StubClientHttpRequestFactory()
+                .stubWithDelay(HttpMethod.GET, "/objects", 200, "{}", "application/json", 50);
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass()
+                .getResource("/test-suite-stub-response-time-strict.yml")
+                .toURI());
+        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(suite);
+
+        assertThat(result.failedCount()).isEqualTo(1);
     }
 }

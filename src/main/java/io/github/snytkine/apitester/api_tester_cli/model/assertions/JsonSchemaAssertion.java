@@ -16,7 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
 
 public record JsonSchemaAssertion(String path, ObjectExpectedValue expected) implements Assertion {}

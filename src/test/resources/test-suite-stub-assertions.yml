@@ -1,0 +1,37 @@
+---
+name: "Stub Suite – assertion coverage"
+rest_client:
+  base_url: "http://stub.test"
+tests:
+- name: "Status and header checks"
+  request:
+    method: "GET"
+    url: "/items"
+  assertions:
+  - type: "status_code"
+    expected: 200
+  - type: "has_header"
+    name: "content-type"
+  - type: "string_contains"
+    path: "response.headers.content-type"
+    expected: "application/json"
+- name: "JSON body assertions"
+  request:
+    method: "GET"
+    url: "/items"
+  assertions:
+  - type: "not_null"
+    path: "response.body.json"
+  - type: "array_is_not_empty"
+    path: "response.body.json"
+  - type: "array_size"
+    path: "response.body.json"
+    expected: 2
+  - type: "not_null"
+    path: "response.body.json.$[0].id"
+  - type: "value_type"
+    path: "response.body.json.$[0].id"
+    expected: "number"
+  - type: "greater_than"
+    path: "response.body.json.$[0].id"
+    expected: 0

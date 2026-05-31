@@ -1,0 +1,12 @@
+---
+name: "Stub Suite – response_time pass"
+rest_client:
+  base_url: "http://stub.test"
+tests:
+- name: "Fast response check"
+  request:
+    method: "GET"
+    url: "/objects"
+  assertions:
+  - type: "response_time"
+    milliseconds: 5000

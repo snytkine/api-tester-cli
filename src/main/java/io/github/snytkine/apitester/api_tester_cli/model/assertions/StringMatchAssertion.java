@@ -17,7 +17,6 @@
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import org.jspecify.annotations.Nullable;
 
 /**

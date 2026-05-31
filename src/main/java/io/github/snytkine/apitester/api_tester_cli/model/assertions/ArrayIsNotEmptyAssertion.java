@@ -16,8 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-
 /**
  * Assertion that passes when the JSON array at {@code path} exists and has at least one element.
  * Fails if the value at {@code path} is not an array or has zero elements.

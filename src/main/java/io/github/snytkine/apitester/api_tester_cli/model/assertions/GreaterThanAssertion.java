@@ -16,8 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model.assertions;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
-
 /**
  * Assertion that passes when the numeric value at {@code path} is strictly greater than {@code
  * expected}. String values are parsed as {@code double} before comparison. Non-numeric,

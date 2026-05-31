@@ -16,7 +16,6 @@
  */
 package io.github.snytkine.apitester.api_tester_cli;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
@@ -38,6 +37,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMax
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMinAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertFalseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertTrueAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.EndsWithAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanOrEqualAssertion;

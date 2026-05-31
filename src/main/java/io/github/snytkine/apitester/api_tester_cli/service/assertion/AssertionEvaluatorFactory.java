@@ -18,7 +18,6 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContainsAllAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContainsAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayIsEmptyAssertion;
@@ -28,6 +27,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMax
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMinAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertFalseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertTrueAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.EndsWithAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanOrEqualAssertion;

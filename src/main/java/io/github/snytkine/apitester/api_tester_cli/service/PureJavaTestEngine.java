@@ -357,10 +357,11 @@ public class PureJavaTestEngine implements TestEngine {
      * Builds a {@link RestClient} configured from the given {@link RestClientConfig}.
      *
      * <p>If {@code config} carries a non-blank {@code baseUrl} it is set as the client's default base
-     * URL. When a {@code connectTimeout} is present a new {@link
-     * org.springframework.http.client.JdkClientHttpRequestFactory} is created with that timeout,
-     * replacing the injected factory for this suite. When {@code headers} is non-null and non-empty
-     * each entry is registered as a default header applied to every request built with this client.
+     * URL. When a {@code connectTimeout} is present AND the injected factory is a {@link
+     * org.springframework.http.client.JdkClientHttpRequestFactory}, a new JDK-backed factory is
+     * created with that timeout; non-JDK factories (e.g. stub factories used in tests) are never
+     * replaced. When {@code headers} is non-null each entry is registered as a default header applied
+     * to every request built with this client.
      *
      * @param config the suite-level REST client settings
      * @return a fully configured {@link RestClient} ready for use
@@ -370,7 +371,8 @@ public class PureJavaTestEngine implements TestEngine {
         if (StringUtils.hasText(config.baseUrl())) {
             builder.baseUrl(config.baseUrl());
         }
-        if (config.connectTimeout() != null) {
+        if (config.connectTimeout() != null
+                && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory) {
             builder.requestFactory(new org.springframework.http.client.JdkClientHttpRequestFactory(
                     java.net.http.HttpClient.newBuilder()
                             .connectTimeout(Duration.ofMillis(config.connectTimeout()))

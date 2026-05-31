@@ -18,7 +18,6 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.snytkine.apitester.api_tester_cli.model.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
@@ -26,6 +25,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.JsonSchemaAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
