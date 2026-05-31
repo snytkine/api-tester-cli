@@ -393,13 +393,8 @@ BUILD SUCCESS — binary: 61 MB
 
 2. **JLine native-access warning at runtime** — `JLineNativeLoader` calls
    `System.load()` (a restricted method in Java 25) when loading the JLine native library.
-   This surfaces as:
-   ```
-   WARNING: A restricted method in java.lang.System has been called
-   WARNING: java.lang.System::load has been called by org.jline.nativ.JLineNativeLoader
-   ```
-   Suppress it by adding `--enable-native-access=ALL-UNNAMED` to the native-image
-   `buildArgs`. This is cosmetic but can be silenced in a future build.
+   Suppressed by adding `--enable-native-access=ALL-UNNAMED` to the native-image `buildArgs`
+   in `pom.xml`. ✓ Fixed.
 
 3. **`--no-fallback` and `DynamicProxyConfigurationResources` deprecation** — pre-existing
    warnings about deprecated proxy-config format; tracked separately from the TUI work.
@@ -412,7 +407,74 @@ existing `@RegisterReflectionForBinding` list. Phase 4 can proceed using these c
 
 ---
 
-## 12. SLF4J warning during compilation (not a problem)
+## 12. Configuration Properties for native mode
+
+Spring Boot's profile-specific properties files allow different configuration values to be
+active in the native binary versus a regular JVM run, without requiring any runtime flags.
+
+### The problem
+
+`application.properties` is baked into the native image and loaded at startup. Settings that
+are useful during development (e.g. `logging.level.io.github.snytkine.apitester=DEBUG`) are
+undesirable in the distributed binary — they would produce log noise for end users and cannot
+be silenced after compilation without a rebuild.
+
+### Solution: `application-native.properties`
+
+Create a profile-specific file that overrides only the values that differ in native mode:
+
+**`src/main/resources/application-native.properties`**
+
+```properties
+logging.level.io.github.snytkine.apitester=OFF
+```
+
+Spring Boot loads `application-{profile}.properties` on top of `application.properties`
+when the named Spring profile is active, so this single line is enough to silence all
+application-level logging in the native binary.
+
+### Activating the `native` Spring profile at AOT compile time
+
+The `spring-boot-maven-plugin`'s `process-aot` execution supports a `profiles` configuration
+element. When a profile name is listed there, the AOT processor activates that Spring profile
+during code generation and **bakes the activation into the generated
+`ApplicationContextInitializer`**. The native binary therefore has the `native` Spring profile
+active by default at runtime — no environment variable or command-line flag is required.
+
+In `pom.xml`, inside the `<profile><id>native</id>` Maven profile:
+
+```xml
+<plugin>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-maven-plugin</artifactId>
+  <configuration>
+    <profiles>
+      <profile>native</profile>
+    </profiles>
+  </configuration>
+  <executions>
+    <execution>
+      <id>process-aot</id>
+      <goals><goal>process-aot</goal></goals>
+      <phase>prepare-package</phase>
+    </execution>
+  </executions>
+</plugin>
+```
+
+### Behaviour summary
+
+| Run mode | Active Spring profile | Effective log level |
+|---|---|---|
+| `./mvnw spring-boot:run` | _(none)_ | `DEBUG` (from `application.properties`) |
+| native binary | `native` | `OFF` (overridden by `application-native.properties`) |
+
+The `native` profile can be extended with any other properties that should differ between
+JVM development runs and the distributed binary.
+
+---
+
+## 13. SLF4J warning during compilation (not a problem)
 
 During `[2/8] Performing analysis`, the native-image compiler JVM prints:
 

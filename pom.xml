@@ -167,6 +167,7 @@
               <buildArgs>
                 <arg>-Os</arg>
                 <arg>-J-Dslf4j.internal.verbosity=ERROR</arg>
+                <arg>--enable-native-access=ALL-UNNAMED</arg>
               </buildArgs>
             </configuration>
             <executions>
@@ -182,6 +183,11 @@
           <plugin>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-maven-plugin</artifactId>
+            <configuration>
+              <profiles>
+                <profile>native</profile>
+              </profiles>
+            </configuration>
             <executions>
               <execution>
                 <id>process-aot</id>
