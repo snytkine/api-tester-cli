@@ -17,7 +17,7 @@
 package io.github.snytkine.apitester.api_tester_cli.event;
 
 import java.time.Instant;
-import org.jspecify.annotations.Nullable;
+import java.util.List;
 
 /**
  * Sealed event hierarchy representing milestones during a test suite run.
@@ -62,10 +62,10 @@ public sealed interface TestProgressEvent
      * @param testName the {@code name} field from the test case YAML
      * @param status {@link TestStatus#PASS}, {@link TestStatus#FAIL}, or {@link TestStatus#ERROR}
      * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event
-     * @param failureSummary first failure message when {@code status != PASS}; {@code null} otherwise
+     * @param failureMessages all failure messages when {@code status != PASS}; empty list otherwise
      */
     record TestCompleted(
-            int testIndex, String testName, TestStatus status, long durationMs, @Nullable String failureSummary)
+            int testIndex, String testName, TestStatus status, long durationMs, List<String> failureMessages)
             implements TestProgressEvent {}
 
     /**

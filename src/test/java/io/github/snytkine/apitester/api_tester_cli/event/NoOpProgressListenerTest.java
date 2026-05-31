@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for {@link NoOpProgressListener}. */
@@ -37,9 +38,10 @@ class NoOpProgressListenerTest {
         assertThatNoException().isThrownBy(() -> {
             listener.onProgress(new TestProgressEvent.SuiteStarted("s", 2, Instant.now()));
             listener.onProgress(new TestProgressEvent.TestStarted(0, "t1"));
-            listener.onProgress(new TestProgressEvent.TestCompleted(0, "t1", TestStatus.PASS, 10L, null));
+            listener.onProgress(new TestProgressEvent.TestCompleted(0, "t1", TestStatus.PASS, 10L, List.of()));
             listener.onProgress(new TestProgressEvent.TestStarted(1, "t2"));
-            listener.onProgress(new TestProgressEvent.TestCompleted(1, "t2", TestStatus.FAIL, 20L, "assertion failed"));
+            listener.onProgress(
+                    new TestProgressEvent.TestCompleted(1, "t2", TestStatus.FAIL, 20L, List.of("assertion failed")));
             listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 30L));
         });
     }

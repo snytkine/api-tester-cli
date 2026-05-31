@@ -220,7 +220,7 @@ public final class TerminalUiController {
                         // Capture failure and summary data before delegating to the view updater.
                         if (event instanceof TestProgressEvent.TestCompleted tc
                                 && tc.status() != TestStatus.PASS
-                                && tc.failureSummary() != null) {
+                                && !tc.failureMessages().isEmpty()) {
                             collectedFailures.add(tc);
                         }
                         if (event instanceof TestProgressEvent.SuiteCompleted sc) {
@@ -443,18 +443,21 @@ public final class TerminalUiController {
 
     /**
      * Prints the failure-detail block to {@link #output} after the terminal has been fully restored.
-     * Each failing test is listed with its name and the first failure message. Nothing is printed
-     * when {@code failures} is empty.
+     * Each failing test is listed with its name followed by all failure messages, one per line.
+     * Nothing is printed when {@code failures} is empty.
      *
      * @param failures list of {@link TestProgressEvent.TestCompleted} events for non-passing tests
-     *     that carry a non-null {@code failureSummary}; may be empty
+     *     that carry at least one failure message; may be empty
      */
     private void printFailures(List<TestProgressEvent.TestCompleted> failures) {
         if (failures.isEmpty()) return;
         output.println();
         output.println("Failures:");
         for (TestProgressEvent.TestCompleted tc : failures) {
-            output.println("  " + colorize(Glyphs.FAIL + " " + tc.testName(), 31) + ": " + tc.failureSummary());
+            output.println("  " + colorize(Glyphs.FAIL + " " + tc.testName(), 31));
+            for (String message : tc.failureMessages()) {
+                output.println("    " + message);
+            }
         }
     }
 }

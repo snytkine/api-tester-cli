@@ -142,18 +142,17 @@ public class PureJavaTestEngine implements TestEngine {
                 results.add(new TestCaseResult(
                         config.name(), true, config.assertions().size(), List.of()));
                 listener.onProgress(
-                        new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.PASS, durationMs, null));
+                        new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.PASS, durationMs, List.of()));
             } catch (MultipleFailuresError e) {
                 long durationMs = System.currentTimeMillis() - testStart;
                 failedCount++;
                 List<AssertionFailure> failures = extractFailures(e);
                 int passedAssertions = config.assertions().size() - failures.size();
                 results.add(new TestCaseResult(config.name(), false, passedAssertions, failures));
-                String summary = e.getFailures().isEmpty()
-                        ? e.getMessage()
-                        : e.getFailures().get(0).getMessage();
+                List<String> messages =
+                        e.getFailures().stream().map(Throwable::getMessage).toList();
                 listener.onProgress(
-                        new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.FAIL, durationMs, summary));
+                        new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.FAIL, durationMs, messages));
                 log.debug(
                         "Test case '{}' failed with {} assertion failure(s)",
                         config.name(),
@@ -164,7 +163,7 @@ public class PureJavaTestEngine implements TestEngine {
                 results.add(new TestCaseResult(
                         config.name(), false, 0, List.of(new AssertionFailure(e.getMessage(), null, null))));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
-                        i, config.name(), TestStatus.ERROR, durationMs, e.getMessage()));
+                        i, config.name(), TestStatus.ERROR, durationMs, List.of(e.getMessage())));
                 log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
             }
         }

@@ -19,6 +19,7 @@ package io.github.snytkine.apitester.api_tester_cli.event;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /** Unit tests for the {@link TestProgressEvent} sealed hierarchy and {@link TestStatus} enum. */
@@ -47,33 +48,33 @@ class TestProgressEventTest {
     }
 
     @Test
-    void testCompletedPassCarriesNullFailureSummary() {
-        TestProgressEvent event = new TestProgressEvent.TestCompleted(0, "get users", TestStatus.PASS, 123L, null);
+    void testCompletedPassCarriesEmptyFailureMessages() {
+        TestProgressEvent event = new TestProgressEvent.TestCompleted(0, "get users", TestStatus.PASS, 123L, List.of());
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.PASS);
         assertThat(completed.durationMs()).isEqualTo(123L);
-        assertThat(completed.failureSummary()).isNull();
+        assertThat(completed.failureMessages()).isEmpty();
     }
 
     @Test
-    void testCompletedFailCarriesFailureSummary() {
-        TestProgressEvent event =
-                new TestProgressEvent.TestCompleted(1, "create item", TestStatus.FAIL, 42L, "expected 201 but was 400");
+    void testCompletedFailCarriesAllFailureMessages() {
+        TestProgressEvent event = new TestProgressEvent.TestCompleted(
+                1, "create item", TestStatus.FAIL, 42L, List.of("expected 201 but was 400", "body did not match"));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.FAIL);
-        assertThat(completed.failureSummary()).isEqualTo("expected 201 but was 400");
+        assertThat(completed.failureMessages()).containsExactly("expected 201 but was 400", "body did not match");
     }
 
     @Test
     void testCompletedErrorCarriesErrorMessage() {
-        TestProgressEvent event =
-                new TestProgressEvent.TestCompleted(3, "timeout test", TestStatus.ERROR, 5000L, "Connection refused");
+        TestProgressEvent event = new TestProgressEvent.TestCompleted(
+                3, "timeout test", TestStatus.ERROR, 5000L, List.of("Connection refused"));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.ERROR);
-        assertThat(completed.failureSummary()).isEqualTo("Connection refused");
+        assertThat(completed.failureMessages()).containsExactly("Connection refused");
     }
 
     @Test
@@ -91,7 +92,7 @@ class TestProgressEventTest {
         TestProgressEvent[] events = {
             new TestProgressEvent.SuiteStarted("s", 1, Instant.now()),
             new TestProgressEvent.TestStarted(0, "t"),
-            new TestProgressEvent.TestCompleted(0, "t", TestStatus.PASS, 10L, null),
+            new TestProgressEvent.TestCompleted(0, "t", TestStatus.PASS, 10L, List.of()),
             new TestProgressEvent.SuiteCompleted(1L, 0L, 100L)
         };
 
