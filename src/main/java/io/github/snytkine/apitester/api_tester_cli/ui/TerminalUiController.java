@@ -20,6 +20,9 @@ import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import org.jline.utils.AttributedString;
+import org.jline.utils.AttributedStringBuilder;
+import org.jline.utils.AttributedStyle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.shell.jline.tui.component.ViewComponent;
@@ -79,6 +82,14 @@ public final class TerminalUiController {
   private final LinkedBlockingQueue<TestProgressEvent> queue;
   private final ViewComponentBuilder viewComponentBuilder;
 
+  /**
+   * When {@code true}, row glyphs are rendered with ANSI foreground colours via {@link
+   * AttributedStyle}: green for PASS, red for FAIL/ERROR, yellow for the running spinner. When
+   * {@code false} (e.g. {@code NO_COLOR} is set), plain text is written without any colour
+   * attributes while still using the same Unicode glyphs.
+   */
+  private final boolean useColors;
+
   private Thread controllerThread;
 
   /**
@@ -86,11 +97,16 @@ public final class TerminalUiController {
    *
    * @param queue the shared event queue populated by a {@link TerminalUiListener}
    * @param viewComponentBuilder Spring-managed factory for creating a {@link ViewComponent}
+   * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain-text
+   *     glyphs (e.g. when the caller detected that {@code NO_COLOR} is set)
    */
   public TerminalUiController(
-      LinkedBlockingQueue<TestProgressEvent> queue, ViewComponentBuilder viewComponentBuilder) {
+      LinkedBlockingQueue<TestProgressEvent> queue,
+      ViewComponentBuilder viewComponentBuilder,
+      boolean useColors) {
     this.queue = queue;
     this.viewComponentBuilder = viewComponentBuilder;
+    this.useColors = useColors;
   }
 
   /**
@@ -136,13 +152,17 @@ public final class TerminalUiController {
       }
 
       int rowCount = suiteStarted.totalTestCount();
-      AtomicReferenceArray<String> rows = new AtomicReferenceArray<>(rowCount);
+      AtomicReferenceArray<AttributedString> rows = new AtomicReferenceArray<>(rowCount);
       String[] testNames = new String[rowCount];
       boolean[] isRunning = new boolean[rowCount];
       int[] spinnerFrames = new int[rowCount];
 
+      AttributedString pendingRow =
+          new AttributedStringBuilder()
+              .append("  " + Glyphs.PENDING + " (pending)")
+              .toAttributedString();
       for (int i = 0; i < rowCount; i++) {
-        rows.set(i, "  " + Glyphs.PENDING + " (pending)");
+        rows.set(i, pendingRow);
       }
 
       GridView grid = buildGrid(rows, rowCount);
@@ -165,11 +185,10 @@ public final class TerminalUiController {
               int frame = spinnerFrames[i];
               rows.set(
                   i,
-                  "  "
-                      + Glyphs.SPINNER_FRAMES[frame]
-                      + " "
-                      + testNames[i]
-                      + " (running...)");
+                  buildRowText(
+                      Glyphs.SPINNER_FRAMES[frame],
+                      testNames[i] + " (running...)",
+                      AttributedStyle.YELLOW));
               spinnerFrames[i] = (frame + 1) % Glyphs.SPINNER_FRAMES.length;
             }
           }
@@ -199,9 +218,10 @@ public final class TerminalUiController {
    *
    * <p>{@link TestProgressEvent.TestStarted} records the test name and marks the row as running;
    * the spinner loop then writes the first animated frame on the very next tick. {@link
-   * TestProgressEvent.TestCompleted} clears the running flag and writes the final status text
-   * directly to {@code rows}; the spinner loop will no longer touch that row. Redraw dispatching
-   * is handled by the caller after this method returns.
+   * TestProgressEvent.TestCompleted} clears the running flag and writes the final status row
+   * directly to {@code rows} using {@link #buildRowText} so that the glyph is coloured; the
+   * spinner loop will no longer touch that row. Redraw dispatching is handled by the caller after
+   * this method returns.
    *
    * @param event the event to apply
    * @param rows shared row-text array; updated directly on {@link TestProgressEvent.TestCompleted}
@@ -212,7 +232,7 @@ public final class TerminalUiController {
    */
   private boolean applyEvent(
       TestProgressEvent event,
-      AtomicReferenceArray<String> rows,
+      AtomicReferenceArray<AttributedString> rows,
       String[] testNames,
       boolean[] isRunning) {
     return switch (event) {
@@ -231,8 +251,14 @@ public final class TerminalUiController {
               case PASS -> Glyphs.PASS;
               case FAIL, ERROR -> Glyphs.FAIL;
             };
+        int color =
+            switch (e.status()) {
+              case PASS -> AttributedStyle.GREEN;
+              case FAIL, ERROR -> AttributedStyle.RED;
+            };
         rows.set(
-            e.testIndex(), "  " + glyph + " " + e.testName() + " (" + e.durationMs() + "ms)");
+            e.testIndex(),
+            buildRowText(glyph, e.testName() + " (" + e.durationMs() + "ms)", color));
         yield false;
       }
       case TestProgressEvent.SuiteCompleted ignored -> true;
@@ -240,9 +266,11 @@ public final class TerminalUiController {
   }
 
   /**
-   * Builds a {@link GridView} with one {@link BoxView} per row. Each box's draw function reads
-   * its content from the shared {@code rows} array at render time, which allows the controller
-   * thread to update content without synchronising with the render thread.
+   * Builds a {@link GridView} with one {@link BoxView} per row. Each box's draw function reads its
+   * content from the shared {@code rows} array at render time, which allows the controller thread
+   * to update content without synchronising with the render thread. The {@link AttributedString}
+   * values stored in {@code rows} carry embedded ANSI colour attributes when {@link #useColors} is
+   * {@code true}, which the JLine render pipeline translates to terminal escape codes.
    *
    * @param rows shared row-content array; updated by the controller thread, read by the render
    *     thread
@@ -250,7 +278,7 @@ public final class TerminalUiController {
    * @return a fully configured {@link GridView} ready to be passed to {@link
    *     ViewComponentBuilder#build}
    */
-  private GridView buildGrid(AtomicReferenceArray<String> rows, int rowCount) {
+  private GridView buildGrid(AtomicReferenceArray<AttributedString> rows, int rowCount) {
     GridView grid = new GridView();
     int[] rowSizes = new int[rowCount];
     for (int i = 0; i < rowCount; i++) {
@@ -271,5 +299,35 @@ public final class TerminalUiController {
       grid.addItem(box, i, 0, 1, 1, 0, 0);
     }
     return grid;
+  }
+
+  /**
+   * Builds a single row's {@link AttributedString} consisting of a leading two-space indent, the
+   * status glyph (optionally coloured), and the label text in the default style.
+   *
+   * <p>When {@link #useColors} is {@code true}, the glyph character is wrapped in {@link
+   * AttributedStyle#DEFAULT}{@code .foreground(jlineColor)} so it appears in the requested ANSI
+   * colour. The surrounding text is always rendered in the terminal's default foreground colour.
+   * When {@link #useColors} is {@code false} (e.g. the caller detected {@code NO_COLOR}), the same
+   * Unicode glyphs are used but no colour attributes are applied.
+   *
+   * @param glyph the status glyph to display (e.g. {@link Glyphs#PASS}, {@link Glyphs#FAIL}, or a
+   *     Braille spinner frame from {@link Glyphs#SPINNER_FRAMES})
+   * @param label the remaining text to display after the glyph (test name, duration, etc.)
+   * @param jlineColor ANSI foreground colour index from {@link AttributedStyle} (e.g. {@link
+   *     AttributedStyle#GREEN}); ignored when {@link #useColors} is {@code false}
+   * @return an {@link AttributedString} ready to pass to {@link Screen.Writer#text(AttributedString,
+   *     int, int)}
+   */
+  private AttributedString buildRowText(String glyph, String label, int jlineColor) {
+    AttributedStringBuilder sb = new AttributedStringBuilder();
+    sb.append("  ");
+    if (useColors) {
+      sb.style(AttributedStyle.DEFAULT.foreground(jlineColor));
+    }
+    sb.append(glyph);
+    sb.style(AttributedStyle.DEFAULT);
+    sb.append(" ").append(label);
+    return sb.toAttributedString();
   }
 }

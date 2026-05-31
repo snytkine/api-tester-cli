@@ -152,7 +152,7 @@ public class RunSuiteCommand {
       LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
       TerminalUiListener uiListener = new TerminalUiListener(queue);
       TerminalUiController controller =
-          new TerminalUiController(queue, viewComponentBuilder);
+          new TerminalUiController(queue, viewComponentBuilder, TtyDetector.supportsColor());
       controller.start();
       testEngine.runConfigurationSuite(testSuite, uiListener);
       controller.await();

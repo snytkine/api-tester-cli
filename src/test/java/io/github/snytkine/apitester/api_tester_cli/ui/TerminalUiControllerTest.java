@@ -47,7 +47,7 @@ class TerminalUiControllerTest {
     when(vc.getEventLoop()).thenReturn(eventLoop);
 
     LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiController controller = new TerminalUiController(queue, builder);
+    TerminalUiController controller = new TerminalUiController(queue, builder, false);
     controller.start();
 
     queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
@@ -76,7 +76,7 @@ class TerminalUiControllerTest {
     when(vc.getEventLoop()).thenReturn(eventLoop);
 
     LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiController controller = new TerminalUiController(queue, builder);
+    TerminalUiController controller = new TerminalUiController(queue, builder, false);
     controller.start();
 
     queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
@@ -99,7 +99,7 @@ class TerminalUiControllerTest {
     ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
     LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
 
-    TerminalUiController controller = new TerminalUiController(queue, builder);
+    TerminalUiController controller = new TerminalUiController(queue, builder, false);
     controller.start();
 
     // Offer a non-SuiteStarted event as the first event
@@ -109,6 +109,35 @@ class TerminalUiControllerTest {
 
     // ViewComponentBuilder.build() must never have been called
     verify(builder, never()).build(any());
+  }
+
+  @Test
+  void controllerWithColorsEnabledExitsCleanlyAfterSuiteCompleted() throws InterruptedException {
+    ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
+    ViewComponent vc = mock(ViewComponent.class);
+    ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
+    EventLoop eventLoop = mock(EventLoop.class);
+
+    when(builder.build(any())).thenReturn(vc);
+    when(vc.runAsync()).thenReturn(run);
+    when(vc.getEventLoop()).thenReturn(eventLoop);
+
+    LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+    TerminalUiController controller = new TerminalUiController(queue, builder, true);
+    controller.start();
+
+    queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
+    queue.offer(new TestProgressEvent.TestStarted(0, "green-test"));
+    queue.offer(
+        new TestProgressEvent.TestCompleted(0, "green-test", TestStatus.PASS, 42L, null));
+    queue.offer(new TestProgressEvent.TestStarted(1, "red-test"));
+    queue.offer(
+        new TestProgressEvent.TestCompleted(1, "red-test", TestStatus.FAIL, 99L, "assertion failed"));
+    queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 141L));
+
+    controller.await();
+
+    verify(vc).exit();
   }
 
   @Test
@@ -123,7 +152,7 @@ class TerminalUiControllerTest {
     when(vc.getEventLoop()).thenReturn(eventLoop);
 
     LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-    TerminalUiController controller = new TerminalUiController(queue, builder);
+    TerminalUiController controller = new TerminalUiController(queue, builder, false);
     controller.start();
 
     queue.offer(new TestProgressEvent.SuiteStarted("empty-suite", 0, Instant.now()));
