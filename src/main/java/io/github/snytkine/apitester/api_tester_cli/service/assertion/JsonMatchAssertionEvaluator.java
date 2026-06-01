@@ -146,9 +146,7 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
         } else {
             raw = expected.content();
         }
-        Map<String, String> suiteVars = configMap.getOrDefault("suite", Map.of());
-        Map<String, String> testVars = configMap.getOrDefault("test", Map.of());
-        return FileLoader.parseFile(raw, suiteVars, testVars);
+        return FileLoader.parseFile(raw, configMap);
     }
 
     /**

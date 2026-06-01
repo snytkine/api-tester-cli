@@ -73,10 +73,20 @@ public class FileLoader {
         return Files.readString(resolved);
     }
 
-    public static String parseFile(String file, Map<String, String> suiteVariables, Map<String, String> variables) {
+    /**
+     * Processes a file contents string as a Thymeleaf TEXT-mode template.
+     *
+     * <p>Each entry in {@code configMap} is set as a top-level context variable, so a map keyed by
+     * {@code "suite"}, {@code "test"}, {@code "cli"}, and {@code "env"} is accessible in templates as
+     * {@code [[${suite.myKey}]]}, {@code [[${test.myKey}]]}, etc.
+     *
+     * @param file the raw template string
+     * @param configMap all variable namespaces to expose in the template context
+     * @return the processed template result
+     */
+    public static String parseFile(String file, Map<String, Map<String, String>> configMap) {
         Context context = new Context();
-        context.setVariable("suite", Map.of("variables", suiteVariables));
-        context.setVariable("variables", variables);
+        configMap.forEach(context::setVariable);
         return TEMPLATE_ENGINE.process(file, context);
     }
 }

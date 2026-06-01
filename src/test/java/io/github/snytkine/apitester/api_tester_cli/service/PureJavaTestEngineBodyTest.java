@@ -45,18 +45,18 @@ class PureJavaTestEngineBodyTest {
     void stringTypeReturnsContentAsIs() throws IOException {
         RequestBody body = new RequestBody(BodyType.STRING, "hello world");
 
-        String result = PureJavaTestEngine.loadBodyContent(body, null, Map.of(), Map.of());
+        String result = PureJavaTestEngine.loadBodyContent(body, null, Map.of());
 
         assertThat(result).isEqualTo("hello world");
     }
 
     @Test
     void stringTypeDoesNotProcessThymeleafExpressions() throws IOException {
-        RequestBody body = new RequestBody(BodyType.STRING, "[[${variables.name}]]");
+        RequestBody body = new RequestBody(BodyType.STRING, "[[${test.name}]]");
 
-        String result = PureJavaTestEngine.loadBodyContent(body, null, Map.of("name", "Alice"), Map.of());
+        String result = PureJavaTestEngine.loadBodyContent(body, null, Map.of("test", Map.of("name", "Alice")));
 
-        assertThat(result).isEqualTo("[[${variables.name}]]");
+        assertThat(result).isEqualTo("[[${test.name}]]");
     }
 
     // --- loadBodyContent: FILE type ---
@@ -64,10 +64,10 @@ class PureJavaTestEngineBodyTest {
     @Test
     void fileTypeLoadsFileAndProcessesThymeleafTemplate(@TempDir Path tempDir) throws IOException {
         Path bodyFile = tempDir.resolve("body.json");
-        Files.writeString(bodyFile, "{\"name\":\"[[${variables.username}]]\"}");
+        Files.writeString(bodyFile, "{\"name\":\"[[${test.username}]]\"}");
         RequestBody body = new RequestBody(BodyType.FILE, "body.json");
 
-        String result = PureJavaTestEngine.loadBodyContent(body, tempDir, Map.of(), Map.of("username", "alice"));
+        String result = PureJavaTestEngine.loadBodyContent(body, tempDir, Map.of("test", Map.of("username", "alice")));
 
         assertThat(result).isEqualTo("{\"name\":\"alice\"}");
     }
@@ -75,10 +75,11 @@ class PureJavaTestEngineBodyTest {
     @Test
     void fileTypeResolvesSuiteVariablesInTemplate(@TempDir Path tempDir) throws IOException {
         Path bodyFile = tempDir.resolve("body.json");
-        Files.writeString(bodyFile, "{\"id\":\"[[${suite.variables.request_id}]]\"}");
+        Files.writeString(bodyFile, "{\"id\":\"[[${suite.request_id}]]\"}");
         RequestBody body = new RequestBody(BodyType.FILE, "body.json");
 
-        String result = PureJavaTestEngine.loadBodyContent(body, tempDir, Map.of("request_id", "abc-123"), Map.of());
+        String result =
+                PureJavaTestEngine.loadBodyContent(body, tempDir, Map.of("suite", Map.of("request_id", "abc-123")));
 
         assertThat(result).isEqualTo("{\"id\":\"abc-123\"}");
     }
@@ -90,7 +91,7 @@ class PureJavaTestEngineBodyTest {
         RequestBody body = new RequestBody(BodyType.FILE, "request-body-1.json");
 
         String result = PureJavaTestEngine.loadBodyContent(
-                body, suiteDir, Map.of("request_id", "req-99"), Map.of("username", "jsmith"));
+                body, suiteDir, Map.of("suite", Map.of("request_id", "req-99"), "test", Map.of("username", "jsmith")));
 
         assertThat(result).contains("\"username\": \"jsmith\"");
         assertThat(result).contains("\"requestID\": \"req-99\"");
@@ -101,7 +102,7 @@ class PureJavaTestEngineBodyTest {
     void fileTypeThrowsIllegalStateWhenSuiteDirIsNull() {
         RequestBody body = new RequestBody(BodyType.FILE, "body.json");
 
-        assertThatThrownBy(() -> PureJavaTestEngine.loadBodyContent(body, null, Map.of(), Map.of()))
+        assertThatThrownBy(() -> PureJavaTestEngine.loadBodyContent(body, null, Map.of()))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("body.json");
     }
@@ -110,7 +111,7 @@ class PureJavaTestEngineBodyTest {
     void fileTypeThrowsFileNotFoundWhenFileDoesNotExist(@TempDir Path tempDir) {
         RequestBody body = new RequestBody(BodyType.FILE, "nonexistent.json");
 
-        assertThatThrownBy(() -> PureJavaTestEngine.loadBodyContent(body, tempDir, Map.of(), Map.of()))
+        assertThatThrownBy(() -> PureJavaTestEngine.loadBodyContent(body, tempDir, Map.of()))
                 .isInstanceOf(FileNotFoundException.class)
                 .hasMessageContaining("nonexistent.json");
     }
@@ -124,7 +125,7 @@ class PureJavaTestEngineBodyTest {
     void unsupportedTypeThrowsUnsupportedOperationException(BodyType type) {
         RequestBody body = new RequestBody(type, "content");
 
-        assertThatThrownBy(() -> PureJavaTestEngine.loadBodyContent(body, null, Map.of(), Map.of()))
+        assertThatThrownBy(() -> PureJavaTestEngine.loadBodyContent(body, null, Map.of()))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining(type.name());
     }

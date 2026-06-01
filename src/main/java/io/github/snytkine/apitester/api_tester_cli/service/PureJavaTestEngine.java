@@ -296,9 +296,7 @@ public class PureJavaTestEngine implements TestEngine {
         }
 
         if (config.request() instanceof PayloadRequest pr && pr.body() != null) {
-            Map<String, String> suiteVars = configMap.getOrDefault("suite", Map.of());
-            Map<String, String> testVars = configMap.getOrDefault("test", Map.of());
-            String content = loadBodyContent(pr.body(), suiteDir, suiteVars, testVars);
+            String content = loadBodyContent(pr.body(), suiteDir, configMap);
             requestSpec.body(content);
         }
 
@@ -309,8 +307,9 @@ public class PureJavaTestEngine implements TestEngine {
      * Resolves the body content from a {@link RequestBody} descriptor.
      *
      * <p>For {@code FILE} bodies the file at {@link RequestBody#content()} is read relative to
-     * {@code suiteDir} and then processed through the Thymeleaf TEXT-mode template engine with the
-     * provided suite and test variables.
+     * {@code suiteDir} and then processed through the Thymeleaf TEXT-mode template engine with all
+     * variable namespaces from {@code configMap} ({@code suite}, {@code test}, {@code cli},
+     * {@code env}) available as top-level context variables.
      *
      * <p>For {@code STRING} bodies the {@link RequestBody#content()} value is returned as-is,
      * without any template processing.
@@ -318,21 +317,15 @@ public class PureJavaTestEngine implements TestEngine {
      * @param body the request-body descriptor from the test case
      * @param suiteDir the directory of the suite file; required when {@code body.type()} is {@code
      *     FILE}
-     * @param suiteVariables suite-level variables available as {@code ${suite.variables.*}} in
-     *     Thymeleaf expressions
-     * @param testVariables test-case-level variables available as {@code ${variables.*}} in Thymeleaf
-     *     expressions
+     * @param configMap all variable namespaces; each entry's key becomes a top-level Thymeleaf
+     *     variable
      * @return the resolved body string ready to be sent with the HTTP request
      * @throws IOException if the file cannot be read
      * @throws IllegalStateException if {@code type} is {@code FILE} but {@code suiteDir} is {@code
      *     null}
      * @throws UnsupportedOperationException if the body type is not yet supported
      */
-    static String loadBodyContent(
-            RequestBody body,
-            @Nullable Path suiteDir,
-            Map<String, String> suiteVariables,
-            Map<String, String> testVariables)
+    static String loadBodyContent(RequestBody body, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap)
             throws IOException {
         return switch (body.type()) {
             case STRING -> body.content();
@@ -342,7 +335,7 @@ public class PureJavaTestEngine implements TestEngine {
                             "Suite directory is required to resolve file body: " + body.content());
                 }
                 String raw = FileLoader.loadFile(suiteDir, body.content());
-                yield FileLoader.parseFile(raw, suiteVariables, testVariables);
+                yield FileLoader.parseFile(raw, configMap);
             }
             default ->
                 throw new UnsupportedOperationException("Request body type '" + body.type() + "' is not yet supported");

@@ -144,7 +144,7 @@ class JsonMatchAssertionEvaluatorTest {
     @Test
     void thymeleafSuiteVariablesResolvedInInlineExpectedContent() {
         Map<String, String> suiteVars = Map.of("userId", "42");
-        String template = "{\"id\":\"[[${suite.variables.userId}]]\"}";
+        String template = "{\"id\":\"[[${suite.userId}]]\"}";
 
         FailureCollector collector = new FailureCollector();
         evaluator(template, List.of(), suiteVars, Map.of())
@@ -156,7 +156,7 @@ class JsonMatchAssertionEvaluatorTest {
     @Test
     void thymeleafTestVariablesResolvedInInlineExpectedContent() {
         Map<String, String> testVars = Map.of("token", "abc123");
-        String template = "{\"token\":\"[[${variables.token}]]\"}";
+        String template = "{\"token\":\"[[${test.token}]]\"}";
 
         FailureCollector collector = new FailureCollector();
         evaluator(template, List.of(), Map.of(), testVars)
