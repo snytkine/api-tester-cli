@@ -21,19 +21,25 @@ import io.github.cdimascio.dotenv.DotenvEntry;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.springframework.stereotype.Component;
 
 /**
- * Utility class for loading variables from a {@code .env} file.
+ * Spring component for loading variables from a {@code .env} file.
  *
- * <p>This class provides a single static method that reads a {@code .env} file from a given
- * directory and merges it with the process's system environment variables. System environment
- * variables take precedence over same-named entries in the {@code .env} file.
+ * <p>This class provides an instance method that reads a {@code .env} file from a given directory
+ * and merges it with the process's system environment variables. System environment variables take
+ * precedence over same-named entries in the {@code .env} file.
  *
  * <p>This class is thread-safe; it holds no mutable state.
  */
+@Component
 public class DotEnvLoader {
 
-    private DotEnvLoader() {}
+    /**
+     * Constructs a {@code DotEnvLoader}. Spring uses this constructor to create the managed singleton;
+     * tests may also instantiate directly.
+     */
+    public DotEnvLoader() {}
 
     /**
      * Loads variables from a {@code .env} file in {@code directory} and merges them with the
@@ -49,7 +55,7 @@ public class DotEnvLoader {
      * @param directory the directory in which to look for a {@code .env} file
      * @return an immutable map containing the merged variables
      */
-    public static Map<String, String> loadDotEnv(Path directory) {
+    public Map<String, String> loadDotEnv(Path directory) {
         Dotenv dotenv = Dotenv.configure()
                 .directory(directory.toString())
                 .ignoreIfMissing()

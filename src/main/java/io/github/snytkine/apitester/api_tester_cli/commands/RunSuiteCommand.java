@@ -148,10 +148,10 @@ public class RunSuiteCommand {
             TerminalUiController controller = new TerminalUiController(
                     queue, TtyDetector.supportsColor(), TtyDetector.getTerminalWidth(), context.outputWriter());
             controller.start();
-            testEngine.runConfigurationSuite(testSuite, uiListener);
+            testEngine.runConfigurationSuite(testSuite, cliVars, uiListener);
             controller.await();
         } else {
-            TestRunResult result = testEngine.runConfigurationSuite(testSuite, NoOpProgressListener.INSTANCE);
+            TestRunResult result = testEngine.runConfigurationSuite(testSuite, cliVars, NoOpProgressListener.INSTANCE);
             context.outputWriter().println(toJson(result));
             context.outputWriter().flush();
         }

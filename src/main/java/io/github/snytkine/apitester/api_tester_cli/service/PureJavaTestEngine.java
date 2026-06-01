@@ -33,6 +33,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
+import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
@@ -40,6 +41,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,6 +80,7 @@ public class PureJavaTestEngine implements TestEngine {
     private final ClientHttpRequestFactory requestFactory;
     private final AssertionEvaluatorFactory evaluatorFactory;
     private final ResponseResolver responseResolver;
+    private final DotEnvLoader dotEnvLoader;
 
     /**
      * Constructs the engine with the required collaborators.
@@ -85,14 +88,17 @@ public class PureJavaTestEngine implements TestEngine {
      * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
      * @param evaluatorFactory maps assertion model objects to their evaluator implementations
      * @param responseResolver converts a {@link RestClient.ResponseSpec} into an {@link ApiResponse}
+     * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      */
     public PureJavaTestEngine(
             ClientHttpRequestFactory requestFactory,
             AssertionEvaluatorFactory evaluatorFactory,
-            ResponseResolver responseResolver) {
+            ResponseResolver responseResolver,
+            DotEnvLoader dotEnvLoader) {
         this.requestFactory = requestFactory;
         this.evaluatorFactory = evaluatorFactory;
         this.responseResolver = responseResolver;
+        this.dotEnvLoader = dotEnvLoader;
     }
 
     /**
@@ -117,10 +123,14 @@ public class PureJavaTestEngine implements TestEngine {
      * @return a {@link TestRunResult} with per-test-case results including structured failure detail
      */
     @Override
-    public TestRunResult runConfigurationSuite(TestSuite testSuite, TestProgressListener listener) {
+    public TestRunResult runConfigurationSuite(
+            TestSuite testSuite, Map<String, String> cliVars, TestProgressListener listener) {
         RestClient restClient = buildRestClient(testSuite.restClientConfig());
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
+        Map<String, String> envVars = suiteDir != null ? dotEnvLoader.loadDotEnv(suiteDir) : Map.of();
+        Map<String, Map<String, String>> configMap =
+                Map.of("cli", Map.copyOf(cliVars), "env", envVars, "suite", suiteVariables);
 
         List<TestCase> tests = testSuite.tests();
         Instant suiteStart = Instant.now();
@@ -137,7 +147,7 @@ public class PureJavaTestEngine implements TestEngine {
             long testStart = System.currentTimeMillis();
 
             try {
-                executeSingleTest(restClient, config, suiteDir, suiteVariables);
+                executeSingleTest(restClient, config, suiteDir, configMap);
                 long durationMs = System.currentTimeMillis() - testStart;
                 passedCount++;
                 int totalAssertions = config.assertions().size();
@@ -211,15 +221,19 @@ public class PureJavaTestEngine implements TestEngine {
      * failures surface as {@code MultipleFailuresError} from {@link SoftAssertions#assertAll()}. Both
      * are caught by the {@code catch (Throwable)} in {@link #runConfigurationSuite}.
      *
+     * <p>The method builds a {@code testConfigMap} by copying {@code configMap} and adding the
+     * test-case's own variables under the {@code "test"} key, making them available to evaluators and
+     * the request-body template processor.
+     *
      * @param restClient the configured client for this suite run
      * @param config the test case to execute
      * @param suiteDir the directory of the suite file, or {@code null} if unavailable
-     * @param suiteVariables resolved suite-level variables, forwarded to assertion evaluators that
-     *     process expected content as Thymeleaf templates
+     * @param configMap unmodifiable map containing all suite-level variable namespaces ({@code cli},
+     *     {@code env}, {@code suite})
      * @throws IOException if a file-type request body cannot be read from disk
      */
     private void executeSingleTest(
-            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, String> suiteVariables)
+            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap)
             throws IOException {
         log.debug(
                 "Executing test case '{}': {} {}",
@@ -227,12 +241,16 @@ public class PureJavaTestEngine implements TestEngine {
                 config.request().method(),
                 config.request().url());
 
-        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, suiteDir, suiteVariables);
+        Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
+        Map<String, Map<String, String>> mutableConfigMap = new LinkedHashMap<>(configMap);
+        mutableConfigMap.put("test", testVariables);
+        Map<String, Map<String, String>> testConfigMap = Map.copyOf(mutableConfigMap);
+
+        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, suiteDir, testConfigMap);
         RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
-        Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
         List<AssertionEvaluator> evaluators = config.assertions().stream()
-                .map(a -> evaluatorFactory.create(a, suiteDir, suiteVariables, testVariables))
+                .map(a -> evaluatorFactory.create(a, suiteDir, testConfigMap))
                 .toList();
 
         ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
@@ -257,14 +275,15 @@ public class PureJavaTestEngine implements TestEngine {
      * @param config the test case whose request is being built
      * @param suiteDir the directory of the suite file, needed to resolve relative file paths; may be
      *     {@code null} when the suite was not loaded from disk
-     * @param suiteVariables resolved suite-level variables forwarded to the Thymeleaf template engine
+     * @param configMap all variable namespaces including {@code "suite"} and {@code "test"}, forwarded
+     *     to the Thymeleaf template engine
      * @return a fully configured request spec ready for {@link RestClient.RequestBodySpec#retrieve()}
      * @throws IOException if a {@code FILE}-type body cannot be read from disk
      * @throws IllegalStateException if a {@code FILE}-type body is declared but {@code suiteDir} is
      *     {@code null}
      */
     private RestClient.RequestBodySpec buildRequestSpec(
-            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, String> suiteVariables)
+            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap)
             throws IOException {
         RestClient.RequestBodySpec requestSpec = restClient
                 .method(toSpringHttpMethod(config.request().method()))
@@ -277,8 +296,9 @@ public class PureJavaTestEngine implements TestEngine {
         }
 
         if (config.request() instanceof PayloadRequest pr && pr.body() != null) {
-            Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
-            String content = loadBodyContent(pr.body(), suiteDir, suiteVariables, testVariables);
+            Map<String, String> suiteVars = configMap.getOrDefault("suite", Map.of());
+            Map<String, String> testVars = configMap.getOrDefault("test", Map.of());
+            String content = loadBodyContent(pr.body(), suiteDir, suiteVars, testVars);
             requestSpec.body(content);
         }
 

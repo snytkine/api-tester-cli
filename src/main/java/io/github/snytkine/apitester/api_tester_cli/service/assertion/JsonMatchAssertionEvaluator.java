@@ -55,8 +55,7 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
     @Nullable private final Path suiteDir;
 
     private final ObjectMapper objectMapper;
-    private final Map<String, String> suiteVariables;
-    private final Map<String, String> testVariables;
+    private final Map<String, Map<String, String>> configMap;
 
     /**
      * Constructs the evaluator for the given assertion.
@@ -65,21 +64,19 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
      * @param suiteDir directory of the test-suite file, used to resolve relative expected-file paths;
      *     may be {@code null} when the suite was not loaded from disk
      * @param objectMapper the Jackson mapper used to parse and compare JSON trees
-     * @param suiteVariables resolved suite-level variables forwarded to the Thymeleaf template
-     *     processor when the expected file contains template expressions
-     * @param testVariables test-case-level variables forwarded to the Thymeleaf template processor
+     * @param configMap all variable namespaces ({@code suite}, {@code test}, {@code cli},
+     *     {@code env}) forwarded to the Thymeleaf template processor when the expected file contains
+     *     template expressions
      */
     JsonMatchAssertionEvaluator(
             JsonMatchAssertion assertion,
             @Nullable Path suiteDir,
             ObjectMapper objectMapper,
-            Map<String, String> suiteVariables,
-            Map<String, String> testVariables) {
+            Map<String, Map<String, String>> configMap) {
         this.assertion = assertion;
         this.suiteDir = suiteDir;
         this.objectMapper = objectMapper;
-        this.suiteVariables = suiteVariables;
-        this.testVariables = testVariables;
+        this.configMap = configMap;
     }
 
     /**
@@ -149,7 +146,9 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
         } else {
             raw = expected.content();
         }
-        return FileLoader.parseFile(raw, suiteVariables, testVariables);
+        Map<String, String> suiteVars = configMap.getOrDefault("suite", Map.of());
+        Map<String, String> testVars = configMap.getOrDefault("test", Map.of());
+        return FileLoader.parseFile(raw, suiteVars, testVars);
     }
 
     /**

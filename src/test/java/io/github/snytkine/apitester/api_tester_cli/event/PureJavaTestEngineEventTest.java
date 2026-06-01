@@ -26,6 +26,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.StubClientHttpRequest
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
+import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +48,8 @@ class PureJavaTestEngineEventTest {
     void setUp() {
         loader = new TestSuiteLoader();
         var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
-        engine = new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
+        engine = new PureJavaTestEngine(
+                factory, new AssertionEvaluatorFactory(), new ResponseResolver(), new DotEnvLoader());
     }
 
     @Test
@@ -57,7 +59,7 @@ class PureJavaTestEngineEventTest {
         int testCount = suite.tests().size();
 
         List<TestProgressEvent> captured = new ArrayList<>();
-        TestRunResult result = engine.runConfigurationSuite(suite, captured::add);
+        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), captured::add);
 
         assertThat(captured.get(0)).isInstanceOf(TestProgressEvent.SuiteStarted.class);
         TestProgressEvent.SuiteStarted suiteStarted = (TestProgressEvent.SuiteStarted) captured.get(0);
@@ -91,7 +93,7 @@ class PureJavaTestEngineEventTest {
         TestSuite suite = loader.load(path, new CliVariables(Map.of()));
 
         List<TestProgressEvent> captured = new ArrayList<>();
-        TestRunResult result = engine.runConfigurationSuite(suite, captured::add);
+        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), captured::add);
 
         long passEventCount = captured.stream()
                 .filter(e -> e instanceof TestProgressEvent.TestCompleted tc && tc.status() == TestStatus.PASS)
@@ -106,7 +108,7 @@ class PureJavaTestEngineEventTest {
         TestSuite suite = loader.load(path, new CliVariables(Map.of()));
 
         TestRunResult resultDefault = engine.runConfigurationSuite(suite);
-        TestRunResult resultWithNoop = engine.runConfigurationSuite(suite, NoOpProgressListener.INSTANCE);
+        TestRunResult resultWithNoop = engine.runConfigurationSuite(suite, Map.of(), NoOpProgressListener.INSTANCE);
 
         assertThat(resultWithNoop.passedCount()).isEqualTo(resultDefault.passedCount());
         assertThat(resultWithNoop.failedCount()).isEqualTo(resultDefault.failedCount());

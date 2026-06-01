@@ -511,7 +511,6 @@ public final class TerminalUiController {
      *
      * <p>Format: {@code ✓ N passed ✗ M failed (Xms)}. The pass count is always coloured green when
      * colours are enabled. The fail count is coloured red only when it is greater than zero.
-     *
      * @param passCount number of test cases that passed
      * @param failCount number of test cases that failed or errored
      * @param totalMs total suite wall-clock duration in milliseconds

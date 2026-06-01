@@ -88,21 +88,17 @@ public class AssertionEvaluatorFactory {
      * JsonSchemaAssertionEvaluator}). It may be {@code null} when the suite was not loaded from disk,
      * in which case file-reference assertions will record a soft failure rather than throw.
      *
-     * <p>The {@code suiteVariables} and {@code testVariables} maps are forwarded to {@link
-     * JsonMatchAssertionEvaluator} so that expected JSON files can contain Thymeleaf expressions
-     * resolved against suite- and test-level variables.
+     * <p>The {@code configMap} is forwarded to {@link JsonMatchAssertionEvaluator} so that expected
+     * JSON files can contain Thymeleaf expressions resolved against all available variable namespaces
+     * ({@code suite}, {@code test}, {@code cli}, {@code env}).
      *
      * @param assertion the assertion from the test case
      * @param suiteDir directory of the test-suite YAML file, or {@code null} if unavailable
-     * @param suiteVariables resolved suite-level variables; must not be {@code null}
-     * @param testVariables test-case-level variables; must not be {@code null}
+     * @param configMap all variable namespaces keyed by namespace name; must not be {@code null}
      * @return a matching {@link AssertionEvaluator}
      */
     public AssertionEvaluator create(
-            Assertion assertion,
-            @Nullable Path suiteDir,
-            Map<String, String> suiteVariables,
-            Map<String, String> testVariables) {
+            Assertion assertion, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap) {
         return switch (assertion) {
             case ArrayContainsAllAssertion a -> new ArrayContainsAllAssertionEvaluator(a);
             case ArrayContainsAssertion a -> new ArrayContainsAssertionEvaluator(a);
@@ -118,8 +114,7 @@ public class AssertionEvaluatorFactory {
             case GreaterThanOrEqualAssertion a -> new GreaterThanOrEqualAssertionEvaluator(a);
             case HasHeaderAssertion a -> new HasHeaderAssertionEvaluator(a);
             case IsNullAssertion a -> new IsNullAssertionEvaluator(a);
-            case JsonMatchAssertion a ->
-                new JsonMatchAssertionEvaluator(a, suiteDir, jsonMapper, suiteVariables, testVariables);
+            case JsonMatchAssertion a -> new JsonMatchAssertionEvaluator(a, suiteDir, jsonMapper, configMap);
             case JsonSchemaAssertion a -> new JsonSchemaAssertionEvaluator(a, suiteDir, jsonMapper);
             case LessThanAssertion a -> new LessThanAssertionEvaluator(a);
             case LessThanOrEqualAssertion a -> new LessThanOrEqualAssertionEvaluator(a);

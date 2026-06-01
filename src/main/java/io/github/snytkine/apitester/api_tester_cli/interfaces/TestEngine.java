@@ -20,6 +20,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import java.util.Map;
 
 /**
  * Contract for running a test suite and collecting results.
@@ -34,15 +35,15 @@ public interface TestEngine {
     /**
      * Executes all test cases in the given {@link TestSuite} and returns an aggregated result.
      *
-     * <p>This convenience overload uses {@link NoOpProgressListener#INSTANCE} and is equivalent to
-     * {@code runConfigurationSuite(testSuite, NoOpProgressListener.INSTANCE)}.
+     * <p>This convenience overload passes an empty {@code cliVars} map and uses {@link
+     * NoOpProgressListener#INSTANCE}.
      *
      * @param testSuite the loaded test suite to execute
      * @return a {@link TestRunResult} containing pass count, fail count, and error messages
      * @throws Exception if a fatal error prevents the suite from running
      */
     default TestRunResult runConfigurationSuite(TestSuite testSuite) throws Exception {
-        return runConfigurationSuite(testSuite, NoOpProgressListener.INSTANCE);
+        return runConfigurationSuite(testSuite, Map.of(), NoOpProgressListener.INSTANCE);
     }
 
     /**
@@ -50,9 +51,11 @@ public interface TestEngine {
      * listener} at each milestone (suite start, per-test start/complete, suite complete).
      *
      * @param testSuite the loaded test suite to execute
+     * @param cliVars CLI variables supplied at invocation time, keyed by variable name
      * @param listener receives progress events; must be thread-safe
      * @return a {@link TestRunResult} containing pass count, fail count, and error messages
      * @throws Exception if a fatal error prevents the suite from running
      */
-    TestRunResult runConfigurationSuite(TestSuite testSuite, TestProgressListener listener) throws Exception;
+    TestRunResult runConfigurationSuite(TestSuite testSuite, Map<String, String> cliVars, TestProgressListener listener)
+            throws Exception;
 }

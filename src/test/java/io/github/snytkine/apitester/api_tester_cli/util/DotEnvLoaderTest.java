@@ -30,18 +30,20 @@ class DotEnvLoaderTest {
     @TempDir
     Path tempDir;
 
+    private final DotEnvLoader loader = new DotEnvLoader();
+
     @Test
     void loadDotEnvIncludesDotEnvFileEntries() throws IOException {
         Files.writeString(tempDir.resolve(".env"), "API_KEY=secret\nBASE_URL=https://example.com\n");
 
-        Map<String, String> result = DotEnvLoader.loadDotEnv(tempDir);
+        Map<String, String> result = loader.loadDotEnv(tempDir);
 
         assertThat(result).containsEntry("API_KEY", "secret").containsEntry("BASE_URL", "https://example.com");
     }
 
     @Test
     void loadDotEnvIncludesSystemEnvironmentVariables() {
-        Map<String, String> result = DotEnvLoader.loadDotEnv(tempDir);
+        Map<String, String> result = loader.loadDotEnv(tempDir);
 
         assertThat(result).containsKey("PATH");
     }
@@ -51,14 +53,14 @@ class DotEnvLoaderTest {
         // PATH is always set in system env; write a conflicting value in .env
         Files.writeString(tempDir.resolve(".env"), "PATH=/fake/path\n");
 
-        Map<String, String> result = DotEnvLoader.loadDotEnv(tempDir);
+        Map<String, String> result = loader.loadDotEnv(tempDir);
 
         assertThat(result.get("PATH")).isEqualTo(System.getenv("PATH"));
     }
 
     @Test
     void loadDotEnvWithMissingFileReturnsSystemEnvironmentVariables() {
-        Map<String, String> result = DotEnvLoader.loadDotEnv(tempDir);
+        Map<String, String> result = loader.loadDotEnv(tempDir);
 
         assertThat(result).containsAllEntriesOf(System.getenv());
     }

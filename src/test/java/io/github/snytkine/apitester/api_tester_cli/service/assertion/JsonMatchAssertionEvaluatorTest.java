@@ -47,7 +47,8 @@ class JsonMatchAssertionEvaluatorTest {
             String expectedContent, List<String> ignore, Map<String, String> suiteVars, Map<String, String> testVars) {
         ObjectExpectedValue expected = new ObjectExpectedValue("inline", expectedContent, ignore);
         JsonMatchAssertion assertion = new JsonMatchAssertion("response.body.json", expected);
-        return new JsonMatchAssertionEvaluator(assertion, null, OBJECT_MAPPER, suiteVars, testVars);
+        return new JsonMatchAssertionEvaluator(
+                assertion, null, OBJECT_MAPPER, Map.of("suite", suiteVars, "test", testVars));
     }
 
     @Test
@@ -132,8 +133,7 @@ class JsonMatchAssertionEvaluatorTest {
         ObjectExpectedValue expected = new ObjectExpectedValue("file", "nonexistent-file.json", List.of());
         JsonMatchAssertion assertion = new JsonMatchAssertion("response.body.json", expected);
         Path tmpDir = Path.of(System.getProperty("java.io.tmpdir"));
-        JsonMatchAssertionEvaluator ev =
-                new JsonMatchAssertionEvaluator(assertion, tmpDir, OBJECT_MAPPER, Map.of(), Map.of());
+        JsonMatchAssertionEvaluator ev = new JsonMatchAssertionEvaluator(assertion, tmpDir, OBJECT_MAPPER, Map.of());
 
         FailureCollector collector = new FailureCollector();
         ev.evaluate(responseWithJson("{\"a\":1}", Map.of("a", 1)), collector);
