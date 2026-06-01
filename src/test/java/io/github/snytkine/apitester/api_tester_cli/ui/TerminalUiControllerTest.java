@@ -465,7 +465,7 @@ class TerminalUiControllerTest {
 
     @Test
     void longTestNameIsTruncatedWithinNameColumnWidth() throws InterruptedException {
-        // terminalWidth=80 → nameColWidth = max(10, 80 - 13 - 6 - 15 - 10) = max(10, 36) = 36
+        // terminalWidth=80 → nameColWidth = max(10, 80 - 13 - 10 - 15 - 10) = max(10, 32) = 32
         String longName = "this-is-a-very-long-test-name-that-exceeds-the-limit";
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         StringWriter capture = new StringWriter();
@@ -479,10 +479,10 @@ class TerminalUiControllerTest {
 
         ctrl.await();
 
-        // nameColWidth = 36; truncated name must be at most 36 chars and end with "…"
-        String expected = TerminalUiController.truncateName(longName, 36);
+        // nameColWidth = 32; truncated name must be at most 32 chars and end with "…"
+        String expected = TerminalUiController.truncateName(longName, 32);
         assertThat(expected).endsWith("…");
-        assertThat(expected).hasSizeLessThanOrEqualTo(36);
+        assertThat(expected).hasSizeLessThanOrEqualTo(32);
         assertThat(capture.toString()).contains(expected);
     }
 
@@ -494,7 +494,7 @@ class TerminalUiControllerTest {
     void nameColWidthUsesMinimumOfTenForNarrowTerminals() {
         TerminalUiController ctrl =
                 new TerminalUiController(new LinkedBlockingQueue<>(), false, 30, new PrintWriter(new StringWriter()));
-        // max(10, 30 - 13 - 6 - 15 - 10) = max(10, -14) = 10
+        // max(10, 30 - 13 - 10 - 15 - 10) = max(10, -18) = 10
         assertThat(ctrl.nameColWidth).isEqualTo(10);
     }
 
@@ -502,16 +502,16 @@ class TerminalUiControllerTest {
     void nameColWidthIsComputedCorrectlyForEightyColTerminal() {
         TerminalUiController ctrl =
                 new TerminalUiController(new LinkedBlockingQueue<>(), false, 80, new PrintWriter(new StringWriter()));
-        assertThat(ctrl.nameColWidth).isEqualTo(36);
+        assertThat(ctrl.nameColWidth).isEqualTo(32);
     }
 
     @Test
     void columnStartPositionsAreConsistentWithNameColWidth() {
         TerminalUiController ctrl =
                 new TerminalUiController(new LinkedBlockingQueue<>(), false, 80, new PrintWriter(new StringWriter()));
-        // statusColStart = nameColWidth + 6 = 36 + 6 = 42
-        assertThat(ctrl.statusColStart).isEqualTo(42);
-        // timeColStart = statusColStart + STATUS_COL_WIDTH + 3 = 42 + 6 + 3 = 51
+        // statusColStart = nameColWidth + 6 = 32 + 6 = 38
+        assertThat(ctrl.statusColStart).isEqualTo(38);
+        // timeColStart = statusColStart + STATUS_COL_WIDTH + 3 = 38 + 10 + 3 = 51
         assertThat(ctrl.timeColStart).isEqualTo(51);
         // resultColStart = timeColStart + TIME_COL_WIDTH + 3 = 51 + 15 + 3 = 69
         assertThat(ctrl.resultColStart).isEqualTo(69);

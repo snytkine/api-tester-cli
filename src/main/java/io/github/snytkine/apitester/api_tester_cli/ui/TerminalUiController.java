@@ -111,8 +111,11 @@ public final class TerminalUiController {
     /** Seconds to wait for the initial {@link TestProgressEvent.SuiteStarted} event. */
     static final long SUITE_STARTED_TIMEOUT_SECONDS = 30L;
 
-    /** Visible character width of the Status column. */
-    static final int STATUS_COL_WIDTH = 6;
+    /**
+     * Visible character width of the Status column. Must be at least 8 to accommodate the widest
+     * status label: one glyph character, a space, and "Passed" (6 chars) = 8 visible chars total.
+     */
+    static final int STATUS_COL_WIDTH = 10;
 
     /** Visible character width of the Response Time column (accommodates "Response Time" header). */
     static final int TIME_COL_WIDTH = 15;
@@ -341,14 +344,19 @@ public final class TerminalUiController {
             case TestProgressEvent.TestCompleted e -> {
                 int row = uniqueIdToRow.getOrDefault(e.uniqueId(), e.testIndex());
                 isRunning[row] = false;
-                boolean passed = e.status() == TestStatus.PASS;
-                String glyph = passed ? Glyphs.PASS : Glyphs.FAIL;
-                int statusColor = passed ? ANSI_GREEN : ANSI_RED;
+                // Build status label: glyph + space + word (e.g. "✓ Passed", "✗ Failed", "✗ Error")
+                String statusText =
+                        switch (e.status()) {
+                            case PASS -> Glyphs.PASS + " Passed";
+                            case FAIL -> Glyphs.FAIL + " Failed";
+                            case ERROR -> Glyphs.FAIL + " Error";
+                        };
+                int statusColor = e.status() == TestStatus.PASS ? ANSI_GREEN : ANSI_RED;
                 String timeStr = e.durationMs() + "ms";
-                String resultStr = passed
+                String resultStr = e.status() == TestStatus.PASS
                         ? e.assertionCount() + " passed"
                         : e.failureMessages().size() + " failed";
-                updateCell(row, rowCount, statusColStart, STATUS_COL_WIDTH, glyph, statusColor);
+                updateCell(row, rowCount, statusColStart, STATUS_COL_WIDTH, statusText, statusColor);
                 updateCell(row, rowCount, timeColStart, TIME_COL_WIDTH, timeStr, 0);
                 updateCell(row, rowCount, resultColStart, RESULT_COL_WIDTH, resultStr, statusColor);
                 yield false;
