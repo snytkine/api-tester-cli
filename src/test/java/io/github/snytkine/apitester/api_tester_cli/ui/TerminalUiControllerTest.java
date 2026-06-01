@@ -17,12 +17,6 @@
 package io.github.snytkine.apitester.api_tester_cli.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
@@ -32,173 +26,234 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.junit.jupiter.api.Test;
-import org.springframework.messaging.Message;
-import org.springframework.shell.jline.tui.component.ViewComponent;
-import org.springframework.shell.jline.tui.component.ViewComponentBuilder;
-import org.springframework.shell.jline.tui.component.view.event.EventLoop;
 
+/**
+ * Unit tests for {@link TerminalUiController}. All tests run the controller in a background thread
+ * and capture its output via a {@link StringWriter}; no Spring Shell TUI infrastructure is
+ * required.
+ */
 class TerminalUiControllerTest {
 
     // ---------------------------------------------------------------------------
-    // Lifecycle tests
+    // Helper
+    // ---------------------------------------------------------------------------
+
+    private static TerminalUiController controller(LinkedBlockingQueue<TestProgressEvent> queue, StringWriter capture) {
+        return new TerminalUiController(queue, false, 80, new PrintWriter(capture));
+    }
+
+    private static TerminalUiController colorController(
+            LinkedBlockingQueue<TestProgressEvent> queue, StringWriter capture) {
+        return new TerminalUiController(queue, true, 80, new PrintWriter(capture));
+    }
+
+    // ---------------------------------------------------------------------------
+    // Lifecycle
     // ---------------------------------------------------------------------------
 
     @Test
-    void controllerExitsCleanlyAfterSuiteCompleted() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        EventLoop eventLoop = mock(EventLoop.class);
-
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(eventLoop);
-
+    void controllerTerminatesAfterSuiteCompleted() throws InterruptedException {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller =
-                new TerminalUiController(queue, builder, false, 80, new PrintWriter(new StringWriter()));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, new StringWriter());
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "test-one"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "test-one", TestStatus.PASS, 100L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "test-two"));
-        queue.offer(new TestProgressEvent.TestCompleted(1, "test-two", TestStatus.FAIL, 200L, List.of("failed")));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 100L, 1, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
+        queue.offer(
+                new TestProgressEvent.TestCompleted("1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of("failed")));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 300L));
 
-        controller.await();
-
-        verify(vc).exit();
-    }
-
-    @Test
-    void controllerDispatchesRedrawForEachTestEvent() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        EventLoop eventLoop = mock(EventLoop.class);
-
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(eventLoop);
-
-        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller =
-                new TerminalUiController(queue, builder, false, 80, new PrintWriter(new StringWriter()));
-        controller.start();
-
-        queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "test-a"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "test-a", TestStatus.PASS, 50L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "test-b"));
-        queue.offer(new TestProgressEvent.TestCompleted(1, "test-b", TestStatus.ERROR, 75L, List.of("error")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 125L));
-
-        controller.await();
-
-        // 2 TestStarted + 2 TestCompleted = 4 redraw dispatches
-        verify(eventLoop, times(4)).dispatch(any(Message.class));
+        // await() completes only when the controller thread exits — verifies clean termination
+        ctrl.await();
     }
 
     @Test
     void controllerAbortsWhenFirstEventIsNotSuiteStarted() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
-        TerminalUiController controller =
-                new TerminalUiController(queue, builder, false, 80, new PrintWriter(new StringWriter()));
-        controller.start();
-
-        // Offer a non-SuiteStarted event as the first event
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L));
 
-        controller.await();
+        ctrl.await();
 
-        // ViewComponentBuilder.build() must never have been called
-        verify(builder, never()).build(any());
-    }
-
-    @Test
-    void controllerWithColorsEnabledExitsCleanlyAfterSuiteCompleted() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        EventLoop eventLoop = mock(EventLoop.class);
-
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(eventLoop);
-
-        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller =
-                new TerminalUiController(queue, builder, true, 80, new PrintWriter(new StringWriter()));
-        controller.start();
-
-        queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "green-test"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "green-test", TestStatus.PASS, 42L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "red-test"));
-        queue.offer(
-                new TestProgressEvent.TestCompleted(1, "red-test", TestStatus.FAIL, 99L, List.of("assertion failed")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 141L));
-
-        controller.await();
-
-        verify(vc).exit();
+        // Nothing should have been written — the controller aborted before drawing
+        assertThat(capture.toString()).isEmpty();
     }
 
     @Test
     void controllerHandlesZeroTestSuite() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        EventLoop eventLoop = mock(EventLoop.class);
-
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(eventLoop);
-
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller =
-                new TerminalUiController(queue, builder, false, 80, new PrintWriter(new StringWriter()));
-        controller.start();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("empty-suite", 0, Instant.now()));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L));
 
-        controller.await();
+        ctrl.await();
 
-        verify(vc).exit();
-        verify(eventLoop, never()).dispatch(any(Message.class));
+        // Grid headers must appear even for zero-test suites
+        String out = capture.toString();
+        assertThat(out).contains("Test Name");
+        assertThat(out).contains("Status");
+    }
+
+    @Test
+    void controllerWithColorsEnabledTerminatesCleanly() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiController ctrl = new TerminalUiController(queue, true, 80, new PrintWriter(new StringWriter()));
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "green-test"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "green-test", TestStatus.PASS, 42L, 2, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "red-test"));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "1", 1, "red-test", TestStatus.FAIL, 99L, 2, List.of("assertion failed")));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 141L));
+
+        ctrl.await();
     }
 
     // ---------------------------------------------------------------------------
-    // Phase 7: summary line
+    // Grid output
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void gridHeadersArePresentInOutputAfterSuiteStarted() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("my-suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "t"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "t", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 10L));
+
+        ctrl.await();
+
+        String out = capture.toString();
+        assertThat(out).contains("Test Name");
+        assertThat(out).contains("Status");
+        assertThat(out).contains("Response Time");
+        assertThat(out).contains("Result");
+    }
+
+    @Test
+    void bannerContainsSuiteNameInOutput() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("my-api-suite", 0, Instant.now()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("Starting Test Suite my-api-suite");
+    }
+
+    @Test
+    void testNameAppearsInOutputAfterTestStarted() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "verify-login"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "verify-login", TestStatus.PASS, 50L, 3, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 50L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("verify-login");
+    }
+
+    @Test
+    void passResultAppearsInOutputAfterPassedTest() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "check-health"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "check-health", TestStatus.PASS, 30L, 4, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 30L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("4 passed");
+    }
+
+    @Test
+    void failResultAppearsInOutputAfterFailedTest() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "check-status"));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "0",
+                0,
+                "check-status",
+                TestStatus.FAIL,
+                20L,
+                3,
+                List.of("expected 200 but was 500", "missing header")));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 20L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("2 failed");
+    }
+
+    @Test
+    void responseDurationAppearsInOutputAfterTestCompleted() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "timing-test"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "timing-test", TestStatus.PASS, 142L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 142L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("142ms");
+    }
+
+    // ---------------------------------------------------------------------------
+    // Summary line
     // ---------------------------------------------------------------------------
 
     @Test
     void summaryLineContainsPassAndFailCounts() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("my-suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "test-one"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "test-one", TestStatus.PASS, 100L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "test-two"));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 100L, 1, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                1, "test-two", TestStatus.FAIL, 200L, List.of("expected 200 but was 404")));
+                "1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of("expected 200 but was 404")));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 300L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains(Glyphs.PASS + " 1 passed");
@@ -208,26 +263,19 @@ class TerminalUiControllerTest {
 
     @Test
     void summaryLineReflectsAllPassWhenNoFailures() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "alpha"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "alpha", TestStatus.PASS, 50L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "beta"));
-        queue.offer(new TestProgressEvent.TestCompleted(1, "beta", TestStatus.PASS, 75L, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "alpha"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "alpha", TestStatus.PASS, 50L, 2, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "beta"));
+        queue.offer(new TestProgressEvent.TestCompleted("1", 1, "beta", TestStatus.PASS, 75L, 2, List.of()));
         queue.offer(new TestProgressEvent.SuiteCompleted(2, 0, 125L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains(Glyphs.PASS + " 2 passed");
@@ -237,59 +285,44 @@ class TerminalUiControllerTest {
 
     @Test
     void summaryLineWithColorsContainsAnsiEscapeCodesForPassAndFail() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, true, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = colorController(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "test-x"));
-        queue.offer(
-                new TestProgressEvent.TestCompleted(0, "test-x", TestStatus.FAIL, 50L, List.of("assertion failed")));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-x"));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "0", 0, "test-x", TestStatus.FAIL, 50L, 1, List.of("assertion failed")));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 50L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
-        // ANSI green for pass (32m) and red for fail (31m) when colours are enabled
-        assertThat(out).contains("[32m");
-        assertThat(out).contains("[31m");
+        assertThat(out).contains("[32m"); // ANSI green for pass
+        assertThat(out).contains("[31m"); // ANSI red for fail
     }
 
     // ---------------------------------------------------------------------------
-    // Phase 7: failure details
+    // Failure details
     // ---------------------------------------------------------------------------
 
     @Test
     void failureDetailsArePrintedAfterSummaryWhenTestsFail() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "passing-test"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "passing-test", TestStatus.PASS, 40L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "failing-test"));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "passing-test"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "passing-test", TestStatus.PASS, 40L, 1, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "failing-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                1, "failing-test", TestStatus.FAIL, 60L, List.of("expected 200 but was 500")));
+                "1", 1, "failing-test", TestStatus.FAIL, 60L, 1, List.of("expected 200 but was 500")));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 100L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains("Failures:");
@@ -299,51 +332,37 @@ class TerminalUiControllerTest {
 
     @Test
     void noFailureSectionPrintedWhenAllTestsPass() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 2, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "test-one"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "test-one", TestStatus.PASS, 40L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(1, "test-two"));
-        queue.offer(new TestProgressEvent.TestCompleted(1, "test-two", TestStatus.PASS, 60L, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 40L, 1, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
+        queue.offer(new TestProgressEvent.TestCompleted("1", 1, "test-two", TestStatus.PASS, 60L, 1, List.of()));
         queue.offer(new TestProgressEvent.SuiteCompleted(2, 0, 100L));
 
-        controller.await();
+        ctrl.await();
 
         assertThat(capture.toString()).doesNotContain("Failures:");
     }
 
     @Test
     void errorStatusIsIncludedInFailureDetails() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "network-error-test"));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "network-error-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                0, "network-error-test", TestStatus.ERROR, 30L, List.of("Connection refused")));
+                "0", 0, "network-error-test", TestStatus.ERROR, 30L, 0, List.of("Connection refused")));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 30L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains("Failures:");
@@ -353,63 +372,55 @@ class TerminalUiControllerTest {
 
     @Test
     void multipleFailuresAreAllListedInFailureDetails() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 3, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "fail-a"));
-        queue.offer(new TestProgressEvent.TestCompleted(0, "fail-a", TestStatus.FAIL, 10L, List.of("reason-a")));
-        queue.offer(new TestProgressEvent.TestStarted(1, "pass-b"));
-        queue.offer(new TestProgressEvent.TestCompleted(1, "pass-b", TestStatus.PASS, 20L, List.of()));
-        queue.offer(new TestProgressEvent.TestStarted(2, "fail-c"));
-        queue.offer(new TestProgressEvent.TestCompleted(2, "fail-c", TestStatus.ERROR, 30L, List.of("reason-c")));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "fail-a"));
+        queue.offer(
+                new TestProgressEvent.TestCompleted("0", 0, "fail-a", TestStatus.FAIL, 10L, 1, List.of("reason-a")));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "pass-b"));
+        queue.offer(new TestProgressEvent.TestCompleted("1", 1, "pass-b", TestStatus.PASS, 20L, 1, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("2", 2, "fail-c"));
+        queue.offer(
+                new TestProgressEvent.TestCompleted("2", 2, "fail-c", TestStatus.ERROR, 30L, 0, List.of("reason-c")));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 2, 60L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains("fail-a");
         assertThat(out).contains("reason-a");
         assertThat(out).contains("fail-c");
         assertThat(out).contains("reason-c");
-        // The passing test name should not appear in the failure block
-        assertThat(out.indexOf("pass-b")).isEqualTo(-1);
+        // "pass-b" appears in the grid cell but must NOT appear in the Failures section
+        int failuresStart = out.indexOf("Failures:");
+        assertThat(failuresStart).isGreaterThan(0);
+        assertThat(out.substring(failuresStart)).doesNotContain("pass-b");
     }
 
     @Test
     void allAssertionFailuresForOneTestArePrinted() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
         StringWriter capture = new StringWriter();
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller = new TerminalUiController(queue, builder, false, 80, new PrintWriter(capture));
-        controller.start();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, "multi-assert-test"));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "multi-assert-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
+                "0",
                 0,
                 "multi-assert-test",
                 TestStatus.FAIL,
                 50L,
+                3,
                 List.of("expected 200 but was 404", "body did not match", "missing header X-Request-Id")));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 50L));
 
-        controller.await();
+        ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains("multi-assert-test");
@@ -419,7 +430,7 @@ class TerminalUiControllerTest {
     }
 
     // ---------------------------------------------------------------------------
-    // Phase 7: test name truncation
+    // Test name truncation
     // ---------------------------------------------------------------------------
 
     @Test
@@ -453,31 +464,56 @@ class TerminalUiControllerTest {
     }
 
     @Test
-    void longTestNameIsTruncatedWithinConfiguredWidth() throws InterruptedException {
-        ViewComponentBuilder builder = mock(ViewComponentBuilder.class);
-        ViewComponent vc = mock(ViewComponent.class);
-        ViewComponent.ViewComponentRun run = mock(ViewComponent.ViewComponentRun.class);
-        when(builder.build(any())).thenReturn(vc);
-        when(vc.runAsync()).thenReturn(run);
-        when(vc.getEventLoop()).thenReturn(mock(EventLoop.class));
-
-        // terminalWidth=30 → maxNameWidth = max(10, 30 - 14) = 16
+    void longTestNameIsTruncatedWithinNameColumnWidth() throws InterruptedException {
+        // terminalWidth=80 → nameColWidth = max(10, 80 - 13 - 6 - 15 - 10) = max(10, 36) = 36
         String longName = "this-is-a-very-long-test-name-that-exceeds-the-limit";
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
-        TerminalUiController controller =
-                new TerminalUiController(queue, builder, false, 30, new PrintWriter(new StringWriter()));
-        controller.start();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = new TerminalUiController(queue, false, 80, new PrintWriter(capture));
+        ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
-        queue.offer(new TestProgressEvent.TestStarted(0, longName));
-        queue.offer(new TestProgressEvent.TestCompleted(0, longName, TestStatus.PASS, 10L, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, longName));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, longName, TestStatus.PASS, 10L, 1, List.of()));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 10L));
 
-        controller.await();
+        ctrl.await();
 
-        // The truncated name must be at most maxNameWidth chars and end with "…"
-        String expected = TerminalUiController.truncateName(longName, 16);
+        // nameColWidth = 36; truncated name must be at most 36 chars and end with "…"
+        String expected = TerminalUiController.truncateName(longName, 36);
         assertThat(expected).endsWith("…");
-        assertThat(expected).hasSizeLessThanOrEqualTo(16);
+        assertThat(expected).hasSizeLessThanOrEqualTo(36);
+        assertThat(capture.toString()).contains(expected);
+    }
+
+    // ---------------------------------------------------------------------------
+    // Column width calculation
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void nameColWidthUsesMinimumOfTenForNarrowTerminals() {
+        TerminalUiController ctrl =
+                new TerminalUiController(new LinkedBlockingQueue<>(), false, 30, new PrintWriter(new StringWriter()));
+        // max(10, 30 - 13 - 6 - 15 - 10) = max(10, -14) = 10
+        assertThat(ctrl.nameColWidth).isEqualTo(10);
+    }
+
+    @Test
+    void nameColWidthIsComputedCorrectlyForEightyColTerminal() {
+        TerminalUiController ctrl =
+                new TerminalUiController(new LinkedBlockingQueue<>(), false, 80, new PrintWriter(new StringWriter()));
+        assertThat(ctrl.nameColWidth).isEqualTo(36);
+    }
+
+    @Test
+    void columnStartPositionsAreConsistentWithNameColWidth() {
+        TerminalUiController ctrl =
+                new TerminalUiController(new LinkedBlockingQueue<>(), false, 80, new PrintWriter(new StringWriter()));
+        // statusColStart = nameColWidth + 6 = 36 + 6 = 42
+        assertThat(ctrl.statusColStart).isEqualTo(42);
+        // timeColStart = statusColStart + STATUS_COL_WIDTH + 3 = 42 + 6 + 3 = 51
+        assertThat(ctrl.timeColStart).isEqualTo(51);
+        // resultColStart = timeColStart + TIME_COL_WIDTH + 3 = 51 + 15 + 3 = 69
+        assertThat(ctrl.resultColStart).isEqualTo(69);
     }
 }

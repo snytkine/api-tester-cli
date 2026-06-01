@@ -132,27 +132,29 @@ public class PureJavaTestEngine implements TestEngine {
 
         for (int i = 0; i < tests.size(); i++) {
             TestCase config = tests.get(i);
-            listener.onProgress(new TestProgressEvent.TestStarted(i, config.name()));
+            String uniqueId = String.valueOf(i);
+            listener.onProgress(new TestProgressEvent.TestStarted(uniqueId, i, config.name()));
             long testStart = System.currentTimeMillis();
 
             try {
                 executeSingleTest(restClient, config, suiteDir, suiteVariables);
                 long durationMs = System.currentTimeMillis() - testStart;
                 passedCount++;
-                results.add(new TestCaseResult(
-                        config.name(), true, config.assertions().size(), List.of()));
-                listener.onProgress(
-                        new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.PASS, durationMs, List.of()));
+                int totalAssertions = config.assertions().size();
+                results.add(new TestCaseResult(config.name(), true, totalAssertions, List.of()));
+                listener.onProgress(new TestProgressEvent.TestCompleted(
+                        uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
             } catch (MultipleFailuresError e) {
                 long durationMs = System.currentTimeMillis() - testStart;
                 failedCount++;
                 List<AssertionFailure> failures = extractFailures(e);
-                int passedAssertions = config.assertions().size() - failures.size();
+                int totalAssertions = config.assertions().size();
+                int passedAssertions = totalAssertions - failures.size();
                 results.add(new TestCaseResult(config.name(), false, passedAssertions, failures));
                 List<String> messages =
                         e.getFailures().stream().map(Throwable::getMessage).toList();
-                listener.onProgress(
-                        new TestProgressEvent.TestCompleted(i, config.name(), TestStatus.FAIL, durationMs, messages));
+                listener.onProgress(new TestProgressEvent.TestCompleted(
+                        uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, messages));
                 log.debug(
                         "Test case '{}' failed with {} assertion failure(s)",
                         config.name(),
@@ -163,7 +165,7 @@ public class PureJavaTestEngine implements TestEngine {
                 results.add(new TestCaseResult(
                         config.name(), false, 0, List.of(new AssertionFailure(e.getMessage(), null, null))));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
-                        i, config.name(), TestStatus.ERROR, durationMs, List.of(e.getMessage())));
+                        uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, List.of(e.getMessage())));
                 log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
             }
         }

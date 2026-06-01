@@ -38,42 +38,54 @@ class TestProgressEventTest {
     }
 
     @Test
-    void testStartedCarriesIndexAndName() {
-        TestProgressEvent event = new TestProgressEvent.TestStarted(2, "login test");
+    void testStartedCarriesUniqueIdIndexAndName() {
+        TestProgressEvent event = new TestProgressEvent.TestStarted("uid-2", 2, "login test");
 
         assertThat(event).isInstanceOf(TestProgressEvent.TestStarted.class);
         TestProgressEvent.TestStarted started = (TestProgressEvent.TestStarted) event;
+        assertThat(started.uniqueId()).isEqualTo("uid-2");
         assertThat(started.testIndex()).isEqualTo(2);
         assertThat(started.testName()).isEqualTo("login test");
     }
 
     @Test
-    void testCompletedPassCarriesEmptyFailureMessages() {
-        TestProgressEvent event = new TestProgressEvent.TestCompleted(0, "get users", TestStatus.PASS, 123L, List.of());
+    void testCompletedPassCarriesAssertionCountAndEmptyFailureMessages() {
+        TestProgressEvent event =
+                new TestProgressEvent.TestCompleted("uid-0", 0, "get users", TestStatus.PASS, 123L, 5, List.of());
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
+        assertThat(completed.uniqueId()).isEqualTo("uid-0");
         assertThat(completed.status()).isEqualTo(TestStatus.PASS);
         assertThat(completed.durationMs()).isEqualTo(123L);
+        assertThat(completed.assertionCount()).isEqualTo(5);
         assertThat(completed.failureMessages()).isEmpty();
     }
 
     @Test
     void testCompletedFailCarriesAllFailureMessages() {
         TestProgressEvent event = new TestProgressEvent.TestCompleted(
-                1, "create item", TestStatus.FAIL, 42L, List.of("expected 201 but was 400", "body did not match"));
+                "uid-1",
+                1,
+                "create item",
+                TestStatus.FAIL,
+                42L,
+                3,
+                List.of("expected 201 but was 400", "body did not match"));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.FAIL);
+        assertThat(completed.assertionCount()).isEqualTo(3);
         assertThat(completed.failureMessages()).containsExactly("expected 201 but was 400", "body did not match");
     }
 
     @Test
     void testCompletedErrorCarriesErrorMessage() {
         TestProgressEvent event = new TestProgressEvent.TestCompleted(
-                3, "timeout test", TestStatus.ERROR, 5000L, List.of("Connection refused"));
+                "uid-3", 3, "timeout test", TestStatus.ERROR, 5000L, 0, List.of("Connection refused"));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.ERROR);
+        assertThat(completed.assertionCount()).isEqualTo(0);
         assertThat(completed.failureMessages()).containsExactly("Connection refused");
     }
 
@@ -91,8 +103,8 @@ class TestProgressEventTest {
     void exhaustiveSwitchCoversAllPermits() {
         TestProgressEvent[] events = {
             new TestProgressEvent.SuiteStarted("s", 1, Instant.now()),
-            new TestProgressEvent.TestStarted(0, "t"),
-            new TestProgressEvent.TestCompleted(0, "t", TestStatus.PASS, 10L, List.of()),
+            new TestProgressEvent.TestStarted("0", 0, "t"),
+            new TestProgressEvent.TestCompleted("0", 0, "t", TestStatus.PASS, 10L, 1, List.of()),
             new TestProgressEvent.SuiteCompleted(1L, 0L, 100L)
         };
 

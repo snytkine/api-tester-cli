@@ -49,23 +49,36 @@ public sealed interface TestProgressEvent
     /**
      * Fired immediately before a test case's HTTP request is dispatched.
      *
+     * @param uniqueId stable identity token assigned when the test suite is mapped to indexed test
+     *     cases; used by the render loop to correlate {@link TestCompleted} events to grid rows
+     *     without relying on list position alone (forward-compatible with parallel execution)
      * @param testIndex zero-based position of the test case in the suite's test list
      * @param testName the {@code name} field from the test case YAML
      */
-    record TestStarted(int testIndex, String testName) implements TestProgressEvent {}
+    record TestStarted(String uniqueId, int testIndex, String testName) implements TestProgressEvent {}
 
     /**
      * Fired after all assertions for a test case have been evaluated (or an exception has been
      * caught).
      *
+     * @param uniqueId the same token that was carried by the corresponding {@link TestStarted} event;
+     *     used by the render loop to look up the correct grid row
      * @param testIndex zero-based position of the test case in the suite's test list
      * @param testName the {@code name} field from the test case YAML
      * @param status {@link TestStatus#PASS}, {@link TestStatus#FAIL}, or {@link TestStatus#ERROR}
      * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event
+     * @param assertionCount total number of assertions that were evaluated for this test case; used
+     *     to display "{@code N passed}" in the Result column on pass
      * @param failureMessages all failure messages when {@code status != PASS}; empty list otherwise
      */
     record TestCompleted(
-            int testIndex, String testName, TestStatus status, long durationMs, List<String> failureMessages)
+            String uniqueId,
+            int testIndex,
+            String testName,
+            TestStatus status,
+            long durationMs,
+            int assertionCount,
+            List<String> failureMessages)
             implements TestProgressEvent {}
 
     /**

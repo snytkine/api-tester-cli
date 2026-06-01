@@ -37,11 +37,11 @@ class NoOpProgressListenerTest {
 
         assertThatNoException().isThrownBy(() -> {
             listener.onProgress(new TestProgressEvent.SuiteStarted("s", 2, Instant.now()));
-            listener.onProgress(new TestProgressEvent.TestStarted(0, "t1"));
-            listener.onProgress(new TestProgressEvent.TestCompleted(0, "t1", TestStatus.PASS, 10L, List.of()));
-            listener.onProgress(new TestProgressEvent.TestStarted(1, "t2"));
-            listener.onProgress(
-                    new TestProgressEvent.TestCompleted(1, "t2", TestStatus.FAIL, 20L, List.of("assertion failed")));
+            listener.onProgress(new TestProgressEvent.TestStarted("0", 0, "t1"));
+            listener.onProgress(new TestProgressEvent.TestCompleted("0", 0, "t1", TestStatus.PASS, 10L, 2, List.of()));
+            listener.onProgress(new TestProgressEvent.TestStarted("1", 1, "t2"));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    "1", 1, "t2", TestStatus.FAIL, 20L, 2, List.of("assertion failed")));
             listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 30L));
         });
     }

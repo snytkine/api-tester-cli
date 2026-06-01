@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatNoException;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +43,7 @@ class TerminalUiListenerTest {
     void onProgressEnqueuesTestStarted() {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         TerminalUiListener listener = new TerminalUiListener(queue);
-        TestProgressEvent event = new TestProgressEvent.TestStarted(0, "my-test");
+        TestProgressEvent event = new TestProgressEvent.TestStarted("0", 0, "my-test");
 
         listener.onProgress(event);
 
@@ -53,7 +54,8 @@ class TerminalUiListenerTest {
     void onProgressEnqueuesTestCompleted() {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         TerminalUiListener listener = new TerminalUiListener(queue);
-        TestProgressEvent event = new TestProgressEvent.TestCompleted(0, "my-test", TestStatus.PASS, 50L, null);
+        TestProgressEvent event =
+                new TestProgressEvent.TestCompleted("0", 0, "my-test", TestStatus.PASS, 50L, 1, List.of());
 
         listener.onProgress(event);
 
@@ -77,8 +79,8 @@ class TerminalUiListenerTest {
         TerminalUiListener listener = new TerminalUiListener(queue);
 
         TestProgressEvent e1 = new TestProgressEvent.SuiteStarted("suite", 1, Instant.now());
-        TestProgressEvent e2 = new TestProgressEvent.TestStarted(0, "test");
-        TestProgressEvent e3 = new TestProgressEvent.TestCompleted(0, "test", TestStatus.PASS, 100L, null);
+        TestProgressEvent e2 = new TestProgressEvent.TestStarted("0", 0, "test");
+        TestProgressEvent e3 = new TestProgressEvent.TestCompleted("0", 0, "test", TestStatus.PASS, 100L, 1, List.of());
         TestProgressEvent e4 = new TestProgressEvent.SuiteCompleted(1, 0, 100L);
 
         listener.onProgress(e1);
