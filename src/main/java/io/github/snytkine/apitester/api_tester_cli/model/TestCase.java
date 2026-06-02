@@ -21,9 +21,35 @@ import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
+/**
+ * A single HTTP test case within a {@link TestSuite}.
+ *
+ * <p>The {@code name} field uniquely identifies the test within its suite and appears in the
+ * terminal UI grid. The optional {@code skip} field, when non-blank, causes the engine to bypass
+ * execution entirely and record a {@link TestResult#SKIPPED} outcome; the field value is stored as
+ * the skip reason. The {@code skip} field supports Thymeleaf expressions (e.g. {@code
+ * [[${suite.skip_flag}]]}) that are resolved during template processing before the engine runs.
+ *
+ * <p>All fields are deserialized from the YAML test-suite file via Jackson.
+ */
 public record TestCase(
+        /** Name of the test case as declared in the suite YAML. */
         String name,
+
+        /** Optional human-readable description of what this test verifies. */
         @Nullable String description,
+
+        /**
+         * When non-blank, the test is skipped and this value is recorded as the skip reason. Supports
+         * Thymeleaf expressions resolved before the engine runs.
+         */
+        @Nullable String skip,
+
+        /** Per-test-case key/value pairs available for substitution in the request template. */
         Map<String, String> variables,
+
+        /** HTTP request definition (method, URL, headers, optional body). */
         Request request,
+
+        /** Ordered list of assertions to evaluate against the HTTP response. */
         List<Assertion> assertions) {}

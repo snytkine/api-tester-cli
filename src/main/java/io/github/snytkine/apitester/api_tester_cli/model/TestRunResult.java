@@ -22,16 +22,22 @@ import java.util.List;
  * Aggregated outcome of executing all test cases in a {@link TestSuite}.
  *
  * <p>The {@code results} list contains one {@link TestCaseResult} per test case, in execution
- * order. Callers that only need summary counts can use {@code passedCount} and {@code failedCount}
- * directly. Callers that need per-assertion detail can filter {@code results} by {@code !passed()}
- * and inspect each {@link TestCaseResult#failures()}.
+ * order. Callers that only need summary counts can use the individual count fields directly.
+ * Callers that need per-assertion detail can filter {@code results} by {@link
+ * TestCaseResult#result()} and inspect each {@link TestCaseResult#failures()}.
  */
 public record TestRunResult(
-        /** Number of test cases where all assertions passed. */
+        /** Number of test cases where all assertions passed ({@link TestResult#PASSED}). */
         long passedCount,
 
-        /** Number of test cases where at least one assertion failed, or an error occurred. */
+        /** Number of test cases where at least one assertion failed ({@link TestResult#FAILED}). */
         long failedCount,
+
+        /** Number of test cases that were skipped ({@link TestResult#SKIPPED}). */
+        long skippedCount,
+
+        /** Number of test cases that threw an unexpected exception ({@link TestResult#ERROR}). */
+        long errorCount,
 
         /** Per-test-case results in execution order. */
         List<TestCaseResult> results) {}

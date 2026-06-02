@@ -66,7 +66,7 @@ class TerminalUiListenerTest {
     void onProgressEnqueuesSuiteCompleted() {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         TerminalUiListener listener = new TerminalUiListener(queue);
-        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(2, 1, 300L);
+        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(2, 1, 0L, 0L, 300L);
 
         listener.onProgress(event);
 
@@ -81,7 +81,7 @@ class TerminalUiListenerTest {
         TestProgressEvent e1 = new TestProgressEvent.SuiteStarted("suite", 1, Instant.now());
         TestProgressEvent e2 = new TestProgressEvent.TestStarted("0", 0, "test");
         TestProgressEvent e3 = new TestProgressEvent.TestCompleted("0", 0, "test", TestStatus.PASS, 100L, 1, List.of());
-        TestProgressEvent e4 = new TestProgressEvent.SuiteCompleted(1, 0, 100L);
+        TestProgressEvent e4 = new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 100L);
 
         listener.onProgress(e1);
         listener.onProgress(e2);
@@ -99,7 +99,7 @@ class TerminalUiListenerTest {
     void onProgressIsNonBlockingAndDoesNotThrow() {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         TerminalUiListener listener = new TerminalUiListener(queue);
-        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(0, 0, 0L);
+        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L);
 
         assertThatNoException().isThrownBy(() -> listener.onProgress(event));
     }

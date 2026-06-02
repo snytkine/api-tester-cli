@@ -112,8 +112,8 @@ public final class TerminalUiController {
     static final long SUITE_STARTED_TIMEOUT_SECONDS = 30L;
 
     /**
-     * Visible character width of the Status column. Must be at least 8 to accommodate the widest
-     * status label: one glyph character, a space, and "Passed" (6 chars) = 8 visible chars total.
+     * Visible character width of the Status column. Must be at least 9 to accommodate the widest
+     * status label: "⊘ Skipped" = 1 glyph + 1 space + 7 chars = 9 visible chars total.
      */
     static final int STATUS_COL_WIDTH = 10;
 
@@ -131,14 +131,17 @@ public final class TerminalUiController {
      */
     static final int FIXED_COL_OVERHEAD = 13;
 
-    /** ANSI foreground colour code for yellow (used for the banner and spinner). */
+    /** ANSI foreground colour code for yellow (used for the banner, spinner, and FAIL status). */
     private static final int ANSI_YELLOW = 33;
 
     /** ANSI foreground colour code for green (used for PASS status and result). */
     private static final int ANSI_GREEN = 32;
 
-    /** ANSI foreground colour code for red (used for FAIL/ERROR status and result). */
+    /** ANSI foreground colour code for red (used for ERROR status and result). */
     private static final int ANSI_RED = 31;
+
+    /** ANSI foreground colour code for blue (used for SKIP status and result). */
+    private static final int ANSI_BLUE = 34;
 
     private final LinkedBlockingQueue<TestProgressEvent> queue;
     private final boolean useColors;
@@ -252,6 +255,8 @@ public final class TerminalUiController {
             List<TestProgressEvent.TestCompleted> collectedFailures = new ArrayList<>();
             long summaryPassCount = 0;
             long summaryFailCount = 0;
+            long summarySkipCount = 0;
+            long summaryErrorCount = 0;
             long summaryTotalMs = 0;
 
             boolean done = false;
@@ -266,6 +271,8 @@ public final class TerminalUiController {
                     if (event instanceof TestProgressEvent.SuiteCompleted sc) {
                         summaryPassCount = sc.passCount();
                         summaryFailCount = sc.failCount();
+                        summarySkipCount = sc.skipCount();
+                        summaryErrorCount = sc.errorCount();
                         summaryTotalMs = sc.totalDurationMs();
                     }
                     done = applyEvent(event, rowCount, testNames, isRunning, spinnerFrames, uniqueIdToRow);
@@ -290,7 +297,7 @@ public final class TerminalUiController {
 
             // Grid is complete — append a blank separator, then summary and failure details.
             output.println();
-            printSummary(summaryPassCount, summaryFailCount, summaryTotalMs);
+            printSummary(summaryPassCount, summaryFailCount, summarySkipCount, summaryErrorCount, summaryTotalMs);
             printFailures(collectedFailures);
             output.flush();
 
@@ -344,18 +351,29 @@ public final class TerminalUiController {
             case TestProgressEvent.TestCompleted e -> {
                 int row = uniqueIdToRow.getOrDefault(e.uniqueId(), e.testIndex());
                 isRunning[row] = false;
-                // Build status label: glyph + space + word (e.g. "✓ Passed", "✗ Failed", "✗ Error")
+                // Build status label: glyph + space + word
                 String statusText =
                         switch (e.status()) {
                             case PASS -> Glyphs.PASS + " Passed";
                             case FAIL -> Glyphs.FAIL + " Failed";
-                            case ERROR -> Glyphs.FAIL + " Error";
+                            case SKIP -> Glyphs.SKIP + " Skipped";
+                            case ERROR -> Glyphs.ERROR + " Error";
                         };
-                int statusColor = e.status() == TestStatus.PASS ? ANSI_GREEN : ANSI_RED;
-                String timeStr = e.durationMs() + "ms";
-                String resultStr = e.status() == TestStatus.PASS
-                        ? e.assertionCount() + " passed"
-                        : e.failureMessages().size() + " failed";
+                int statusColor =
+                        switch (e.status()) {
+                            case PASS -> ANSI_GREEN;
+                            case FAIL -> ANSI_YELLOW;
+                            case SKIP -> ANSI_BLUE;
+                            case ERROR -> ANSI_RED;
+                        };
+                String timeStr = e.durationMs() > 0 ? e.durationMs() + "ms" : "";
+                String resultStr =
+                        switch (e.status()) {
+                            case PASS -> e.assertionCount() + " passed";
+                            case FAIL -> e.failureMessages().size() + " failed";
+                            case SKIP -> "skipped";
+                            case ERROR -> "error";
+                        };
                 updateCell(row, rowCount, statusColStart, STATUS_COL_WIDTH, statusText, statusColor);
                 updateCell(row, rowCount, timeColStart, TIME_COL_WIDTH, timeStr, 0);
                 updateCell(row, rowCount, resultColStart, RESULT_COL_WIDTH, resultStr, statusColor);
@@ -509,17 +527,35 @@ public final class TerminalUiController {
     /**
      * Prints the one-line post-TUI summary to {@link #output}.
      *
-     * <p>Format: {@code ✓ N passed ✗ M failed (Xms)}. The pass count is always coloured green when
-     * colours are enabled. The fail count is coloured red only when it is greater than zero.
+     * <p>Format: {@code ✓ N passed  ✗ M failed  ⊘ K skipped  ⚠ E errors  (Xms)}. The pass count is
+     * always coloured green when colours are enabled. The fail count is coloured yellow (orange-like)
+     * only when greater than zero. The skip count is coloured blue only when greater than zero. The
+     * error count is coloured red only when greater than zero.
+     *
      * @param passCount number of test cases that passed
-     * @param failCount number of test cases that failed or errored
+     * @param failCount number of test cases that had assertion failures
+     * @param skipCount number of test cases that were skipped
+     * @param errorCount number of test cases that threw an unexpected exception
      * @param totalMs total suite wall-clock duration in milliseconds
      */
-    private void printSummary(long passCount, long failCount, long totalMs) {
+    private void printSummary(long passCount, long failCount, long skipCount, long errorCount, long totalMs) {
         String passPart = Glyphs.PASS + " " + passCount + " passed";
         String failPart = Glyphs.FAIL + " " + failCount + " failed";
-        String formattedFail = failCount > 0 ? colorize(failPart, ANSI_RED) : failPart;
-        output.println(colorize(passPart, ANSI_GREEN) + "  " + formattedFail + "  (" + totalMs + "ms)");
+        String skipPart = Glyphs.SKIP + " " + skipCount + " skipped";
+        String errorPart = Glyphs.ERROR + " " + errorCount + " errors";
+        String formattedFail = failCount > 0 ? colorize(failPart, ANSI_YELLOW) : failPart;
+        String formattedSkip = skipCount > 0 ? colorize(skipPart, ANSI_BLUE) : skipPart;
+        String formattedError = errorCount > 0 ? colorize(errorPart, ANSI_RED) : errorPart;
+        output.println(colorize(passPart, ANSI_GREEN)
+                + "  "
+                + formattedFail
+                + "  "
+                + formattedSkip
+                + "  "
+                + formattedError
+                + "  ("
+                + totalMs
+                + "ms)");
     }
 
     /**

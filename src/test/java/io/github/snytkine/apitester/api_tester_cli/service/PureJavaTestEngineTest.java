@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
@@ -111,5 +112,59 @@ class PureJavaTestEngineTest {
                 suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
 
         assertThat(result.failedCount()).isEqualTo(1);
+    }
+
+    @Test
+    void skippedTestIsCountedAsSkippedAndNotPassedOrFailed() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-skip.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(result.skippedCount()).isEqualTo(1);
+        assertThat(result.passedCount()).isEqualTo(1);
+        assertThat(result.failedCount()).isZero();
+        assertThat(result.errorCount()).isZero();
+    }
+
+    @Test
+    void skippedTestResultHasSkippedStatusAndSkipReason() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-skip.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        var skipped = result.results().stream()
+                .filter(r -> r.result() == TestResult.SKIPPED)
+                .findFirst();
+        assertThat(skipped).isPresent();
+        assertThat(skipped.get().skipReason()).isEqualTo("Not implemented yet");
+        assertThat(skipped.get().failures()).isEmpty();
+        assertThat(skipped.get().passedAssertions()).isZero();
+    }
+
+    @Test
+    void skippedTestFiresSkipEventToListener() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-skip.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        var events = new java.util.ArrayList<io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent>();
+        engine.runConfigurationSuite(suite, SuiteRunContext.of(Map.of(), Map.of()), events::add);
+
+        long skipEvents = events.stream()
+                .filter(e -> e
+                                instanceof
+                                io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent.TestCompleted tc
+                        && tc.status() == io.github.snytkine.apitester.api_tester_cli.event.TestStatus.SKIP)
+                .count();
+        assertThat(skipEvents).isEqualTo(1);
     }
 }

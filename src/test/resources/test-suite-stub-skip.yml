@@ -1,0 +1,20 @@
+---
+name: "Stub Suite – skip"
+rest_client:
+  base_url: "http://stub.test"
+tests:
+- name: "GET objects – 200"
+  request:
+    method: "GET"
+    url: "/objects"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "skipped test"
+  skip: "Not implemented yet"
+  request:
+    method: "GET"
+    url: "/objects"
+  assertions:
+  - type: "status_code"
+    expected: 200

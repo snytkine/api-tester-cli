@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
@@ -88,7 +89,8 @@ class RunSuiteCommandTest {
     void runSuitePassesResolvedVariablesToEngine() throws Exception {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-        TestRunResult fakeResult = new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+        TestRunResult fakeResult = new TestRunResult(
+                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null)));
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(suite, false, false, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
@@ -100,7 +102,8 @@ class RunSuiteCommandTest {
     void runSuiteInvokesEngineEvenWithNoVariables() throws Exception {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-        TestRunResult fakeResult = new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+        TestRunResult fakeResult = new TestRunResult(
+                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null)));
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(suite, false, false, buildContext());
@@ -112,7 +115,8 @@ class RunSuiteCommandTest {
     void runSuiteWithNoUiFlagStillPrintsJson() throws Exception {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
-        TestRunResult fakeResult = new TestRunResult(1, 0, List.of(new TestCaseResult("test", true, 1, List.of())));
+        TestRunResult fakeResult = new TestRunResult(
+                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null)));
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(suite, true, false, buildContext());

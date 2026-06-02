@@ -42,7 +42,7 @@ class NoOpProgressListenerTest {
             listener.onProgress(new TestProgressEvent.TestStarted("1", 1, "t2"));
             listener.onProgress(new TestProgressEvent.TestCompleted(
                     "1", 1, "t2", TestStatus.FAIL, 20L, 2, List.of("assertion failed")));
-            listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 30L));
+            listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 0L, 0L, 30L));
         });
     }
 

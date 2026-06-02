@@ -63,7 +63,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
         queue.offer(
                 new TestProgressEvent.TestCompleted("1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of("failed")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 300L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 300L));
 
         // await() completes only when the controller thread exits — verifies clean termination
         ctrl.await();
@@ -76,7 +76,7 @@ class TerminalUiControllerTest {
         TerminalUiController ctrl = controller(queue, capture);
         ctrl.start();
 
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L));
 
         ctrl.await();
 
@@ -92,7 +92,7 @@ class TerminalUiControllerTest {
         ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("empty-suite", 0, Instant.now()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L));
 
         ctrl.await();
 
@@ -114,7 +114,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "red-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
                 "1", 1, "red-test", TestStatus.FAIL, 99L, 2, List.of("assertion failed")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 141L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 141L));
 
         ctrl.await();
     }
@@ -133,7 +133,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("my-suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "t"));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "t", TestStatus.PASS, 10L, 1, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 10L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
 
         ctrl.await();
 
@@ -152,7 +152,7 @@ class TerminalUiControllerTest {
         ctrl.start();
 
         queue.offer(new TestProgressEvent.SuiteStarted("my-api-suite", 0, Instant.now()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L));
 
         ctrl.await();
 
@@ -169,7 +169,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "verify-login"));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "verify-login", TestStatus.PASS, 50L, 3, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 50L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 50L));
 
         ctrl.await();
 
@@ -186,7 +186,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "check-health"));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "check-health", TestStatus.PASS, 30L, 4, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 30L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 30L));
 
         ctrl.await();
 
@@ -210,7 +210,7 @@ class TerminalUiControllerTest {
                 20L,
                 3,
                 List.of("expected 200 but was 500", "missing header")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 20L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 20L));
 
         ctrl.await();
 
@@ -227,7 +227,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "timing-test"));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "timing-test", TestStatus.PASS, 142L, 1, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 142L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 142L));
 
         ctrl.await();
 
@@ -251,7 +251,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
         queue.offer(new TestProgressEvent.TestCompleted(
                 "1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of("expected 200 but was 404")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 300L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 300L));
 
         ctrl.await();
 
@@ -273,7 +273,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "alpha", TestStatus.PASS, 50L, 2, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "beta"));
         queue.offer(new TestProgressEvent.TestCompleted("1", 1, "beta", TestStatus.PASS, 75L, 2, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(2, 0, 125L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(2, 0, 0L, 0L, 125L));
 
         ctrl.await();
 
@@ -294,13 +294,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-x"));
         queue.offer(new TestProgressEvent.TestCompleted(
                 "0", 0, "test-x", TestStatus.FAIL, 50L, 1, List.of("assertion failed")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 50L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 50L));
 
         ctrl.await();
 
         String out = capture.toString();
         assertThat(out).contains("[32m"); // ANSI green for pass
-        assertThat(out).contains("[31m"); // ANSI red for fail
+        assertThat(out).contains("[33m"); // ANSI yellow (orange-like) for fail
     }
 
     // ---------------------------------------------------------------------------
@@ -320,7 +320,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "failing-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
                 "1", 1, "failing-test", TestStatus.FAIL, 60L, 1, List.of("expected 200 but was 500")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 100L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 100L));
 
         ctrl.await();
 
@@ -342,7 +342,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 40L, 1, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
         queue.offer(new TestProgressEvent.TestCompleted("1", 1, "test-two", TestStatus.PASS, 60L, 1, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(2, 0, 100L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(2, 0, 0L, 0L, 100L));
 
         ctrl.await();
 
@@ -360,7 +360,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "network-error-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
                 "0", 0, "network-error-test", TestStatus.ERROR, 30L, 0, List.of("Connection refused")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 30L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 30L));
 
         ctrl.await();
 
@@ -386,7 +386,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("2", 2, "fail-c"));
         queue.offer(
                 new TestProgressEvent.TestCompleted("2", 2, "fail-c", TestStatus.ERROR, 30L, 0, List.of("reason-c")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 2, 60L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 2, 0L, 0L, 60L));
 
         ctrl.await();
 
@@ -418,7 +418,7 @@ class TerminalUiControllerTest {
                 50L,
                 3,
                 List.of("expected 200 but was 404", "body did not match", "missing header X-Request-Id")));
-        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 50L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 50L));
 
         ctrl.await();
 
@@ -427,6 +427,88 @@ class TerminalUiControllerTest {
         assertThat(out).contains("expected 200 but was 404");
         assertThat(out).contains("body did not match");
         assertThat(out).contains("missing header X-Request-Id");
+    }
+
+    @Test
+    void skipResultAppearsInOutputAfterSkippedTest() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "skip-me"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "skip-me", TestStatus.SKIP, 0L, 0, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 1L, 0L, 0L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("skipped");
+    }
+
+    @Test
+    void errorResultAppearsInOutputAfterErrorTest() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "error-test"));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "0", 0, "error-test", TestStatus.ERROR, 10L, 0, List.of("Connection refused")));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 1L, 10L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("error");
+    }
+
+    @Test
+    void summaryLineContainsAllFourCounters() throws InterruptedException {
+        StringWriter capture = new StringWriter();
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 4, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "pass-test"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "pass-test", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("1", 1, "fail-test"));
+        queue.offer(
+                new TestProgressEvent.TestCompleted("1", 1, "fail-test", TestStatus.FAIL, 20L, 1, List.of("failed")));
+        queue.offer(new TestProgressEvent.TestStarted("2", 2, "skip-test"));
+        queue.offer(new TestProgressEvent.TestCompleted("2", 2, "skip-test", TestStatus.SKIP, 0L, 0, List.of()));
+        queue.offer(new TestProgressEvent.TestStarted("3", 3, "error-test"));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "3", 3, "error-test", TestStatus.ERROR, 5L, 0, List.of("Connection refused")));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1L, 1L, 1L, 1L, 35L));
+
+        ctrl.await();
+
+        String out = capture.toString();
+        assertThat(out).contains(Glyphs.PASS + " 1 passed");
+        assertThat(out).contains(Glyphs.FAIL + " 1 failed");
+        assertThat(out).contains(Glyphs.SKIP + " 1 skipped");
+        assertThat(out).contains(Glyphs.ERROR + " 1 errors");
+        assertThat(out).contains("(35ms)");
+    }
+
+    @Test
+    void summaryLineWithColorsUsesBlueForSkipWhenCountIsNonZero() throws InterruptedException {
+        StringWriter capture = new StringWriter();
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        TerminalUiController ctrl = colorController(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "skip-me"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "skip-me", TestStatus.SKIP, 0L, 0, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0L, 0L, 1L, 0L, 0L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("[34m"); // ANSI blue for skip
     }
 
     // ---------------------------------------------------------------------------
@@ -475,7 +557,7 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, longName));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, longName, TestStatus.PASS, 10L, 1, List.of()));
-        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 10L));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
 
         ctrl.await();
 

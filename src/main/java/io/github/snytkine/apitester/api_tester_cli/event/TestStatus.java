@@ -17,14 +17,16 @@
 package io.github.snytkine.apitester.api_tester_cli.event;
 
 /**
- * Terminal status of a single test case execution.
+ * Terminal status of a single test case execution, used in progress events.
  *
  * <p>{@link #PASS} — all assertions evaluated without failure. {@link #FAIL} — one or more
- * assertions failed (soft-assertion failures). {@link #ERROR} — an unexpected exception was thrown
+ * assertions failed (soft-assertion failures). {@link #SKIP} — the test case declared a non-blank
+ * {@code skip} field; no HTTP request was sent. {@link #ERROR} — an unexpected exception was thrown
  * before or during assertion evaluation (e.g. network error, JSON parse error).
  */
 public enum TestStatus {
     PASS,
     FAIL,
+    SKIP,
     ERROR
 }

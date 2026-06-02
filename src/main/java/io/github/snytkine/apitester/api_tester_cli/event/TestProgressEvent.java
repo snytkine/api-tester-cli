@@ -59,17 +59,20 @@ public sealed interface TestProgressEvent
 
     /**
      * Fired after all assertions for a test case have been evaluated (or an exception has been
-     * caught).
+     * caught), or immediately when a test is skipped.
      *
      * @param uniqueId the same token that was carried by the corresponding {@link TestStarted} event;
      *     used by the render loop to look up the correct grid row
      * @param testIndex zero-based position of the test case in the suite's test list
      * @param testName the {@code name} field from the test case YAML
-     * @param status {@link TestStatus#PASS}, {@link TestStatus#FAIL}, or {@link TestStatus#ERROR}
-     * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event
-     * @param assertionCount total number of assertions that were evaluated for this test case; used
-     *     to display "{@code N passed}" in the Result column on pass
-     * @param failureMessages all failure messages when {@code status != PASS}; empty list otherwise
+     * @param status {@link TestStatus#PASS}, {@link TestStatus#FAIL}, {@link TestStatus#SKIP}, or
+     *     {@link TestStatus#ERROR}
+     * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event; {@code
+     *     0} for skipped tests
+     * @param assertionCount total number of assertions that were evaluated; {@code 0} for skipped
+     *     tests; used to display "{@code N passed}" in the Result column on pass
+     * @param failureMessages all failure messages when {@code status} is {@link TestStatus#FAIL} or
+     *     {@link TestStatus#ERROR}; empty list otherwise
      */
     record TestCompleted(
             String uniqueId,
@@ -86,9 +89,11 @@ public sealed interface TestProgressEvent
      * shutdown signal.
      *
      * @param passCount number of test cases with status {@link TestStatus#PASS}
-     * @param failCount number of test cases with status {@link TestStatus#FAIL} or {@link
-     *     TestStatus#ERROR}
+     * @param failCount number of test cases with status {@link TestStatus#FAIL}
+     * @param skipCount number of test cases with status {@link TestStatus#SKIP}
+     * @param errorCount number of test cases with status {@link TestStatus#ERROR}
      * @param totalDurationMs total elapsed time in milliseconds for the entire suite run
      */
-    record SuiteCompleted(long passCount, long failCount, long totalDurationMs) implements TestProgressEvent {}
+    record SuiteCompleted(long passCount, long failCount, long skipCount, long errorCount, long totalDurationMs)
+            implements TestProgressEvent {}
 }

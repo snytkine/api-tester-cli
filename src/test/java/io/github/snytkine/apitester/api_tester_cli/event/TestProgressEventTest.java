@@ -90,12 +90,26 @@ class TestProgressEventTest {
     }
 
     @Test
-    void suiteCompletedCarriesCountsAndDuration() {
-        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(8L, 2L, 3500L);
+    void testCompletedSkipCarriesEmptyFailureMessages() {
+        TestProgressEvent event =
+                new TestProgressEvent.TestCompleted("uid-4", 4, "skip-me", TestStatus.SKIP, 0L, 0, List.of());
+
+        TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
+        assertThat(completed.status()).isEqualTo(TestStatus.SKIP);
+        assertThat(completed.durationMs()).isEqualTo(0L);
+        assertThat(completed.assertionCount()).isEqualTo(0);
+        assertThat(completed.failureMessages()).isEmpty();
+    }
+
+    @Test
+    void suiteCompletedCarriesAllCountsAndDuration() {
+        TestProgressEvent event = new TestProgressEvent.SuiteCompleted(8L, 2L, 1L, 0L, 3500L);
 
         TestProgressEvent.SuiteCompleted completed = (TestProgressEvent.SuiteCompleted) event;
         assertThat(completed.passCount()).isEqualTo(8L);
         assertThat(completed.failCount()).isEqualTo(2L);
+        assertThat(completed.skipCount()).isEqualTo(1L);
+        assertThat(completed.errorCount()).isEqualTo(0L);
         assertThat(completed.totalDurationMs()).isEqualTo(3500L);
     }
 
@@ -105,7 +119,7 @@ class TestProgressEventTest {
             new TestProgressEvent.SuiteStarted("s", 1, Instant.now()),
             new TestProgressEvent.TestStarted("0", 0, "t"),
             new TestProgressEvent.TestCompleted("0", 0, "t", TestStatus.PASS, 10L, 1, List.of()),
-            new TestProgressEvent.SuiteCompleted(1L, 0L, 100L)
+            new TestProgressEvent.SuiteCompleted(1L, 0L, 0L, 0L, 100L)
         };
 
         for (TestProgressEvent event : events) {

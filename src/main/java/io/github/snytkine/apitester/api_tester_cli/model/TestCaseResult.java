@@ -17,27 +17,41 @@
 package io.github.snytkine.apitester.api_tester_cli.model;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The outcome of executing a single {@link TestCase}.
  *
- * <p>When {@code passed} is {@code true} the {@code failures} list is empty. When {@code passed} is
- * {@code false} the list contains one {@link AssertionFailure} per individual soft-assertion that
- * did not pass, preserving the full actual/expected detail for each.
+ * <p>The {@code result} enum captures the four-way terminal status: {@link TestResult#PASSED} when
+ * all assertions evaluated without failure; {@link TestResult#FAILED} when one or more soft
+ * assertions did not pass; {@link TestResult#SKIPPED} when the test declared a non-blank {@code
+ * skip} field and was bypassed entirely; {@link TestResult#ERROR} when an unexpected exception
+ * occurred before or during assertion evaluation.
+ *
+ * <p>When {@code result} is {@link TestResult#PASSED} the {@code failures} list is empty. When
+ * {@code result} is {@link TestResult#FAILED} the list contains one {@link AssertionFailure} per
+ * individual soft-assertion that did not pass. When {@code result} is {@link TestResult#SKIPPED}
+ * the {@code skipReason} field holds the verbatim value of the test case's {@code skip} field.
  */
 public record TestCaseResult(
         /** Name of the test case as declared in the suite YAML. */
         String name,
 
-        /** {@code true} if all assertions passed, {@code false} otherwise. */
-        boolean passed,
+        /** Four-way terminal status of this test case execution. */
+        TestResult result,
 
-        /** Number of assertions that passed for this test case. */
+        /** Number of assertions that passed for this test case (0 for SKIPPED and ERROR). */
         int passedAssertions,
 
         /**
-         * Individual failures collected during assertion evaluation. Empty when {@code passed} is
-         * {@code true}. For non-assertion errors (e.g. network failures) this contains a single entry
-         * with only a message and {@code null} actual/expected values.
+         * Individual failures collected during assertion evaluation. Empty when {@code result} is
+         * {@link TestResult#PASSED} or {@link TestResult#SKIPPED}. For {@link TestResult#ERROR} this
+         * contains a single entry with only a message and {@code null} actual/expected values.
          */
-        List<AssertionFailure> failures) {}
+        List<AssertionFailure> failures,
+
+        /**
+         * The skip reason taken from the test case's {@code skip} field. Non-null only when {@code
+         * result} is {@link TestResult#SKIPPED}.
+         */
+        @Nullable String skipReason) {}

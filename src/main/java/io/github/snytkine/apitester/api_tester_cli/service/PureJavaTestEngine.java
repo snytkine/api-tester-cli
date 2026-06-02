@@ -22,6 +22,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
+import io.github.snytkine.apitester.api_tester_cli.exception.SkipTestException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
@@ -33,6 +34,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
@@ -48,6 +50,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.opentest4j.AssertionFailedError;
 import org.opentest4j.MultipleFailuresError;
@@ -169,8 +172,6 @@ public class PureJavaTestEngine implements TestEngine {
         Instant suiteStart = Instant.now();
         listener.onProgress(new TestProgressEvent.SuiteStarted(testSuite.name(), tests.size(), suiteStart));
 
-        long passedCount = 0;
-        long failedCount = 0;
         List<TestCaseResult> results = new ArrayList<>();
 
         for (int i = 0; i < tests.size(); i++) {
@@ -182,18 +183,22 @@ public class PureJavaTestEngine implements TestEngine {
             try {
                 executeSingleTest(restClient, testSuite, i, suiteDir, configMap);
                 long durationMs = System.currentTimeMillis() - testStart;
-                passedCount++;
                 int totalAssertions = config.assertions().size();
-                results.add(new TestCaseResult(config.name(), true, totalAssertions, List.of()));
+                results.add(new TestCaseResult(config.name(), TestResult.PASSED, totalAssertions, List.of(), null));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
+            } catch (SkipTestException e) {
+                long durationMs = System.currentTimeMillis() - testStart;
+                results.add(new TestCaseResult(config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage()));
+                listener.onProgress(new TestProgressEvent.TestCompleted(
+                        uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
+                log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
             } catch (MultipleFailuresError e) {
                 long durationMs = System.currentTimeMillis() - testStart;
-                failedCount++;
                 List<AssertionFailure> failures = extractFailures(e);
                 int totalAssertions = config.assertions().size();
                 int passedAssertions = totalAssertions - failures.size();
-                results.add(new TestCaseResult(config.name(), false, passedAssertions, failures));
+                results.add(new TestCaseResult(config.name(), TestResult.FAILED, passedAssertions, failures, null));
                 List<String> messages =
                         e.getFailures().stream().map(Throwable::getMessage).toList();
                 listener.onProgress(new TestProgressEvent.TestCompleted(
@@ -204,19 +209,30 @@ public class PureJavaTestEngine implements TestEngine {
                         e.getFailures().size());
             } catch (Throwable e) {
                 long durationMs = System.currentTimeMillis() - testStart;
-                failedCount++;
                 results.add(new TestCaseResult(
-                        config.name(), false, 0, List.of(new AssertionFailure(e.getMessage(), null, null))));
+                        config.name(),
+                        TestResult.ERROR,
+                        0,
+                        List.of(new AssertionFailure(e.getMessage(), null, null)),
+                        null));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, List.of(e.getMessage())));
-                log.error("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
+                log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
             }
         }
 
-        long totalDurationMs = Instant.now().toEpochMilli() - suiteStart.toEpochMilli();
-        listener.onProgress(new TestProgressEvent.SuiteCompleted(passedCount, failedCount, totalDurationMs));
+        Map<TestResult, Long> counts =
+                results.stream().collect(Collectors.groupingBy(TestCaseResult::result, Collectors.counting()));
+        long passedCount = counts.getOrDefault(TestResult.PASSED, 0L);
+        long failedCount = counts.getOrDefault(TestResult.FAILED, 0L);
+        long skippedCount = counts.getOrDefault(TestResult.SKIPPED, 0L);
+        long errorCount = counts.getOrDefault(TestResult.ERROR, 0L);
 
-        return new TestRunResult(passedCount, failedCount, results);
+        long totalDurationMs = Instant.now().toEpochMilli() - suiteStart.toEpochMilli();
+        listener.onProgress(new TestProgressEvent.SuiteCompleted(
+                passedCount, failedCount, skippedCount, errorCount, totalDurationMs));
+
+        return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results);
     }
 
     /**
@@ -309,6 +325,9 @@ public class PureJavaTestEngine implements TestEngine {
             throws IOException {
 
         TestCase rawConfig = testSuite.tests().get(i);
+        if (rawConfig.skip() != null && !rawConfig.skip().isBlank()) {
+            throw new SkipTestException(rawConfig.skip());
+        }
         log.debug(
                 "Test [{}] '{}': beginning execution, raw request {} {}",
                 i,

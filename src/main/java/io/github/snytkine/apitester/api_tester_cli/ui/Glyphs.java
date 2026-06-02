@@ -37,8 +37,14 @@ public final class Glyphs {
     /** Glyph displayed when a test case passes all assertions. */
     public static final String PASS = "✓";
 
-    /** Glyph displayed when a test case fails one or more assertions or throws an error. */
+    /** Glyph displayed when a test case fails one or more assertions. */
     public static final String FAIL = "✗";
+
+    /** Glyph displayed when a test case is skipped. ⊘ = U+2298 (circled division slash). */
+    public static final String SKIP = "⊘";
+
+    /** Glyph displayed when a test case throws an unexpected exception. ⚠ = U+26A0 (warning sign). */
+    public static final String ERROR = "⚠";
 
     /** Glyph displayed while a test case is currently running (static placeholder for Phase 4). */
     public static final String RUNNING = "▶";

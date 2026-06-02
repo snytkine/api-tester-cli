@@ -68,6 +68,10 @@
           "type": "string",
           "description": "Optional description of what this test verifies"
         },
+        "skip": {
+          "type": "string",
+          "description": "If present and non-blank, the test is skipped and this value is recorded as the skip reason. Supports Thymeleaf expressions (e.g. [[${suite.skip_flag}]])."
+        },
         "variables": {
           "type": "object",
           "description": "Key-value pairs available for substitution in the request",
