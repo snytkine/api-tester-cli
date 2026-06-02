@@ -19,12 +19,11 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
-import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
-import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,8 +51,7 @@ class PureJavaTestEngineTest {
     }
 
     private PureJavaTestEngine engineWith(ClientHttpRequestFactory factory) {
-        return new PureJavaTestEngine(
-                factory, new AssertionEvaluatorFactory(), new ResponseResolver(), new DotEnvLoader());
+        return new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
     }
 
     @Test
@@ -62,9 +60,10 @@ class PureJavaTestEngineTest {
         var engine = engineWith(factory);
         Path path = Path.of(
                 getClass().getResource("/test-suite-stub-assertions.yml").toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), NoOpProgressListener.INSTANCE);
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
 
         assertThat(result.failedCount()).isZero();
         assertThat(result.passedCount()).isEqualTo(suite.tests().size());
@@ -76,9 +75,10 @@ class PureJavaTestEngineTest {
                 .stub("/objects", 404, "{\"error\":\"not found\"}", "application/json");
         var engine = engineWith(factory);
         Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), NoOpProgressListener.INSTANCE);
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
 
         assertThat(result.failedCount()).isEqualTo(1);
     }
@@ -89,9 +89,10 @@ class PureJavaTestEngineTest {
         var engine = engineWith(factory);
         Path path = Path.of(
                 getClass().getResource("/test-suite-stub-response-time.yml").toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), NoOpProgressListener.INSTANCE);
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
 
         assertThat(result.failedCount()).isZero();
     }
@@ -104,9 +105,10 @@ class PureJavaTestEngineTest {
         Path path = Path.of(getClass()
                 .getResource("/test-suite-stub-response-time-strict.yml")
                 .toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), NoOpProgressListener.INSTANCE);
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
 
         assertThat(result.failedCount()).isEqualTo(1);
     }

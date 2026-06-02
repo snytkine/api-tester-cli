@@ -27,13 +27,13 @@ import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
-import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
@@ -80,7 +80,6 @@ public class PureJavaTestEngine implements TestEngine {
     private final ClientHttpRequestFactory requestFactory;
     private final AssertionEvaluatorFactory evaluatorFactory;
     private final ResponseResolver responseResolver;
-    private final DotEnvLoader dotEnvLoader;
 
     /**
      * Constructs the engine with the required collaborators.
@@ -88,17 +87,14 @@ public class PureJavaTestEngine implements TestEngine {
      * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
      * @param evaluatorFactory maps assertion model objects to their evaluator implementations
      * @param responseResolver converts a {@link RestClient.ResponseSpec} into an {@link ApiResponse}
-     * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      */
     public PureJavaTestEngine(
             ClientHttpRequestFactory requestFactory,
             AssertionEvaluatorFactory evaluatorFactory,
-            ResponseResolver responseResolver,
-            DotEnvLoader dotEnvLoader) {
+            ResponseResolver responseResolver) {
         this.requestFactory = requestFactory;
         this.evaluatorFactory = evaluatorFactory;
         this.responseResolver = responseResolver;
-        this.dotEnvLoader = dotEnvLoader;
     }
 
     /**
@@ -119,18 +115,19 @@ public class PureJavaTestEngine implements TestEngine {
      * </ol>
      *
      * @param testSuite the loaded test suite whose {@link TestSuite#tests()} are executed
+     * @param context all variable namespaces ({@code env}, {@code cli}) used when building request
+     *     bodies and evaluating assertions; {@code suite} and {@code test} are added internally
      * @param listener receives progress events; must be thread-safe
      * @return a {@link TestRunResult} with per-test-case results including structured failure detail
      */
     @Override
     public TestRunResult runConfigurationSuite(
-            TestSuite testSuite, Map<String, String> cliVars, TestProgressListener listener) {
+            TestSuite testSuite, SuiteRunContext context, TestProgressListener listener) {
         RestClient restClient = buildRestClient(testSuite.restClientConfig());
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
-        Map<String, String> envVars = suiteDir != null ? dotEnvLoader.loadDotEnv(suiteDir) : Map.of();
         Map<String, Map<String, String>> configMap =
-                Map.of("cli", Map.copyOf(cliVars), "env", envVars, "suite", suiteVariables);
+                Map.of("cli", context.cli(), "env", context.env(), "suite", suiteVariables, "test", Map.of());
 
         List<TestCase> tests = testSuite.tests();
         Instant suiteStart = Instant.now();

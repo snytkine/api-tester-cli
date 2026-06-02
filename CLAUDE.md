@@ -46,12 +46,23 @@ Test suites are YAML files validated against `.vscode/schemas/test-suite-schema.
 
 ### Template processing (TestSuiteLoader)
 
-`TestSuiteLoader.load(Path, CliVariables)` processes a test suite YAML through Thymeleaf TEXT mode in two passes:
+`TestSuiteLoader.load(Path, SuiteRunContext)` processes a test suite YAML through Thymeleaf TEXT mode in two passes:
 
-1. **Step 1** — processes the full YAML with `cli` (from `CliVariables`) and an empty `suite.variables`. The result provides the resolved `variables` map.
-2. **Step 2** — processes the full YAML again with `cli` + the Step 1 resolved `suite.variables`, so that test-case expressions like `[[${suite.variables.api_base_url}]]` resolve correctly.
+1. **Step 1** — processes the full YAML with `cli`, `env`, `test` from `SuiteRunContext` and an empty `suite` map. The result provides the resolved `variables` map.
+2. **Step 2** — processes the full YAML again with the same `cli`/`env`/`test`, but with `suite` set to the Step 1 resolved variables, so that test-case expressions like `[[${suite.api_base_url}]]` resolve correctly.
 
 The final `TestSuite` uses Step 1's `resolvedVariables` and Step 2's test cases.
+
+### Thymeleaf variable namespaces
+
+Four top-level context variables are available in all template expressions:
+
+| Variable | Access pattern | Source |
+|----------|---------------|--------|
+| `cli`    | `[[${cli.my_var}]]` | CLI `key=value` positional args |
+| `env`    | `[[${env.MY_VAR}]]` | `.env` file + process environment |
+| `suite`  | `[[${suite.my_var}]]` | Resolved suite-level `variables` block (Step 2 only) |
+| `test`   | `[[${test.my_var}]]` | Per-test-case `variables` block |
 
 ### Thymeleaf expression rules
 
@@ -64,7 +75,7 @@ The final `TestSuite` uses Step 1's `resolvedVariables` and Step 2's test cases.
 
 ```
 model/       — Java records for TestSuite, TestCase, Request, RequestBody,
-               CliVariables, Assertion subtypes, ObjectExpectedValue, enums
+               SuiteRunContext, Assertion subtypes, ObjectExpectedValue, enums
 service/     — TestSuiteLoader (YAML load + Thymeleaf template processing)
 util/        — FileLoader (load file relative to a base path; parse content as Thymeleaf template)
 ```

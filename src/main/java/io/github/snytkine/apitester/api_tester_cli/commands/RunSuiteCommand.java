@@ -21,13 +21,14 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
-import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
 import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
+import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -55,6 +56,7 @@ public class RunSuiteCommand {
     private final TestSuiteLoader testSuiteLoader;
     private final ObjectMapper jsonMapper;
     private final TestEngine testEngine;
+    private final DotEnvLoader dotEnvLoader;
 
     @Nullable private final ViewComponentBuilder viewComponentBuilder;
 
@@ -68,14 +70,17 @@ public class RunSuiteCommand {
      *
      * @param testSuiteLoader loads and template-processes test-suite YAML files
      * @param testEngine executes the loaded test cases
+     * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      */
     public RunSuiteCommand(
             TestSuiteLoader testSuiteLoader,
             TestEngine testEngine,
+            DotEnvLoader dotEnvLoader,
             @Nullable ViewComponentBuilder viewComponentBuilder) {
         this.testSuiteLoader = testSuiteLoader;
         this.testEngine = testEngine;
+        this.dotEnvLoader = dotEnvLoader;
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         this.viewComponentBuilder = viewComponentBuilder;
     }
@@ -140,7 +145,9 @@ public class RunSuiteCommand {
         boolean useUi = viewComponentBuilder != null && TtyDetector.shouldUseUi(forceUi, noUi);
 
         Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
-        TestSuite testSuite = testSuiteLoader.load(suitePath, new CliVariables(cliVars));
+        Map<String, String> envVars = dotEnvLoader.loadDotEnv(suitePath.getParent());
+        SuiteRunContext suiteRunContext = SuiteRunContext.of(envVars, cliVars);
+        TestSuite testSuite = testSuiteLoader.load(suitePath, suiteRunContext);
 
         if (useUi) {
             LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
@@ -148,10 +155,11 @@ public class RunSuiteCommand {
             TerminalUiController controller = new TerminalUiController(
                     queue, TtyDetector.supportsColor(), TtyDetector.getTerminalWidth(), context.outputWriter());
             controller.start();
-            testEngine.runConfigurationSuite(testSuite, cliVars, uiListener);
+            testEngine.runConfigurationSuite(testSuite, suiteRunContext, uiListener);
             controller.await();
         } else {
-            TestRunResult result = testEngine.runConfigurationSuite(testSuite, cliVars, NoOpProgressListener.INSTANCE);
+            TestRunResult result =
+                    testEngine.runConfigurationSuite(testSuite, suiteRunContext, NoOpProgressListener.INSTANCE);
             context.outputWriter().println(toJson(result));
             context.outputWriter().flush();
         }

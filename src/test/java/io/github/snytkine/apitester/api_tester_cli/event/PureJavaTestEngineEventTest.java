@@ -18,7 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.PureJavaTestEngine;
@@ -26,7 +26,6 @@ import io.github.snytkine.apitester.api_tester_cli.service.StubClientHttpRequest
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
-import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,18 +47,18 @@ class PureJavaTestEngineEventTest {
     void setUp() {
         loader = new TestSuiteLoader();
         var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
-        engine = new PureJavaTestEngine(
-                factory, new AssertionEvaluatorFactory(), new ResponseResolver(), new DotEnvLoader());
+        engine = new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
     }
 
     @Test
     void eventsAreFiredInCorrectOrderForPassingSuite() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
         int testCount = suite.tests().size();
 
         List<TestProgressEvent> captured = new ArrayList<>();
-        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), captured::add);
+        TestRunResult result =
+                engine.runConfigurationSuite(suite, SuiteRunContext.of(Map.of(), Map.of()), captured::add);
 
         assertThat(captured.get(0)).isInstanceOf(TestProgressEvent.SuiteStarted.class);
         TestProgressEvent.SuiteStarted suiteStarted = (TestProgressEvent.SuiteStarted) captured.get(0);
@@ -90,10 +89,11 @@ class PureJavaTestEngineEventTest {
     @Test
     void passedTestsFireCompletedWithPassStatus() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
         List<TestProgressEvent> captured = new ArrayList<>();
-        TestRunResult result = engine.runConfigurationSuite(suite, Map.of(), captured::add);
+        TestRunResult result =
+                engine.runConfigurationSuite(suite, SuiteRunContext.of(Map.of(), Map.of()), captured::add);
 
         long passEventCount = captured.stream()
                 .filter(e -> e instanceof TestProgressEvent.TestCompleted tc && tc.status() == TestStatus.PASS)
@@ -105,10 +105,11 @@ class PureJavaTestEngineEventTest {
     @Test
     void noOpListenerProducesIdenticalResultToDefaultOverload() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
-        TestSuite suite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
         TestRunResult resultDefault = engine.runConfigurationSuite(suite);
-        TestRunResult resultWithNoop = engine.runConfigurationSuite(suite, Map.of(), NoOpProgressListener.INSTANCE);
+        TestRunResult resultWithNoop = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
 
         assertThat(resultWithNoop.passedCount()).isEqualTo(resultDefault.passedCount());
         assertThat(resultWithNoop.failedCount()).isEqualTo(resultDefault.failedCount());

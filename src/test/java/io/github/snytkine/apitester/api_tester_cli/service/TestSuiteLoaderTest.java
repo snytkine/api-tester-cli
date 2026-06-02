@@ -19,11 +19,11 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
-import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
@@ -50,11 +50,10 @@ class TestSuiteLoaderTest {
     @Test
     void loadWithCliVariablesReplacesTemplateVariables() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite.yml").toURI());
-        CliVariables cliVariables = new CliVariables(Map.of(
-                "api_base_url", "https://api.example.com",
-                "admin_system", "admin-prod"));
+        SuiteRunContext context = SuiteRunContext.of(
+                Map.of(), Map.of("api_base_url", "https://api.example.com", "admin_system", "admin-prod"));
 
-        TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, context);
 
         assertThat(testSuite.filePath()).isEqualTo(path);
         Map<String, String> variables = testSuite.variables();
@@ -67,9 +66,9 @@ class TestSuiteLoaderTest {
     @Test
     void loadWithPartialCliVariablesLeavesUnresolvedExpressionsAsIs() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-partial.yml").toURI());
-        CliVariables cliVariables = new CliVariables(Map.of("api_base_url", "https://api.example.com"));
+        SuiteRunContext context = SuiteRunContext.of(Map.of(), Map.of("api_base_url", "https://api.example.com"));
 
-        TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, context);
 
         assertThat(testSuite.filePath()).isEqualTo(path);
         Map<String, String> variables = testSuite.variables();
@@ -83,11 +82,10 @@ class TestSuiteLoaderTest {
     @Test
     void twoStepLoadResolvesSuiteVariableReferencesInTestCases() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-two-step.yml").toURI());
-        CliVariables cliVariables = new CliVariables(Map.of(
-                "api_base_url", "https://api.example.com",
-                "admin_system", "admin-prod"));
+        SuiteRunContext context = SuiteRunContext.of(
+                Map.of(), Map.of("api_base_url", "https://api.example.com", "admin_system", "admin-prod"));
 
-        TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, context);
 
         assertThat(testSuite.filePath()).isEqualTo(path);
         Map<String, String> variables = testSuite.variables();
@@ -106,12 +104,10 @@ class TestSuiteLoaderTest {
     @Test
     void elvisOperatorUsesProvidedValueWhenVariableExists() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
-        CliVariables cliVariables = new CliVariables(Map.of(
-                "api_base_url", "api-example-com",
-                "environment", "production",
-                "timeout", "60"));
+        SuiteRunContext context = SuiteRunContext.of(
+                Map.of(), Map.of("api_base_url", "api-example-com", "environment", "production", "timeout", "60"));
 
-        TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, context);
 
         assertThat(testSuite.filePath()).isEqualTo(path);
         Map<String, String> variables = testSuite.variables();
@@ -127,11 +123,10 @@ class TestSuiteLoaderTest {
     @Test
     void loadTestSuite2ResolvesAllVariablesAndParsesAllAssertionTypes() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-2.yml").toURI());
-        CliVariables cliVariables = new CliVariables(Map.of(
-                "api_base_url", "https://api.example.com",
-                "admin_system", "admin-prod"));
+        SuiteRunContext context = SuiteRunContext.of(
+                Map.of(), Map.of("api_base_url", "https://api.example.com", "admin_system", "admin-prod"));
 
-        TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, context);
 
         assertThat(testSuite.filePath()).isEqualTo(path);
         assertThat(testSuite.name()).isEqualTo("Test Suite for My Application v1.0");
@@ -187,9 +182,8 @@ class TestSuiteLoaderTest {
     @Test
     void elvisOperatorUsesDefaultValueWhenVariableIsMissing() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
-        CliVariables cliVariables = new CliVariables(Map.of());
 
-        TestSuite testSuite = loader.load(path, cliVariables);
+        TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
         assertThat(testSuite.filePath()).isEqualTo(path);
         Map<String, String> variables = testSuite.variables();
@@ -207,7 +201,7 @@ class TestSuiteLoaderTest {
         Path path = Path.of(
                 getClass().getResource("/test-suite-rest-client-headers.yml").toURI());
 
-        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
         RestClientConfig config = testSuite.restClientConfig();
         assertThat(config).isNotNull();
@@ -220,7 +214,7 @@ class TestSuiteLoaderTest {
     void restClientHeadersAreNullWhenAbsentFromYaml() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
 
-        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
         // TestSuiteLoader always applies withDefaults, so restClientConfig() is never null.
         // When the YAML has no rest_client.headers key, headers() is null.
@@ -233,7 +227,7 @@ class TestSuiteLoaderTest {
         Path path = Path.of(
                 getClass().getResource("/test-suite-rest-client-headers.yml").toURI());
 
-        TestSuite testSuite = loader.load(path, new CliVariables(Map.of()));
+        TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
         RestClientConfig withDefaults = RestClientConfig.withDefaults(testSuite.restClientConfig());
         assertThat(withDefaults.headers()).isNotNull();

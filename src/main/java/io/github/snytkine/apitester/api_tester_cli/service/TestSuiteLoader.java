@@ -19,47 +19,45 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.stereotype.Service;
-import org.thymeleaf.TemplateEngine;
-import org.thymeleaf.context.Context;
-import org.thymeleaf.templatemode.TemplateMode;
-import org.thymeleaf.templateresolver.StringTemplateResolver;
 
 /**
  * Loads and parses test suite YAML files, optionally resolving Thymeleaf template expressions.
  *
- * <p>This class is thread-safe. Both the underlying {@link ObjectMapper} (Jackson) and {@link
- * TemplateEngine} (Thymeleaf) are documented thread-safe singletons. All fields are final and
- * written only during construction. All per-call state ({@link org.thymeleaf.context.Context},
- * intermediate strings, parsed objects) is local to each method invocation. The {@code cli} map
- * supplied via {@link CliVariables} is defensively copied to an immutable snapshot at the start of
- * each call, so concurrent mutations by the caller cannot affect in-flight template processing.
+ * <p>This class is thread-safe. The underlying {@link ObjectMapper} (Jackson) is a documented
+ * thread-safe singleton held as a final field. Template processing is delegated to {@link
+ * FileLoader#parseFile}, which uses its own thread-safe {@code TemplateEngine} singleton. All
+ * per-call state (intermediate strings, parsed objects) is local to each method invocation. The
+ * maps inside the supplied {@link SuiteRunContext} are already immutable by construction, so
+ * concurrent caller mutations cannot affect in-flight template processing.
  */
 @Service
 public class TestSuiteLoader {
 
     private final ObjectMapper yamlMapper;
-    private final TemplateEngine templateEngine;
 
+    /**
+     * Constructs a {@code TestSuiteLoader}. The {@link ObjectMapper} is configured to ignore unknown
+     * YAML properties so that loader-injected fields (e.g. {@code templateContent}) do not cause
+     * deserialization failures. Template processing is delegated to {@link FileLoader}, which owns
+     * the shared {@code TemplateEngine} singleton.
+     */
     public TestSuiteLoader() {
         this.yamlMapper =
                 new ObjectMapper(new YAMLFactory()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        StringTemplateResolver resolver = new StringTemplateResolver();
-        resolver.setTemplateMode(TemplateMode.TEXT);
-        this.templateEngine = new TemplateEngine();
-        this.templateEngine.setTemplateResolver(resolver);
     }
 
     public TestSuite load(Path filePath) throws IOException {
+        String templateContent = Files.readString(filePath);
         TestSuite testSuite = yamlMapper.readValue(filePath.toFile(), TestSuite.class);
         return new TestSuite(
                 testSuite.name(),
@@ -67,32 +65,60 @@ public class TestSuiteLoader {
                 RestClientConfig.withDefaults(testSuite.restClientConfig()),
                 testSuite.variables(),
                 testSuite.tests(),
-                filePath);
+                filePath,
+                templateContent);
     }
 
-    public TestSuite load(Path filePath, CliVariables cliVariables) throws IOException {
+    /**
+     * Loads and template-processes a test suite YAML file using all variable namespaces supplied in
+     * {@code context}.
+     *
+     * <p>Template processing runs in two passes:
+     *
+     * <ol>
+     *   <li><b>Step 1</b> — processes the raw YAML with {@code cli}, {@code env}, and {@code test}
+     *       from {@code context}, and an empty {@code suite} map. The resulting {@code variables}
+     *       block provides the resolved suite-level variables for Step 2.
+     *   <li><b>Step 2</b> — re-processes the raw YAML with the same {@code cli} and {@code env},
+     *       but with {@code suite} set to the resolved variables map from Step 1, so that
+     *       expressions such as {@code [[${suite.api_base_url}]]} inside test cases resolve
+     *       correctly.
+     * </ol>
+     *
+     * <p>The Thymeleaf context exposes four top-level variables:
+     *
+     * <ul>
+     *   <li>{@code cli} — command-line variables from {@code context.cli()}
+     *   <li>{@code env} — environment variables from {@code context.env()}
+     *   <li>{@code suite} — flat map of resolved suite variables; empty in Step 1, populated from
+     *       Step 1 result in Step 2; accessed in templates as {@code [[${suite.my_var}]]}
+     *   <li>{@code test} — test-case variables from {@code context.test()} (empty for suite-level
+     *       resolution)
+     * </ul>
+     *
+     * @param filePath absolute path to the test-suite YAML file
+     * @param context all variable namespaces available during template processing
+     * @return a fully loaded and template-resolved {@link TestSuite}
+     * @throws IOException if the file cannot be read or YAML parsing fails
+     */
+    public TestSuite load(Path filePath, SuiteRunContext context) throws IOException {
         String templateContent = Files.readString(filePath);
-        // Immutable snapshot — shields in-flight processing from concurrent caller mutations.
-        Map<String, String> cli = Map.copyOf(cliVariables.cli());
 
-        // Step 1: process the full YAML template with only cli in context.
-        // suite.variables is seeded as an empty map so that any suite.variables.* references
-        // in test cases resolve to empty string rather than throwing a null access error.
-        // The resulting variables map (resolved from cli) becomes suite.variables for Step 2.
-        Context step1Context = new Context();
-        step1Context.setVariable("cli", cli);
-        step1Context.setVariable("suite", Map.of("variables", Map.of()));
-        String step1Yaml = templateEngine.process(templateContent, step1Context);
+        // Step 1: process with cli + env in context; suite seeded as an empty map so that
+        // suite.* references in test cases resolve to empty string rather than throwing.
+        // The resulting variables map (resolved from cli/env) becomes suite for Step 2.
+        String step1Yaml = FileLoader.parseFile(
+                templateContent,
+                Map.of("cli", context.cli(), "env", context.env(), "suite", Map.of(), "test", context.test()));
         TestSuite step1TestSuite = yamlMapper.readValue(step1Yaml, TestSuite.class);
         Map<String, String> resolvedVariables =
                 step1TestSuite.variables() != null ? new LinkedHashMap<>(step1TestSuite.variables()) : Map.of();
 
-        // Step 2: process the full YAML template again with suite.variables populated from Step 1,
-        // so that expressions like [[${suite.variables.api_base_url}]] in test cases are resolved.
-        Context step2Context = new Context();
-        step2Context.setVariable("cli", cli);
-        step2Context.setVariable("suite", Map.of("variables", resolvedVariables));
-        String step2Yaml = templateEngine.process(templateContent, step2Context);
+        // Step 2: re-process with suite set to the resolved variables map from Step 1, so that
+        // expressions like [[${suite.api_base_url}]] in test cases are resolved.
+        String step2Yaml = FileLoader.parseFile(
+                templateContent,
+                Map.of("cli", context.cli(), "env", context.env(), "suite", resolvedVariables, "test", context.test()));
 
         TestSuite processedTestSuite = yamlMapper.readValue(step2Yaml, TestSuite.class);
         return new TestSuite(
@@ -101,6 +127,7 @@ public class TestSuiteLoader {
                 RestClientConfig.withDefaults(processedTestSuite.restClientConfig()),
                 resolvedVariables,
                 processedTestSuite.tests(),
-                filePath);
+                filePath,
+                templateContent);
     }
 }

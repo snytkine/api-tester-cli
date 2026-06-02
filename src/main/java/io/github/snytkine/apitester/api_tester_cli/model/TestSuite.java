@@ -16,6 +16,7 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
@@ -33,6 +34,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code restClientConfig} maps to the optional {@code rest_client} key in the YAML and carries
  * suite-level HTTP client settings such as a base URL and connect timeout.
+ *
+ * <p>{@code templateContent} holds the raw YAML file content as read from disk before any
+ * Thymeleaf processing. It is populated by {@code TestSuiteLoader} and is not part of the YAML
+ * schema — Jackson skips it during deserialization ({@code @JsonIgnore}).
  */
 public record TestSuite(
         String name,
@@ -40,4 +45,5 @@ public record TestSuite(
         @Nullable @JsonProperty("rest_client") RestClientConfig restClientConfig,
         @Nullable Map<String, String> variables,
         List<TestCase> tests,
-        @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath) {}
+        @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath,
+        @JsonIgnore @Nullable String templateContent) {}

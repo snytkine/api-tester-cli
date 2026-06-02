@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.interfaces;
 
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.util.Map;
@@ -35,7 +36,7 @@ public interface TestEngine {
     /**
      * Executes all test cases in the given {@link TestSuite} and returns an aggregated result.
      *
-     * <p>This convenience overload passes an empty {@code cliVars} map and uses {@link
+     * <p>This convenience overload uses an all-empty {@link SuiteRunContext} and {@link
      * NoOpProgressListener#INSTANCE}.
      *
      * @param testSuite the loaded test suite to execute
@@ -43,7 +44,7 @@ public interface TestEngine {
      * @throws Exception if a fatal error prevents the suite from running
      */
     default TestRunResult runConfigurationSuite(TestSuite testSuite) throws Exception {
-        return runConfigurationSuite(testSuite, Map.of(), NoOpProgressListener.INSTANCE);
+        return runConfigurationSuite(testSuite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
     }
 
     /**
@@ -51,11 +52,12 @@ public interface TestEngine {
      * listener} at each milestone (suite start, per-test start/complete, suite complete).
      *
      * @param testSuite the loaded test suite to execute
-     * @param cliVars CLI variables supplied at invocation time, keyed by variable name
+     * @param context all variable namespaces ({@code env}, {@code cli}, {@code suite}, {@code test})
+     *     available during request body template processing and assertion evaluation
      * @param listener receives progress events; must be thread-safe
      * @return a {@link TestRunResult} containing pass count, fail count, and error messages
      * @throws Exception if a fatal error prevents the suite from running
      */
-    TestRunResult runConfigurationSuite(TestSuite testSuite, Map<String, String> cliVars, TestProgressListener listener)
+    TestRunResult runConfigurationSuite(TestSuite testSuite, SuiteRunContext context, TestProgressListener listener)
             throws Exception;
 }

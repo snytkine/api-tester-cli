@@ -11,11 +11,11 @@ tests:
   description: "Verify that users can log in with valid credentials."
   request:
     method: "POST"
-    url: "[[${suite.variables.api_base_url}]]/login"
+    url: "[[${suite.api_base_url}]]/login"
     headers:
       Content-Type: "application/json"
-      x-admin: "[[${suite.variables.admin_system}]]"
-      x-request-id: "[[${suite.variables.request_id}]]"
+      x-admin: "[[${suite.admin_system}]]"
+      x-request-id: "[[${suite.request_id}]]"
   assertions:
   - type: "status_code"
     expected: 200

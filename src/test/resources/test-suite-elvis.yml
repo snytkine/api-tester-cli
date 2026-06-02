@@ -10,9 +10,9 @@ tests:
   description: "Verify service health endpoint."
   request:
     method: "GET"
-    url: "[[${suite.variables.api_base_url}]]/health"
+    url: "[[${suite.api_base_url}]]/health"
     headers:
-      x-environment: "[[${suite.variables.environment}]]"
+      x-environment: "[[${suite.environment}]]"
   assertions:
   - type: "status_code"
     expected: 200

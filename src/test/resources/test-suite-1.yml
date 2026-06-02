@@ -8,7 +8,7 @@ tests:
 - name: "Objects Test"
   request:
     method: "GET"
-    url: "[[${suite.variables.api_base_url}]]/objects"
+    url: "[[${suite.api_base_url}]]/objects"
     headers:
       Accept: "application/json"
   assertions:

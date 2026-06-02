@@ -16,11 +16,11 @@ tests:
     id: "login_test_001"
   request:
     method: "POST"
-    url: "[[${suite.variables.api_base_url}]]/login"
+    url: "[[${suite.api_base_url}]]/login"
     headers:
       Content-Type: "application/json"
       x-username: "testuser"
-      x-request-id: "[[${suite.variables.request_id}]]"
+      x-request-id: "[[${suite.request_id}]]"
     body:
       type: "file"
       content: "login_request_body.json"

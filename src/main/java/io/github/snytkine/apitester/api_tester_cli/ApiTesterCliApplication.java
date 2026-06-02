@@ -19,7 +19,6 @@ package io.github.snytkine.apitester.api_tester_cli;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.BodylessRequest;
-import io.github.snytkine.apitester.api_tester_cli.model.CliVariables;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
@@ -27,6 +26,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestDeserializer;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
@@ -91,7 +91,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     AssertionFailure.class,
     BodylessRequest.class,
     BodyType.class,
-    CliVariables.class,
+    SuiteRunContext.class,
     EndsWithAssertion.class,
     GreaterThanAssertion.class,
     GreaterThanOrEqualAssertion.class,
