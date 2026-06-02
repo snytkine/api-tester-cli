@@ -16,6 +16,9 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.service;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
@@ -80,9 +83,12 @@ public class PureJavaTestEngine implements TestEngine {
     private final ClientHttpRequestFactory requestFactory;
     private final AssertionEvaluatorFactory evaluatorFactory;
     private final ResponseResolver responseResolver;
+    private final ObjectMapper yamlMapper;
 
     /**
-     * Constructs the engine with the required collaborators.
+     * Constructs the engine with the required collaborators. A YAML {@link ObjectMapper} is created
+     * here for re-parsing the suite template during per-test variable resolution; it is configured to
+     * ignore unknown properties so that loader-injected fields do not cause failures.
      *
      * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
      * @param evaluatorFactory maps assertion model objects to their evaluator implementations
@@ -95,6 +101,8 @@ public class PureJavaTestEngine implements TestEngine {
         this.requestFactory = requestFactory;
         this.evaluatorFactory = evaluatorFactory;
         this.responseResolver = responseResolver;
+        this.yamlMapper =
+                new ObjectMapper(new YAMLFactory()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     }
 
     /**
@@ -144,7 +152,7 @@ public class PureJavaTestEngine implements TestEngine {
             long testStart = System.currentTimeMillis();
 
             try {
-                executeSingleTest(restClient, config, suiteDir, configMap);
+                executeSingleTest(restClient, testSuite, i, suiteDir, configMap);
                 long durationMs = System.currentTimeMillis() - testStart;
                 passedCount++;
                 int totalAssertions = config.assertions().size();
@@ -211,47 +219,101 @@ public class PureJavaTestEngine implements TestEngine {
     }
 
     /**
-     * Executes a single test case: builds and fires the HTTP request, resolves the response into an
-     * {@link ApiResponse}, then evaluates all assertions via {@link SoftAssertions}.
+     * Executes a single test case identified by its index in the suite.
      *
-     * <p>HTTP errors (network failures, DNS issues) propagate as unchecked exceptions. Assertion
-     * failures surface as {@code MultipleFailuresError} from {@link SoftAssertions#assertAll()}. Both
-     * are caught by the {@code catch (Throwable)} in {@link #runConfigurationSuite}.
+     * <p>The method first fetches the raw {@link TestCase} at position {@code i} from {@code
+     * testSuite} and extracts its per-test {@code variables}. Those variables are merged into a new
+     * {@code testConfigMap} under the {@code "test"} key (replacing the initially-empty placeholder
+     * that was set in {@link #runConfigurationSuite}).
      *
-     * <p>The method builds a {@code testConfigMap} by copying {@code configMap} and adding the
-     * test-case's own variables under the {@code "test"} key, making them available to evaluators and
-     * the request-body template processor.
+     * <p>If the suite carries a {@code templateContent} (i.e. it was loaded via
+     * {@link io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader#load(java.nio.file.Path,
+     * io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext)}), the raw YAML template is
+     * re-processed through Thymeleaf using {@code testConfigMap} so that per-test variable
+     * expressions (e.g. {@code [[${test.username}]]} in the request URL or headers) are resolved.
+     * The resolved {@link TestCase} is then extracted from the re-parsed suite at the same index
+     * {@code i}. When {@code templateContent} is absent the raw test case is used as-is.
+     *
+     * <p>HTTP errors propagate as unchecked exceptions; assertion failures surface as {@link
+     * MultipleFailuresError}. Both are caught by the caller in {@link #runConfigurationSuite}.
      *
      * @param restClient the configured client for this suite run
-     * @param config the test case to execute
+     * @param testSuite the loaded test suite containing the raw YAML template and test cases
+     * @param i zero-based index of the test case to execute within {@code testSuite.tests()}
      * @param suiteDir the directory of the suite file, or {@code null} if unavailable
-     * @param configMap unmodifiable map containing all suite-level variable namespaces ({@code cli},
-     *     {@code env}, {@code suite})
-     * @throws IOException if a file-type request body cannot be read from disk
+     * @param configMap suite-level variable namespaces ({@code cli}, {@code env}, {@code suite},
+     *     {@code test}); the {@code "test"} entry is replaced per invocation with this test's vars
+     * @throws IOException if the template cannot be re-parsed or a file-type request body cannot be
+     *     read from disk
      */
     private void executeSingleTest(
-            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap)
+            RestClient restClient,
+            TestSuite testSuite,
+            int i,
+            @Nullable Path suiteDir,
+            Map<String, Map<String, String>> configMap)
             throws IOException {
-        log.debug(
-                "Executing test case '{}': {} {}",
-                config.name(),
-                config.request().method(),
-                config.request().url());
 
-        Map<String, String> testVariables = Objects.requireNonNullElse(config.variables(), Map.of());
+        TestCase rawConfig = testSuite.tests().get(i);
+        log.debug(
+                "Test [{}] '{}': beginning execution, raw request {} {}",
+                i,
+                rawConfig.name(),
+                rawConfig.request().method(),
+                rawConfig.request().url());
+
+        Map<String, String> testVariables = Objects.requireNonNullElse(rawConfig.variables(), Map.of());
+        log.debug("Test [{}] '{}': {} test-level variable(s) found", i, rawConfig.name(), testVariables.size());
+
         Map<String, Map<String, String>> mutableConfigMap = new LinkedHashMap<>(configMap);
         mutableConfigMap.put("test", testVariables);
         Map<String, Map<String, String>> testConfigMap = Map.copyOf(mutableConfigMap);
 
+        // Re-parse the suite template with per-test variables in context so that expressions like
+        // [[${test.username}]] in URLs, headers, or bodies are resolved for this specific test.
+        // Skip re-parsing when there are no test-level variables — no template expressions can
+        // reference ${test.*}, so rawConfig is already fully resolved.
+        TestCase config;
+        if (testSuite.templateContent() != null && !testVariables.isEmpty()) {
+            log.debug(
+                    "Test [{}] '{}': re-parsing template with {} test variable(s)",
+                    i,
+                    rawConfig.name(),
+                    testVariables.size());
+            String resolvedYaml = FileLoader.parseFile(testSuite.templateContent(), testConfigMap);
+            TestSuite resolvedSuite = yamlMapper.readValue(resolvedYaml, TestSuite.class);
+            config = resolvedSuite.tests().get(i);
+            log.debug(
+                    "Test [{}] '{}': resolved request {} {}",
+                    i,
+                    config.name(),
+                    config.request().method(),
+                    config.request().url());
+        } else {
+            log.debug(
+                    "Test [{}] '{}': skipping template re-parse ({})",
+                    i,
+                    rawConfig.name(),
+                    testSuite.templateContent() == null ? "no templateContent" : "no test variables");
+            config = rawConfig;
+        }
+
+        log.debug(
+                "Test [{}] '{}': sending {} {}",
+                i,
+                config.name(),
+                config.request().method(),
+                config.request().url());
         RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, suiteDir, testConfigMap);
         RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
         List<AssertionEvaluator> evaluators = config.assertions().stream()
                 .map(a -> evaluatorFactory.create(a, suiteDir, testConfigMap))
                 .toList();
+        log.debug("Test [{}] '{}': evaluating {} assertion(s)", i, config.name(), evaluators.size());
 
         ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
-        log.debug("Test case '{}' received status: {}", config.name(), apiResponse.statusCode());
+        log.debug("Test [{}] '{}': received status {}", i, config.name(), apiResponse.statusCode());
 
         FailureCollector collector = new FailureCollector();
         evaluators.forEach(e -> e.evaluate(apiResponse, collector));
