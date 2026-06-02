@@ -59,20 +59,31 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 /**
- * Executes the test cases in a {@link TestSuite} sequentially using Spring's {@link RestClient},
+ * Executes the test cases in a {@link TestSuite} sequentially using Spring's
+ * {@link RestClient},
  * collecting pass/fail counts and error messages into a {@link TestRunResult}.
  *
- * <p>A fresh {@link RestClient} is built for each suite run using the {@link RestClientConfig}
- * embedded in the suite (base URL and connect timeout). The underlying HTTP transport is supplied
- * as a {@link ClientHttpRequestFactory} at construction time, keeping transport configuration
+ * <p>
+ * A fresh {@link RestClient} is built for each suite run using the
+ * {@link RestClientConfig}
+ * embedded in the suite (base URL and connect timeout). The underlying HTTP
+ * transport is supplied
+ * as a {@link ClientHttpRequestFactory} at construction time, keeping transport
+ * configuration
  * separate from per-suite settings.
  *
- * <p>Assertions are evaluated via {@link AssertionEvaluatorFactory}, which maps each assertion type
- * to its evaluator. All assertion failures within a single test case are collected by {@link
- * io.github.snytkine.apitester.api_tester_cli.util.FailureCollector} and surfaced together rather
+ * <p>
+ * Assertions are evaluated via {@link AssertionEvaluatorFactory}, which maps
+ * each assertion type
+ * to its evaluator. All assertion failures within a single test case are
+ * collected by {@link
+ * io.github.snytkine.apitester.api_tester_cli.util.FailureCollector} and
+ * surfaced together rather
  * than stopping at the first failure.
  *
- * <p>This class is a thread-safe Spring singleton: all per-invocation state is confined to the call
+ * <p>
+ * This class is a thread-safe Spring singleton: all per-invocation state is
+ * confined to the call
  * stack of {@link #runConfigurationSuite(TestSuite)}.
  */
 @Service
@@ -86,13 +97,19 @@ public class PureJavaTestEngine implements TestEngine {
     private final ObjectMapper yamlMapper;
 
     /**
-     * Constructs the engine with the required collaborators. A YAML {@link ObjectMapper} is created
-     * here for re-parsing the suite template during per-test variable resolution; it is configured to
-     * ignore unknown properties so that loader-injected fields do not cause failures.
+     * Constructs the engine with the required collaborators. A YAML
+     * {@link ObjectMapper} is created
+     * here for re-parsing the suite template during per-test variable resolution;
+     * it is configured to
+     * ignore unknown properties so that loader-injected fields do not cause
+     * failures.
      *
-     * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
-     * @param evaluatorFactory maps assertion model objects to their evaluator implementations
-     * @param responseResolver converts a {@link RestClient.ResponseSpec} into an {@link ApiResponse}
+     * @param requestFactory   the HTTP transport factory used to back each
+     *                         per-suite {@link RestClient}
+     * @param evaluatorFactory maps assertion model objects to their evaluator
+     *                         implementations
+     * @param responseResolver converts a {@link RestClient.ResponseSpec} into an
+     *                         {@link ApiResponse}
      */
     public PureJavaTestEngine(
             ClientHttpRequestFactory requestFactory,
@@ -106,27 +123,38 @@ public class PureJavaTestEngine implements TestEngine {
     }
 
     /**
-     * Runs all test cases in the provided {@link TestSuite} sequentially, firing progress events to
+     * Runs all test cases in the provided {@link TestSuite} sequentially, firing
+     * progress events to
      * {@code listener} at each milestone, and returns an aggregated result.
      *
-     * <p>A {@link RestClient} is built from the suite's {@link RestClientConfig} (base URL and
-     * connect timeout) before iteration begins and shared across all test cases in the suite. The
-     * suite's file path (when present) is used to resolve relative file references in assertions.
+     * <p>
+     * A {@link RestClient} is built from the suite's {@link RestClientConfig} (base
+     * URL and
+     * connect timeout) before iteration begins and shared across all test cases in
+     * the suite. The
+     * suite's file path (when present) is used to resolve relative file references
+     * in assertions.
      *
-     * <p>Events fired (in order):
+     * <p>
+     * Events fired (in order):
      *
      * <ol>
-     *   <li>{@link TestProgressEvent.SuiteStarted} — once, before any test runs
-     *   <li>{@link TestProgressEvent.TestStarted} — before each test's HTTP request
-     *   <li>{@link TestProgressEvent.TestCompleted} — after each test's assertions are evaluated
-     *   <li>{@link TestProgressEvent.SuiteCompleted} — once, after all tests finish
+     * <li>{@link TestProgressEvent.SuiteStarted} — once, before any test runs
+     * <li>{@link TestProgressEvent.TestStarted} — before each test's HTTP request
+     * <li>{@link TestProgressEvent.TestCompleted} — after each test's assertions
+     * are evaluated
+     * <li>{@link TestProgressEvent.SuiteCompleted} — once, after all tests finish
      * </ol>
      *
-     * @param testSuite the loaded test suite whose {@link TestSuite#tests()} are executed
-     * @param context all variable namespaces ({@code env}, {@code cli}) used when building request
-     *     bodies and evaluating assertions; {@code suite} and {@code test} are added internally
-     * @param listener receives progress events; must be thread-safe
-     * @return a {@link TestRunResult} with per-test-case results including structured failure detail
+     * @param testSuite the loaded test suite whose {@link TestSuite#tests()} are
+     *                  executed
+     * @param context   all variable namespaces ({@code env}, {@code cli}) used when
+     *                  building request
+     *                  bodies and evaluating assertions; {@code suite} and
+     *                  {@code test} are added internally
+     * @param listener  receives progress events; must be thread-safe
+     * @return a {@link TestRunResult} with per-test-case results including
+     *         structured failure detail
      */
     @Override
     public TestRunResult runConfigurationSuite(
@@ -181,7 +209,7 @@ public class PureJavaTestEngine implements TestEngine {
                         config.name(), false, 0, List.of(new AssertionFailure(e.getMessage(), null, null))));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, List.of(e.getMessage())));
-                log.debug("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
+                log.error("Test case '{}' failed: {}", config.name(), e.getMessage(), e);
             }
         }
 
@@ -192,13 +220,20 @@ public class PureJavaTestEngine implements TestEngine {
     }
 
     /**
-     * Converts the individual failures inside a {@link MultipleFailuresError} into a list of {@link
-     * AssertionFailure} records, preserving actual and expected values when available.
+     * Converts the individual failures inside a {@link MultipleFailuresError} into
+     * a list of {@link
+     * AssertionFailure} records, preserving actual and expected values when
+     * available.
      *
-     * <p>Each failure is an {@link AssertionFailedError} when produced by an AssertJ comparison (e.g.
-     * {@code isEqualTo()}), in which case the actual and expected values are extracted via {@link
-     * AssertionFailedError#getActual()} and {@link AssertionFailedError#getExpected()}. Free- form
-     * failures from {@code soft.fail("message")} produce an {@code AssertionFailedError} with no
+     * <p>
+     * Each failure is an {@link AssertionFailedError} when produced by an AssertJ
+     * comparison (e.g.
+     * {@code isEqualTo()}), in which case the actual and expected values are
+     * extracted via {@link
+     * AssertionFailedError#getActual()} and
+     * {@link AssertionFailedError#getExpected()}. Free- form
+     * failures from {@code soft.fail("message")} produce an
+     * {@code AssertionFailedError} with no
      * defined actual/expected, so both fields are {@code null} in that case.
      *
      * @param e the composite error from {@link FailureCollector#assertAll()}
@@ -221,30 +256,49 @@ public class PureJavaTestEngine implements TestEngine {
     /**
      * Executes a single test case identified by its index in the suite.
      *
-     * <p>The method first fetches the raw {@link TestCase} at position {@code i} from {@code
-     * testSuite} and extracts its per-test {@code variables}. Those variables are merged into a new
-     * {@code testConfigMap} under the {@code "test"} key (replacing the initially-empty placeholder
+     * <p>
+     * The method first fetches the raw {@link TestCase} at position {@code i} from
+     * {@code
+     * testSuite} and extracts its per-test {@code variables}. Those variables are
+     * merged into a new
+     * {@code testConfigMap} under the {@code "test"} key (replacing the
+     * initially-empty placeholder
      * that was set in {@link #runConfigurationSuite}).
      *
-     * <p>If the suite carries a {@code templateContent} (i.e. it was loaded via
+     * <p>
+     * If the suite carries a {@code templateContent} (i.e. it was loaded via
      * {@link io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader#load(java.nio.file.Path,
-     * io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext)}), the raw YAML template is
-     * re-processed through Thymeleaf using {@code testConfigMap} so that per-test variable
-     * expressions (e.g. {@code [[${test.username}]]} in the request URL or headers) are resolved.
-     * The resolved {@link TestCase} is then extracted from the re-parsed suite at the same index
-     * {@code i}. When {@code templateContent} is absent the raw test case is used as-is.
+     * io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext)}), the raw
+     * YAML template is
+     * re-processed through Thymeleaf using {@code testConfigMap} so that per-test
+     * variable
+     * expressions (e.g. {@code [[${test.username}]]} in the request URL or headers)
+     * are resolved.
+     * The resolved {@link TestCase} is then extracted from the re-parsed suite at
+     * the same index
+     * {@code i}. When {@code templateContent} is absent the raw test case is used
+     * as-is.
      *
-     * <p>HTTP errors propagate as unchecked exceptions; assertion failures surface as {@link
-     * MultipleFailuresError}. Both are caught by the caller in {@link #runConfigurationSuite}.
+     * <p>
+     * HTTP errors propagate as unchecked exceptions; assertion failures surface as
+     * {@link
+     * MultipleFailuresError}. Both are caught by the caller in
+     * {@link #runConfigurationSuite}.
      *
      * @param restClient the configured client for this suite run
-     * @param testSuite the loaded test suite containing the raw YAML template and test cases
-     * @param i zero-based index of the test case to execute within {@code testSuite.tests()}
-     * @param suiteDir the directory of the suite file, or {@code null} if unavailable
-     * @param configMap suite-level variable namespaces ({@code cli}, {@code env}, {@code suite},
-     *     {@code test}); the {@code "test"} entry is replaced per invocation with this test's vars
-     * @throws IOException if the template cannot be re-parsed or a file-type request body cannot be
-     *     read from disk
+     * @param testSuite  the loaded test suite containing the raw YAML template and
+     *                   test cases
+     * @param i          zero-based index of the test case to execute within
+     *                   {@code testSuite.tests()}
+     * @param suiteDir   the directory of the suite file, or {@code null} if
+     *                   unavailable
+     * @param configMap  suite-level variable namespaces ({@code cli}, {@code env},
+     *                   {@code suite},
+     *                   {@code test}); the {@code "test"} entry is replaced per
+     *                   invocation with this test's vars
+     * @throws IOException if the template cannot be re-parsed or a file-type
+     *                     request body cannot be
+     *                     read from disk
      */
     private void executeSingleTest(
             RestClient restClient,
@@ -269,9 +323,12 @@ public class PureJavaTestEngine implements TestEngine {
         mutableConfigMap.put("test", testVariables);
         Map<String, Map<String, String>> testConfigMap = Map.copyOf(mutableConfigMap);
 
-        // Re-parse the suite template with per-test variables in context so that expressions like
-        // [[${test.username}]] in URLs, headers, or bodies are resolved for this specific test.
-        // Skip re-parsing when there are no test-level variables — no template expressions can
+        // Re-parse the suite template with per-test variables in context so that
+        // expressions like
+        // [[${test.username}]] in URLs, headers, or bodies are resolved for this
+        // specific test.
+        // Skip re-parsing when there are no test-level variables — no template
+        // expressions can
         // reference ${test.*}, so rawConfig is already fully resolved.
         TestCase config;
         if (testSuite.templateContent() != null && !testVariables.isEmpty()) {
@@ -321,25 +378,36 @@ public class PureJavaTestEngine implements TestEngine {
     }
 
     /**
-     * Builds a {@link RestClient.RequestBodySpec} from the test case's request definition, applying
+     * Builds a {@link RestClient.RequestBodySpec} from the test case's request
+     * definition, applying
      * headers and, when applicable, attaching a resolved request body.
      *
-     * <p>A body is attached when the test case's request is a {@link PayloadRequest} with a
-     * non-null {@link RequestBody}. Body content is resolved via {@link #loadBodyContent}: {@code
-     * FILE} bodies are read from disk relative to the suite directory and processed through the
-     * Thymeleaf template engine; {@code STRING} bodies are used as literal text without any
+     * <p>
+     * A body is attached when the test case's request is a {@link PayloadRequest}
+     * with a
+     * non-null {@link RequestBody}. Body content is resolved via
+     * {@link #loadBodyContent}: {@code
+     * FILE} bodies are read from disk relative to the suite directory and processed
+     * through the
+     * Thymeleaf template engine; {@code STRING} bodies are used as literal text
+     * without any
      * template processing.
      *
      * @param restClient the client to use for building the request
-     * @param config the test case whose request is being built
-     * @param suiteDir the directory of the suite file, needed to resolve relative file paths; may be
-     *     {@code null} when the suite was not loaded from disk
-     * @param configMap all variable namespaces including {@code "suite"} and {@code "test"}, forwarded
-     *     to the Thymeleaf template engine
-     * @return a fully configured request spec ready for {@link RestClient.RequestBodySpec#retrieve()}
-     * @throws IOException if a {@code FILE}-type body cannot be read from disk
-     * @throws IllegalStateException if a {@code FILE}-type body is declared but {@code suiteDir} is
-     *     {@code null}
+     * @param config     the test case whose request is being built
+     * @param suiteDir   the directory of the suite file, needed to resolve relative
+     *                   file paths; may be
+     *                   {@code null} when the suite was not loaded from disk
+     * @param configMap  all variable namespaces including {@code "suite"} and
+     *                   {@code "test"}, forwarded
+     *                   to the Thymeleaf template engine
+     * @return a fully configured request spec ready for
+     *         {@link RestClient.RequestBodySpec#retrieve()}
+     * @throws IOException           if a {@code FILE}-type body cannot be read from
+     *                               disk
+     * @throws IllegalStateException if a {@code FILE}-type body is declared but
+     *                               {@code suiteDir} is
+     *                               {@code null}
      */
     private RestClient.RequestBodySpec buildRequestSpec(
             RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap)
@@ -365,22 +433,31 @@ public class PureJavaTestEngine implements TestEngine {
     /**
      * Resolves the body content from a {@link RequestBody} descriptor.
      *
-     * <p>For {@code FILE} bodies the file at {@link RequestBody#content()} is read relative to
-     * {@code suiteDir} and then processed through the Thymeleaf TEXT-mode template engine with all
-     * variable namespaces from {@code configMap} ({@code suite}, {@code test}, {@code cli},
+     * <p>
+     * For {@code FILE} bodies the file at {@link RequestBody#content()} is read
+     * relative to
+     * {@code suiteDir} and then processed through the Thymeleaf TEXT-mode template
+     * engine with all
+     * variable namespaces from {@code configMap} ({@code suite}, {@code test},
+     * {@code cli},
      * {@code env}) available as top-level context variables.
      *
-     * <p>For {@code STRING} bodies the {@link RequestBody#content()} value is returned as-is,
+     * <p>
+     * For {@code STRING} bodies the {@link RequestBody#content()} value is returned
+     * as-is,
      * without any template processing.
      *
-     * @param body the request-body descriptor from the test case
-     * @param suiteDir the directory of the suite file; required when {@code body.type()} is {@code
+     * @param body      the request-body descriptor from the test case
+     * @param suiteDir  the directory of the suite file; required when
+     *                  {@code body.type()} is {@code
      *     FILE}
-     * @param configMap all variable namespaces; each entry's key becomes a top-level Thymeleaf
-     *     variable
+     * @param configMap all variable namespaces; each entry's key becomes a
+     *                  top-level Thymeleaf
+     *                  variable
      * @return the resolved body string ready to be sent with the HTTP request
-     * @throws IOException if the file cannot be read
-     * @throws IllegalStateException if {@code type} is {@code FILE} but {@code suiteDir} is {@code
+     * @throws IOException                   if the file cannot be read
+     * @throws IllegalStateException         if {@code type} is {@code FILE} but
+     *                                       {@code suiteDir} is {@code
      *     null}
      * @throws UnsupportedOperationException if the body type is not yet supported
      */
@@ -402,13 +479,20 @@ public class PureJavaTestEngine implements TestEngine {
     }
 
     /**
-     * Builds a {@link RestClient} configured from the given {@link RestClientConfig}.
+     * Builds a {@link RestClient} configured from the given
+     * {@link RestClientConfig}.
      *
-     * <p>If {@code config} carries a non-blank {@code baseUrl} it is set as the client's default base
-     * URL. When a {@code connectTimeout} is present AND the injected factory is a {@link
-     * org.springframework.http.client.JdkClientHttpRequestFactory}, a new JDK-backed factory is
-     * created with that timeout; non-JDK factories (e.g. stub factories used in tests) are never
-     * replaced. When {@code headers} is non-null each entry is registered as a default header applied
+     * <p>
+     * If {@code config} carries a non-blank {@code baseUrl} it is set as the
+     * client's default base
+     * URL. When a {@code connectTimeout} is present AND the injected factory is a
+     * {@link
+     * org.springframework.http.client.JdkClientHttpRequestFactory}, a new
+     * JDK-backed factory is
+     * created with that timeout; non-JDK factories (e.g. stub factories used in
+     * tests) are never
+     * replaced. When {@code headers} is non-null each entry is registered as a
+     * default header applied
      * to every request built with this client.
      *
      * @param config the suite-level REST client settings
