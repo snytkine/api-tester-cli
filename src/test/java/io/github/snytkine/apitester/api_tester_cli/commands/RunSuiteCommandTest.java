@@ -90,7 +90,7 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
         TestRunResult fakeResult = new TestRunResult(
-                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null)));
+                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)));
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(suite, false, false, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
@@ -103,7 +103,7 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
         TestRunResult fakeResult = new TestRunResult(
-                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null)));
+                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)));
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(suite, false, false, buildContext());
@@ -116,7 +116,7 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
         TestRunResult fakeResult = new TestRunResult(
-                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null)));
+                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)));
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(suite, true, false, buildContext());

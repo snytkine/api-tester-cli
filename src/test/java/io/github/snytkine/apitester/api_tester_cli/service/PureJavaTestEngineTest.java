@@ -115,6 +115,41 @@ class PureJavaTestEngineTest {
     }
 
     @Test
+    void passedTestResultHasRequestInfoPopulated() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        var firstResult = result.results().get(0);
+        assertThat(firstResult.requestInfo()).isNotNull();
+        assertThat(firstResult.requestInfo().method())
+                .isEqualTo(io.github.snytkine.apitester.api_tester_cli.model.HttpMethod.GET);
+        assertThat(firstResult.requestInfo().url()).isEqualTo("/objects");
+        assertThat(firstResult.requestInfo().body()).isNull();
+    }
+
+    @Test
+    void skippedTestResultHasNullRequestInfo() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-skip.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        var skippedResult = result.results().stream()
+                .filter(r -> r.result() == TestResult.SKIPPED)
+                .findFirst()
+                .orElseThrow();
+        assertThat(skippedResult.requestInfo()).isNull();
+    }
+
+    @Test
     void skippedTestIsCountedAsSkippedAndNotPassedOrFailed() throws Exception {
         var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
         var engine = engineWith(factory);

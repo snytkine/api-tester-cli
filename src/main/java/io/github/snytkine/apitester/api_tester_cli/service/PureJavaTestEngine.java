@@ -27,6 +27,7 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
@@ -50,6 +51,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
 import org.opentest4j.AssertionFailedError;
@@ -180,16 +182,23 @@ public class PureJavaTestEngine implements TestEngine {
             listener.onProgress(new TestProgressEvent.TestStarted(uniqueId, i, config.name()));
             long testStart = System.currentTimeMillis();
 
+            // Single-element holder: written by the requestCapture callback inside
+            // executeSingleTest (before retrieve()), read by all non-skip catch branches.
+            // Safe because it is created fresh per iteration and the callback fires
+            // synchronously on this thread — no sharing between concurrent iterations.
+            @Nullable ExecutedRequestInfo[] capturedRequest = new ExecutedRequestInfo[1];
+
             try {
-                executeSingleTest(restClient, testSuite, i, suiteDir, configMap);
+                executeSingleTest(restClient, testSuite, i, suiteDir, configMap, info -> capturedRequest[0] = info);
                 long durationMs = System.currentTimeMillis() - testStart;
                 int totalAssertions = config.assertions().size();
-                results.add(new TestCaseResult(config.name(), TestResult.PASSED, totalAssertions, List.of(), null));
+                results.add(new TestCaseResult(
+                        config.name(), TestResult.PASSED, totalAssertions, List.of(), null, capturedRequest[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
             } catch (SkipTestException e) {
                 long durationMs = System.currentTimeMillis() - testStart;
-                results.add(new TestCaseResult(config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage()));
+                results.add(new TestCaseResult(config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage(), null));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
                 log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
@@ -198,7 +207,8 @@ public class PureJavaTestEngine implements TestEngine {
                 List<AssertionFailure> failures = extractFailures(e);
                 int totalAssertions = config.assertions().size();
                 int passedAssertions = totalAssertions - failures.size();
-                results.add(new TestCaseResult(config.name(), TestResult.FAILED, passedAssertions, failures, null));
+                results.add(new TestCaseResult(
+                        config.name(), TestResult.FAILED, passedAssertions, failures, null, capturedRequest[0]));
                 List<String> messages =
                         e.getFailures().stream().map(Throwable::getMessage).toList();
                 listener.onProgress(new TestProgressEvent.TestCompleted(
@@ -214,7 +224,8 @@ public class PureJavaTestEngine implements TestEngine {
                         TestResult.ERROR,
                         0,
                         List.of(new AssertionFailure(e.getMessage(), null, null)),
-                        null));
+                        null,
+                        capturedRequest[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, List.of(e.getMessage())));
                 log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
@@ -308,20 +319,23 @@ public class PureJavaTestEngine implements TestEngine {
      *                   {@code testSuite.tests()}
      * @param suiteDir   the directory of the suite file, or {@code null} if
      *                   unavailable
-     * @param configMap  suite-level variable namespaces ({@code cli}, {@code env},
-     *                   {@code suite},
-     *                   {@code test}); the {@code "test"} entry is replaced per
-     *                   invocation with this test's vars
-     * @throws IOException if the template cannot be re-parsed or a file-type
-     *                     request body cannot be
-     *                     read from disk
+     * @param configMap      suite-level variable namespaces ({@code cli}, {@code env}, {@code
+     *                       suite}, {@code test}); the {@code "test"} entry is replaced per
+     *                       invocation with this test's vars
+     * @param requestCapture callback invoked with the fully-resolved {@link ExecutedRequestInfo}
+     *                       immediately before the HTTP request is dispatched; always called for
+     *                       non-skipped tests regardless of whether assertions later pass or fail,
+     *                       allowing the caller to capture request details for both outcomes
+     * @throws IOException if the template cannot be re-parsed or a file-type request body cannot
+     *     be read from disk
      */
     private void executeSingleTest(
             RestClient restClient,
             TestSuite testSuite,
             int i,
             @Nullable Path suiteDir,
-            Map<String, Map<String, String>> configMap)
+            Map<String, Map<String, String>> configMap,
+            Consumer<ExecutedRequestInfo> requestCapture)
             throws IOException {
 
         TestCase rawConfig = testSuite.tests().get(i);
@@ -380,7 +394,23 @@ public class PureJavaTestEngine implements TestEngine {
                 config.name(),
                 config.request().method(),
                 config.request().url());
-        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, suiteDir, testConfigMap);
+
+        // Resolve body before building the request spec so the same string can be
+        // captured in ExecutedRequestInfo without loading the file twice.
+        @Nullable String resolvedBody = null;
+        if (config.request() instanceof PayloadRequest pr && pr.body() != null) {
+            resolvedBody = loadBodyContent(pr.body(), suiteDir, testConfigMap);
+        }
+
+        // Fire callback before retrieve() so the caller has request details for both
+        // PASS and FAIL outcomes (MultipleFailuresError is thrown after this point).
+        requestCapture.accept(new ExecutedRequestInfo(
+                config.request().method(),
+                config.request().url(),
+                config.request().headers(),
+                resolvedBody));
+
+        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, resolvedBody);
         RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
         List<AssertionEvaluator> evaluators = config.assertions().stream()
@@ -398,39 +428,21 @@ public class PureJavaTestEngine implements TestEngine {
 
     /**
      * Builds a {@link RestClient.RequestBodySpec} from the test case's request
-     * definition, applying
-     * headers and, when applicable, attaching a resolved request body.
+     * definition, applying headers and, when applicable, attaching the pre-resolved body string.
      *
-     * <p>
-     * A body is attached when the test case's request is a {@link PayloadRequest}
-     * with a
-     * non-null {@link RequestBody}. Body content is resolved via
-     * {@link #loadBodyContent}: {@code
-     * FILE} bodies are read from disk relative to the suite directory and processed
-     * through the
-     * Thymeleaf template engine; {@code STRING} bodies are used as literal text
-     * without any
-     * template processing.
+     * <p>Body content is resolved by the caller ({@link #executeSingleTest}) via {@link
+     * #loadBodyContent} before this method is invoked, so the same resolved string can be captured
+     * in {@link ExecutedRequestInfo} without reading the file twice.
      *
-     * @param restClient the client to use for building the request
-     * @param config     the test case whose request is being built
-     * @param suiteDir   the directory of the suite file, needed to resolve relative
-     *                   file paths; may be
-     *                   {@code null} when the suite was not loaded from disk
-     * @param configMap  all variable namespaces including {@code "suite"} and
-     *                   {@code "test"}, forwarded
-     *                   to the Thymeleaf template engine
-     * @return a fully configured request spec ready for
-     *         {@link RestClient.RequestBodySpec#retrieve()}
-     * @throws IOException           if a {@code FILE}-type body cannot be read from
-     *                               disk
-     * @throws IllegalStateException if a {@code FILE}-type body is declared but
-     *                               {@code suiteDir} is
-     *                               {@code null}
+     * @param restClient   the client to use for building the request
+     * @param config       the test case whose request is being built
+     * @param resolvedBody the fully-resolved body string to attach, or {@code null} for bodyless
+     *     requests
+     * @return a fully configured request spec ready for {@link
+     *     RestClient.RequestBodySpec#retrieve()}
      */
     private RestClient.RequestBodySpec buildRequestSpec(
-            RestClient restClient, TestCase config, @Nullable Path suiteDir, Map<String, Map<String, String>> configMap)
-            throws IOException {
+            RestClient restClient, TestCase config, @Nullable String resolvedBody) {
         RestClient.RequestBodySpec requestSpec = restClient
                 .method(toSpringHttpMethod(config.request().method()))
                 .uri(config.request().url());
@@ -441,9 +453,8 @@ public class PureJavaTestEngine implements TestEngine {
             }
         }
 
-        if (config.request() instanceof PayloadRequest pr && pr.body() != null) {
-            String content = loadBodyContent(pr.body(), suiteDir, configMap);
-            requestSpec.body(content);
+        if (resolvedBody != null) {
+            requestSpec.body(resolvedBody);
         }
 
         return requestSpec;

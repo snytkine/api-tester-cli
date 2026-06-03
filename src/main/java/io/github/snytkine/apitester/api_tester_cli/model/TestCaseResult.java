@@ -32,6 +32,13 @@ import org.jspecify.annotations.Nullable;
  * {@code result} is {@link TestResult#FAILED} the list contains one {@link AssertionFailure} per
  * individual soft-assertion that did not pass. When {@code result} is {@link TestResult#SKIPPED}
  * the {@code skipReason} field holds the verbatim value of the test case's {@code skip} field.
+ *
+ * <p>The {@code requestInfo} field holds the fully-resolved HTTP request details for use in report
+ * generation. It is populated for {@link TestResult#PASSED} and {@link TestResult#FAILED}
+ * outcomes, and for {@link TestResult#ERROR} outcomes where the error occurred after the request
+ * was constructed. It is {@code null} for {@link TestResult#SKIPPED} outcomes (no request sent)
+ * and for {@link TestResult#ERROR} outcomes where the error occurred before request construction
+ * (e.g. a missing body file).
  */
 public record TestCaseResult(
         /** Name of the test case as declared in the suite YAML. */
@@ -54,4 +61,12 @@ public record TestCaseResult(
          * The skip reason taken from the test case's {@code skip} field. Non-null only when {@code
          * result} is {@link TestResult#SKIPPED}.
          */
-        @Nullable String skipReason) {}
+        @Nullable String skipReason,
+
+        /**
+         * The fully-resolved HTTP request that was dispatched. Non-null for {@link
+         * TestResult#PASSED} and {@link TestResult#FAILED}; may be non-null for {@link
+         * TestResult#ERROR} if the error occurred after request construction; always {@code null}
+         * for {@link TestResult#SKIPPED}.
+         */
+        @Nullable ExecutedRequestInfo requestInfo) {}
