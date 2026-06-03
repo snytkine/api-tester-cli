@@ -1,0 +1,320 @@
+# api-tester-cli
+
+`api-tester-cli` is a Spring Boot + Spring Shell command-line tool for running HTTP API test suites defined in YAML. Test suites can use Thymeleaf expressions to inject command-line values, values from a local `.env` file, suite-level variables, and per-test variables into requests and assertions.
+
+The project can run as a regular JVM application or as a GraalVM native binary. The JVM build is easiest for development; the native build starts faster and runs without a JVM at runtime.
+
+## What It Does
+
+- Executes HTTP test suites described in YAML
+- Supports suite-level `rest_client` defaults such as `base_url`, `connect_timeout`, and shared headers
+- Applies Thymeleaf templating before execution
+- Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
+- Emits JSON results in non-interactive mode
+- Can show an interactive terminal UI when running in a compatible TTY
+- Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
+
+## Build And Run
+
+### Standard JVM build
+
+```bash
+./mvnw clean package
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar
+```
+
+### GraalVM native binary
+
+This path requires a GraalVM JDK with `native-image` installed and available on `PATH`.
+
+```bash
+./mvnw -Pnative native:compile
+./target/api-tester-cli
+```
+
+The native executable starts significantly faster than the JVM jar and does not require a JVM on the target machine.
+
+## Running A Test Suite
+
+The main command is `run-suite` with the alias `rs`.
+
+```bash
+# JVM jar
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+  --suite ./src/test/resources/test-suite-1.yml \
+  api_base_url=https://api.restful-api.dev
+
+# Alias form
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar rs \
+  --suite ./src/test/resources/test-suite-1.yml \
+  api_base_url=https://api.restful-api.dev
+
+# Native binary
+./target/api-tester-cli run-suite \
+  --suite ./src/test/resources/test-suite-1.yml \
+  api_base_url=https://api.restful-api.dev
+```
+
+CLI variables are passed as positional `key=value` arguments after `--suite`. They become available in Thymeleaf expressions as `[[${cli.key}]]`.
+
+Example:
+
+```yaml
+variables:
+  api_base_url: "[[${cli.api_base_url}]]"
+```
+
+Important behavior:
+
+- `--suite` is required and must point to an existing YAML file.
+- `--ui` forces the interactive terminal UI.
+- `--no-ui` disables the UI and writes JSON results to stdout.
+- Relative file references inside the suite, such as body files or JSON schema files, are resolved relative to the suite file's directory.
+- Positional variables must not be written as `--key=value`; Spring Shell treats `--...` tokens as options instead of suite variables.
+
+## Test Suite YAML Format
+
+The top-level structure looks like this:
+
+```yaml
+name: "User API smoke suite"
+description: "Basic end-to-end checks for the user endpoints."
+
+rest_client:
+  base_url: "[[${cli.base_url != null ? cli.base_url : 'http://localhost:8080'}]]"
+  connect_timeout: 30000
+  headers:
+    Accept: "application/json"
+
+variables:
+  auth_token: "[[${env.AUTH_TOKEN}]]"
+  request_id: "[[${#strings.randomAlphanumeric(12)}]]"
+
+tests:
+  - name: "Get all users"
+    description: "Returns a non-empty user list."
+    variables:
+      users_path: "/users"
+    request:
+      method: "GET"
+      url: "[[${suite.base_url}]][[${test.users_path}]]"
+      headers:
+        Authorization: "Bearer [[${suite.auth_token}]]"
+    assertions:
+      - type: "status_code"
+        expected: 200
+      - type: "array_is_not_empty"
+        path: "response.body.json"
+
+  - name: "Create user"
+    request:
+      method: "POST"
+      url: "[[${suite.base_url}]]/users"
+      headers:
+        Authorization: "Bearer [[${suite.auth_token}]]"
+        Content-Type: "application/json"
+      body:
+        type: "inline"
+        content: |
+          {
+            "name": "Alice"
+          }
+    assertions:
+      - type: "status_code"
+        expected: 201
+      - type: "not_null"
+        path: "response.body.json.id"
+      - type: "response_time"
+        max_ms: 1000
+```
+
+### Top-level keys
+
+- `name`: required suite name
+- `description`: optional suite description
+- `rest_client`: optional suite-wide HTTP client defaults
+- `variables`: optional suite-level variables
+- `tests`: required list of test cases
+
+### `rest_client`
+
+`rest_client` supports:
+
+- `base_url`: prepended to relative request URLs
+- `connect_timeout`: timeout in milliseconds; defaults to `30000`
+- `headers`: default headers added to every request in the suite
+
+Per-test headers override same-named suite-level headers.
+
+### Test cases
+
+Each item in `tests` supports:
+
+- `name`: required test name
+- `description`: optional explanation
+- `skip`: optional skip reason; when non-blank, the test is skipped
+- `variables`: per-test variables exposed as `test.<name>`
+- `request`: required HTTP request definition
+- `assertions`: ordered list of assertions
+
+### Request bodies
+
+Requests with methods such as `POST`, `PUT`, `PATCH`, and `DELETE` can include:
+
+```yaml
+body:
+  type: "inline"
+  content: |
+    {"name":"Alice"}
+```
+
+or:
+
+```yaml
+body:
+  type: "file"
+  content: "request-body.json"
+```
+
+## Thymeleaf Variable Namespaces
+
+The CLI currently exposes four variable namespaces during template resolution:
+
+| Namespace | Example | Source |
+|---|---|---|
+| `cli` | `[[${cli.base_url}]]` | Positional `key=value` arguments after `--suite` |
+| `env` | `[[${env.AUTH_TOKEN}]]` | Variables loaded from a `.env` file in the suite directory |
+| `suite` | `[[${suite.auth_token}]]` | Values resolved from the suite-level `variables` block |
+| `test` | `[[${test.users_path}]]` | Values from the current test case's `variables` block |
+
+The suite is resolved in two passes:
+
+1. `cli` and `env` are used to resolve the top-level `variables` block.
+2. The resolved suite variables are then exposed through `suite.*` while the full file is processed again.
+
+That means values like `[[${suite.base_url}]]` are the supported form for suite-level references in request URLs, headers, and assertions.
+
+## The `.env` File
+
+The CLI looks for a `.env` file in the same directory as the suite YAML file and exposes those values through the `env` namespace.
+
+Example:
+
+```dotenv
+AUTH_TOKEN=supersecret
+BASE_URL=https://api.example.com
+```
+
+Example usage inside a suite:
+
+```yaml
+variables:
+  auth_token: "[[${env.AUTH_TOKEN}]]"
+```
+
+This is the right place for secrets or machine-specific configuration that should not be committed into the suite itself.
+
+## Supported Assertions
+
+Every assertion is declared inside a test case's `assertions` list. The `type` field selects the evaluator.
+
+| Type | Purpose | Minimal YAML example |
+|---|---|---|
+| `status_code` | Exact HTTP status match | `- type: "status_code"\n  expected: 200` |
+| `status_in` | HTTP status must match one of several values | `- type: "status_in"\n  expected: [200, 202]` |
+| `response_time` | Response duration must stay below a threshold in ms | `- type: "response_time"\n  max_ms: 1000` |
+| `json_schema` | Validate JSON against an inline or file-backed schema | `- type: "json_schema"\n  path: "response.body.json"\n  expected:\n    type: "file"\n    content: "schemas/user.json"` |
+| `json_match` | Compare JSON against an expected structure, with optional ignored fields | `- type: "json_match"\n  path: "response.body.json"\n  expected:\n    type: "inline"\n    content: '{"status":"ok"}'` |
+| `string_match` | String equality check | `- type: "string_match"\n  path: "response.header.content-type"\n  expected: "application/json"` |
+| `string_contains` | String contains a substring | `- type: "string_contains"\n  path: "response.body.text"\n  expected: "success"` |
+| `regex_match` | String must match a regex pattern | `- type: "regex_match"\n  path: "response.body.text"\n  expected: "^[A-Z0-9_-]+$"` |
+| `starts_with` | String prefix check | `- type: "starts_with"\n  path: "response.body.text"\n  expected: "Bearer "` |
+| `ends_with` | String suffix check | `- type: "ends_with"\n  path: "response.body.text"\n  expected: ".json"` |
+| `not_empty` | Value must exist and not be empty | `- type: "not_empty"\n  path: "response.body.text"` |
+| `not_null` | Value must exist and not be null | `- type: "not_null"\n  path: "response.body.json.id"` |
+| `is_null` | Value must be null | `- type: "is_null"\n  path: "response.body.json.deletedAt"` |
+| `has_header` | Response must contain a named header | `- type: "has_header"\n  name: "x-request-id"` |
+| `value_type` | Value must have a given JSON type | `- type: "value_type"\n  path: "response.body.json.id"\n  expected: "number"` |
+| `one_of` | Value must equal one item from a list | `- type: "one_of"\n  path: "response.body.json.status"\n  expected: ["pending", "active"]` |
+| `assert_true` | Value must resolve to true | `- type: "assert_true"\n  path: "response.body.json.enabled"` |
+| `assert_false` | Value must resolve to false | `- type: "assert_false"\n  path: "response.body.json.archived"` |
+| `greater_than` | Numeric value must be greater than expected | `- type: "greater_than"\n  path: "response.body.json.total"\n  expected: 0` |
+| `greater_than_or_equal` | Numeric value must be at least expected | `- type: "greater_than_or_equal"\n  path: "response.body.json.total"\n  expected: 1` |
+| `less_than` | Numeric value must be less than expected | `- type: "less_than"\n  path: "response.body.json.total"\n  expected: 100` |
+| `less_than_or_equal` | Numeric value must be at most expected | `- type: "less_than_or_equal"\n  path: "response.body.json.total"\n  expected: 100` |
+| `range` | Numeric value must fall within a min/max range | `- type: "range"\n  path: "response.body.json.score"\n  min: 0\n  max: 100` |
+| `array_contains` | Array must contain a specific item | `- type: "array_contains"\n  path: "response.body.json.roles"\n  expected: "admin"` |
+| `array_contains_all` | Array must contain all listed items | `- type: "array_contains_all"\n  path: "response.body.json.roles"\n  expected: ["read", "write"]` |
+| `array_is_empty` | Array must be empty | `- type: "array_is_empty"\n  path: "response.body.json.errors"` |
+| `array_is_not_empty` | Array must not be empty | `- type: "array_is_not_empty"\n  path: "response.body.json.items"` |
+| `array_size` | Array must have an exact length | `- type: "array_size"\n  path: "response.body.json.items"\n  expected: 3` |
+| `array_size_min` | Array length must be at least a minimum | `- type: "array_size_min"\n  path: "response.body.json.items"\n  min: 1` |
+| `array_size_max` | Array length must be at most a maximum | `- type: "array_size_max"\n  path: "response.body.json.items"\n  max: 10` |
+
+Common response paths used by assertions include:
+
+- `response.status`
+- `response.timeMs`
+- `response.body.text`
+- `response.body.json`
+- `response.body.json.<field>`
+- `response.header.<header-name>`
+
+## Exporting The JSON Schema
+
+Schema export is planned but is not available in the current `main` branch yet.
+
+Tracked work:
+
+- [Issue #3: Add shell command to export test-suite JSON schema to a file](https://github.com/snytkine/api-tester-cli/issues/3)
+
+The intended command shape is:
+
+```bash
+export-schema --out ./schemas/test-suite-configuration-schema.json
+```
+
+Until that command lands, use the repository sources directly when working on schema-related changes.
+
+## Debug Logging
+
+File-based logging is controlled by environment variables rather than a command-line flag.
+
+Set both variables before launching the CLI:
+
+- `CLI_LOG_LEVEL`: one of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`
+- `CLI_LOG_DIR`: directory where log files should be written
+
+Example:
+
+```bash
+CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=./logs \
+  java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+  --suite ./src/test/resources/test-suite-1.yml
+```
+
+When either variable is missing or invalid, the CLI runs normally without creating a log file.
+
+For more detail, see [DEBUG_LOGGING_README.md](./DEBUG_LOGGING_README.md).
+
+## Development Notes
+
+- Spring Boot version: `4.0.6`
+- Spring Shell version: `4.0.2`
+- Java version: `25`
+- Build tool: Maven Wrapper via `./mvnw`
+
+Useful repository files:
+
+- [HELP.md](./HELP.md)
+- [DEBUG_LOGGING_README.md](./DEBUG_LOGGING_README.md)
+- [native-build-support.md](./native-build-support.md)
+- [src/main/resources/test-suite.yml](./src/main/resources/test-suite.yml)
+
+## Validation
+
+Before opening a PR:
+
+```bash
+./mvnw test
+```
