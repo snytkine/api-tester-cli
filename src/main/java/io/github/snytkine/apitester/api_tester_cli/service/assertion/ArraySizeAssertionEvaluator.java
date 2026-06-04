@@ -22,10 +22,13 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeAss
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.List;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates an {@link ArraySizeAssertion} by resolving the value at {@code path} and asserting that
- * it is a JSON array with exactly {@code expected} elements.
+ * it is a JSON array with exactly {@code expected} elements using an AssertJ {@code hasSize}
+ * assertion.
  *
  * <p>Fails when the path is missing, the value is not a {@link List}, or the size does not match.
  */
@@ -54,21 +57,33 @@ class ArraySizeAssertionEvaluator implements AssertionEvaluator {
             case Result.Found f -> {
                 if (!(f.value() instanceof List<?> list)) {
                     collector.fail(
-                            "Expected an array at path '%s' for array_size but was: %s (%s)",
-                            assertion.path(),
-                            f.value(),
-                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected an array at path '%s' for array_size but was: %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value() == null
+                                            ? "null"
+                                            : f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
-                if (list.size() != assertion.expected()) {
-                    collector.fail(
-                            "Expected array at path '%s' to have size %d but was: %d",
-                            assertion.path(), assertion.expected(), list.size());
+                try {
+                    Assertions.assertThat(list).hasSize(assertion.expected());
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected array at path '%s' to have size %d but was: %d",
+                                    assertion.path(), assertion.expected(), list.size()),
+                            String.valueOf(assertion.expected()),
+                            "size " + list.size()));
                 }
             }
             case Result.Missing m ->
-                collector.fail("Expected array at path '%s' for array_size but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                collector.fail(
+                        String.format(
+                                "Expected array at path '%s' for array_size but path does not exist", assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

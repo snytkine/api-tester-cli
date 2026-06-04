@@ -21,10 +21,12 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanOrEqualAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link GreaterThanOrEqualAssertion} by resolving the value at {@code path} and
- * asserting it is greater than or equal to {@code expected}.
+ * asserting it is greater than or equal to {@code expected} using an AssertJ comparison assertion.
  *
  * <p>Number values are compared as {@code double}. String values are parsed as {@code double}
  * first. Any other type, a missing path, or a non-parseable string records a failure.
@@ -43,8 +45,8 @@ class GreaterThanOrEqualAssertionEvaluator implements AssertionEvaluator {
     }
 
     /**
-     * Resolves the path, converts the value to {@code double}, and checks it is greater than or equal
-     * to the configured threshold.
+     * Resolves the path, converts the value to {@code double}, and checks it is greater than or
+     * equal to the configured threshold.
      *
      * @param response the captured HTTP response
      * @param collector the shared failure collector
@@ -55,8 +57,10 @@ class GreaterThanOrEqualAssertionEvaluator implements AssertionEvaluator {
             case Result.Found f -> {
                 if (f.value() == null) {
                     collector.fail(
-                            "Expected numeric value at path '%s' for greater_than_or_equal but was null",
-                            assertion.path());
+                            String.format(
+                                    "Expected numeric value at path '%s' for greater_than_or_equal but was null",
+                                    assertion.path()),
+                            null);
                     return;
                 }
                 double numeric;
@@ -67,28 +71,43 @@ class GreaterThanOrEqualAssertionEvaluator implements AssertionEvaluator {
                         numeric = Double.parseDouble(s);
                     } catch (NumberFormatException e) {
                         collector.fail(
-                                "Expected numeric value at path '%s' for greater_than_or_equal but could not"
-                                        + " parse '%s'",
-                                assertion.path(), s);
+                                String.format(
+                                        "Expected numeric value at path '%s' for greater_than_or_equal but could"
+                                                + " not parse '%s'",
+                                        assertion.path(), s),
+                                e);
                         return;
                     }
                 } else {
                     collector.fail(
-                            "Expected numeric value at path '%s' for greater_than_or_equal but was %s (%s)",
-                            assertion.path(), f.value(), f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected numeric value at path '%s' for greater_than_or_equal but was %s"
+                                            + " (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
-                if (numeric < assertion.expected()) {
-                    collector.fail(
-                            "Expected value at path '%s' to be greater than or equal to %s but was %s",
-                            assertion.path(), assertion.expected(), numeric);
+                try {
+                    Assertions.assertThat(numeric).isGreaterThanOrEqualTo(assertion.expected());
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected value at path '%s' to be greater than or equal to %s but was %s",
+                                    assertion.path(), assertion.expected(), numeric),
+                            ">= " + assertion.expected(),
+                            String.valueOf(numeric)));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected numeric value at path '%s' for greater_than_or_equal but path does not" + " exist",
-                        assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected numeric value at path '%s' for greater_than_or_equal but path does not"
+                                        + " exist",
+                                assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

@@ -21,10 +21,13 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.EndsWithAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates an {@link EndsWithAssertion} by resolving the value at {@code path} and asserting that
- * it is a string ending with the {@code expected} suffix.
+ * it is a string ending with the {@code expected} suffix using an AssertJ {@code endsWith}
+ * assertion.
  *
  * <p>Non-string values (including {@code null}) and missing paths record a failure.
  */
@@ -54,23 +57,34 @@ class EndsWithAssertionEvaluator implements AssertionEvaluator {
             case Result.Found f -> {
                 if (!(f.value() instanceof String actual)) {
                     collector.fail(
-                            "Expected a string value at path '%s' for ends_with but was: %s (%s)",
-                            assertion.path(),
-                            f.value(),
-                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected a string value at path '%s' for ends_with but was: %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value() == null
+                                            ? "null"
+                                            : f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
-                if (!actual.endsWith(assertion.expected())) {
-                    collector.fail(
-                            "Expected value at path '%s' to end with '%s' but was: '%s'",
-                            assertion.path(), assertion.expected(), actual);
+                try {
+                    Assertions.assertThat(actual).endsWith(assertion.expected());
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected value at path '%s' to end with '%s' but was: '%s'",
+                                    assertion.path(), assertion.expected(), actual),
+                            "ends with \"" + assertion.expected() + "\"",
+                            "\"" + actual + "\""));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected string at path '%s' to end with '%s' but path does not exist",
-                        assertion.path(), assertion.expected());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected string at path '%s' to end with '%s' but path does not exist",
+                                assertion.path(), assertion.expected()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

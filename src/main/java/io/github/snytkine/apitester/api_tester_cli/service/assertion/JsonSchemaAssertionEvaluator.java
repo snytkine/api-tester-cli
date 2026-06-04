@@ -52,13 +52,14 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code response.body.json.<jsonpath>} — validate the value at the given JSONPath expression
  * </ul>
  *
- * <p>Each schema violation is recorded as an individual soft-assertion failure rather than stopping
- * at the first error, giving the caller a complete picture of all schema violations in one run.
+ * <p>Each schema violation is recorded as an individual failure via {@link FailureCollector#fail(
+ * String, Throwable)} rather than stopping at the first error, giving the caller a complete picture
+ * of all schema violations in one run.
  *
  * <p>This class is package-private and instantiated by {@link AssertionEvaluatorFactory}. It is not
- * a Spring bean; a new instance is created per test case. All state is immutable after
- * construction, so instances are safe to use from multiple threads if shared, though in practice
- * each test case owns its own instance.
+ * a Spring bean; a new instance is created per test case. All state is immutable after construction,
+ * so instances are safe to use from multiple threads if shared, though in practice each test case
+ * owns its own instance.
  */
 class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
 
@@ -99,7 +100,7 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
     @Override
     public void evaluate(ApiResponse response, FailureCollector collector) {
         if (response.body() == null || response.body().json() == null) {
-            collector.fail("Response body is absent or not valid JSON for json_schema assertion");
+            collector.fail("Response body is absent or not valid JSON for json_schema assertion", null);
             return;
         }
 
@@ -113,7 +114,10 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
             schemaContent = loadContent(assertion.expected());
         } catch (IOException e) {
             collector.fail(
-                    "Failed to load schema '%s': %s", assertion.expected().content(), e.getMessage());
+                    String.format(
+                            "Failed to load schema '%s': %s",
+                            assertion.expected().content(), e.getMessage()),
+                    e);
             return;
         }
 
@@ -122,9 +126,10 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
             JsonSchemaFactory factory = JsonSchemaFactory.getInstance(detectVersion(schemaNode));
             JsonSchema schema = factory.getSchema(schemaNode);
             Set<ValidationMessage> errors = schema.validate(targetNode);
-            errors.forEach(error -> collector.fail("JSON schema violation: %s", error.getMessage()));
+            errors.forEach(
+                    error -> collector.fail(String.format("JSON schema violation: %s", error.getMessage()), null));
         } catch (Exception e) {
-            collector.fail("JSON schema validation failed: %s", e.getMessage());
+            collector.fail(String.format("JSON schema validation failed: %s", e.getMessage()), e);
         }
     }
 
@@ -142,7 +147,7 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
     @Nullable private JsonNode extractTarget(ApiResponse response, FailureCollector collector) {
         String path = assertion.path();
         if (!path.startsWith(RESPONSE_PREFIX)) {
-            collector.fail("Unsupported path '%s': must start with 'response.'", path);
+            collector.fail(String.format("Unsupported path '%s': must start with 'response.'", path), null);
             return null;
         }
         String remaining = path.substring(RESPONSE_PREFIX.length());
@@ -154,27 +159,31 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
         if (remaining.startsWith(BODY_JSON_DOT)) {
             String jsonPathExpr = remaining.substring(BODY_JSON_DOT.length());
             if (response.body().text() == null) {
-                collector.fail("Response body text is absent when evaluating path '%s'", path);
+                collector.fail(String.format("Response body text is absent when evaluating path '%s'", path), null);
                 return null;
             }
             try {
                 Object value = JsonPath.read(response.body().text(), jsonPathExpr);
                 return objectMapper.valueToTree(value);
             } catch (Exception e) {
-                collector.fail("Failed to extract JSONPath '%s' from response body: %s", jsonPathExpr, e.getMessage());
+                collector.fail(
+                        String.format(
+                                "Failed to extract JSONPath '%s' from response body: %s", jsonPathExpr, e.getMessage()),
+                        e);
                 return null;
             }
         }
 
-        collector.fail("Unsupported path '%s' for json_schema assertion", path);
+        collector.fail(String.format("Unsupported path '%s' for json_schema assertion", path), null);
         return null;
     }
 
     /**
-     * Detects the JSON Schema version from the {@code $schema} keyword in the parsed schema document.
+     * Detects the JSON Schema version from the {@code $schema} keyword in the parsed schema
+     * document.
      *
-     * <p>Recognises the standard draft URIs for Draft 4, 6, 7, 2019-09, and 2020-12. Returns {@link
-     * SpecVersion.VersionFlag#V7} when the keyword is absent or unrecognised.
+     * <p>Recognises the standard draft URIs for Draft 4, 6, 7, 2019-09, and 2020-12. Returns
+     * {@link SpecVersion.VersionFlag#V7} when the keyword is absent or unrecognised.
      *
      * @param schemaNode the parsed schema document
      * @return the matching {@link SpecVersion.VersionFlag}
@@ -193,7 +202,8 @@ class JsonSchemaAssertionEvaluator implements AssertionEvaluator {
     }
 
     /**
-     * Loads the schema content from an inline string or from a file relative to the suite directory.
+     * Loads the schema content from an inline string or from a file relative to the suite
+     * directory.
      *
      * @param expected the content reference from the assertion
      * @return the raw schema JSON string

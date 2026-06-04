@@ -21,6 +21,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.OneOfAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link OneOfAssertion} by resolving the value at {@code path} and asserting it equals
@@ -58,8 +59,10 @@ class OneOfAssertionEvaluator implements AssertionEvaluator {
         for (Object item : assertion.expected()) {
             if (item != null && !(item instanceof String) && !(item instanceof Number) && !(item instanceof Boolean)) {
                 collector.fail(
-                        "one_of assertion at path '%s' contains a non-scalar expected value: %s (%s)",
-                        assertion.path(), item, item.getClass().getSimpleName());
+                        String.format(
+                                "one_of assertion at path '%s' contains a non-scalar expected value: %s (%s)",
+                                assertion.path(), item, item.getClass().getSimpleName()),
+                        null);
                 return;
             }
         }
@@ -67,16 +70,21 @@ class OneOfAssertionEvaluator implements AssertionEvaluator {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
                 if (!matchesAny(f.value(), assertion.expected())) {
-                    collector.fail(
-                            "Expected value at path '%s' to be one of %s but was: %s",
-                            assertion.path(), assertion.expected(), f.value());
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected value at path '%s' to be one of %s but was: %s",
+                                    assertion.path(), assertion.expected(), f.value()),
+                            "one of " + assertion.expected(),
+                            String.valueOf(f.value())));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected value at path '%s' to be one of %s but path does not exist",
-                        assertion.path(), assertion.expected());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected value at path '%s' to be one of %s but path does not exist",
+                                assertion.path(), assertion.expected()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 

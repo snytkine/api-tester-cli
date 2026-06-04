@@ -21,6 +21,8 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.NotEmptyAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link NotEmptyAssertion} by resolving the assertion's {@code path} against the
@@ -53,8 +55,8 @@ class NotEmptyAssertionEvaluator implements AssertionEvaluator {
     }
 
     /**
-     * Resolves {@code assertion.path()} and records a failure if the value is missing, {@code null},
-     * or an empty string.
+     * Resolves {@code assertion.path()} and records a failure if the value is missing, {@code
+     * null}, or an empty string.
      *
      * @param response the captured HTTP response
      * @param collector the shared failure collector
@@ -64,14 +66,29 @@ class NotEmptyAssertionEvaluator implements AssertionEvaluator {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
                 if (f.value() == null) {
-                    collector.fail("Expected non-empty value at path '%s' but was null", assertion.path());
-                } else if (f.value() instanceof String s && s.isEmpty()) {
-                    collector.fail("Expected non-empty value at path '%s' but was an empty string", assertion.path());
+                    collector.fail(new AssertionFailedError(
+                            String.format("Expected non-empty value at path '%s' but was null", assertion.path()),
+                            "not empty",
+                            "null"));
+                } else if (f.value() instanceof String s) {
+                    try {
+                        Assertions.assertThat(s).isNotEmpty();
+                    } catch (AssertionError e) {
+                        collector.fail(new AssertionFailedError(
+                                String.format(
+                                        "Expected non-empty value at path '%s' but was an empty string",
+                                        assertion.path()),
+                                "not empty",
+                                "\"\""));
+                    }
                 }
             }
             case Result.Missing m ->
-                collector.fail("Expected non-empty value at path '%s' but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                collector.fail(
+                        String.format(
+                                "Expected non-empty value at path '%s' but path does not exist", assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

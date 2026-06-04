@@ -21,10 +21,13 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.NotNullAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link NotNullAssertion} by resolving the assertion's {@code path} against the
- * response and asserting that the value is present and not {@code null}.
+ * response and asserting that the value is present and not {@code null} using an AssertJ
+ * {@code isNotNull} assertion.
  *
  * <p>Fails when:
  *
@@ -59,13 +62,20 @@ class NotNullAssertionEvaluator implements AssertionEvaluator {
     public void evaluate(ApiResponse response, FailureCollector collector) {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
-                if (f.value() == null) {
-                    collector.fail("Expected non-null value at path '%s' but was null", assertion.path());
+                try {
+                    Assertions.assertThat(f.value()).isNotNull();
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format("Expected non-null value at path '%s' but was null", assertion.path()),
+                            "not null",
+                            "null"));
                 }
             }
             case Result.Missing m ->
-                collector.fail("Expected non-null value at path '%s' but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                collector.fail(
+                        String.format("Expected non-null value at path '%s' but path does not exist", assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

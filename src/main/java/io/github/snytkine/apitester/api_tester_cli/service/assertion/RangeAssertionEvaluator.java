@@ -21,10 +21,12 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.RangeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link RangeAssertion} by resolving the value at {@code path} and asserting it falls
- * within [{@code min}, {@code max}] inclusive.
+ * within [{@code min}, {@code max}] inclusive using an AssertJ {@code isBetween} assertion.
  *
  * <p>Number values are compared directly as {@code double}. String values are parsed as {@code
  * double} before comparison. Any other type, a missing path, or a string that cannot be parsed
@@ -44,8 +46,8 @@ class RangeAssertionEvaluator implements AssertionEvaluator {
     }
 
     /**
-     * Resolves the path, converts the value to {@code double}, and checks it is within the configured
-     * range.
+     * Resolves the path, converts the value to {@code double}, and checks it is within the
+     * configured range.
      *
      * @param response the captured HTTP response
      * @param collector the shared failure collector
@@ -55,7 +57,10 @@ class RangeAssertionEvaluator implements AssertionEvaluator {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
                 if (f.value() == null) {
-                    collector.fail("Expected numeric value in range at path '%s' but was null", assertion.path());
+                    collector.fail(
+                            String.format(
+                                    "Expected numeric value in range at path '%s' but was null", assertion.path()),
+                            null);
                     return;
                 }
                 double numeric;
@@ -66,26 +71,41 @@ class RangeAssertionEvaluator implements AssertionEvaluator {
                         numeric = Double.parseDouble(s);
                     } catch (NumberFormatException e) {
                         collector.fail(
-                                "Expected numeric value in range at path '%s' but could not parse '%s' as a number",
-                                assertion.path(), s);
+                                String.format(
+                                        "Expected numeric value in range at path '%s' but could not parse '%s' as a"
+                                                + " number",
+                                        assertion.path(), s),
+                                e);
                         return;
                     }
                 } else {
                     collector.fail(
-                            "Expected numeric value in range at path '%s' but was %s (%s)",
-                            assertion.path(), f.value(), f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected numeric value in range at path '%s' but was %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
-                if (numeric < assertion.min() || numeric > assertion.max()) {
-                    collector.fail(
-                            "Expected value at path '%s' to be in range [%s, %s] but was %s",
-                            assertion.path(), assertion.min(), assertion.max(), numeric);
+                try {
+                    Assertions.assertThat(numeric).isBetween(assertion.min(), assertion.max());
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected value at path '%s' to be in range [%s, %s] but was %s",
+                                    assertion.path(), assertion.min(), assertion.max(), numeric),
+                            "[" + assertion.min() + ", " + assertion.max() + "]",
+                            String.valueOf(numeric)));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected numeric value in range at path '%s' but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected numeric value in range at path '%s' but path does not exist",
+                                assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

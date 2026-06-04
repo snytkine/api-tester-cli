@@ -23,6 +23,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseVal
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.ArrayList;
 import java.util.List;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates an {@link ArrayContainsAllAssertion} by resolving the value at {@code path} and
@@ -60,10 +61,14 @@ class ArrayContainsAllAssertionEvaluator implements AssertionEvaluator {
             case Result.Found f -> {
                 if (!(f.value() instanceof List<?> list)) {
                     collector.fail(
-                            "Expected an array at path '%s' for array_contains_all but was: %s (%s)",
-                            assertion.path(),
-                            f.value(),
-                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected an array at path '%s' for array_contains_all but was: %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value() == null
+                                            ? "null"
+                                            : f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
                 List<Object> missing = new ArrayList<>();
@@ -73,15 +78,21 @@ class ArrayContainsAllAssertionEvaluator implements AssertionEvaluator {
                     }
                 }
                 if (!missing.isEmpty()) {
-                    collector.fail(
-                            "Expected array at path '%s' to contain all of %s but missing: %s",
-                            assertion.path(), assertion.expected(), missing);
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected array at path '%s' to contain all of %s but missing: %s",
+                                    assertion.path(), assertion.expected(), missing),
+                            "contains all " + assertion.expected(),
+                            "missing: " + missing));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected array at path '%s' for array_contains_all but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected array at path '%s' for array_contains_all but path does not exist",
+                                assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 

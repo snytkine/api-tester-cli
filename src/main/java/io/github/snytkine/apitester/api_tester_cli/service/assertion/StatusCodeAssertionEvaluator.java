@@ -20,10 +20,15 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
 
 /**
  * Evaluates a {@link StatusCodeAssertion} by comparing the response's HTTP status code against the
- * expected value.
+ * expected value using an AssertJ equality assertion.
+ *
+ * <p>When the assertion fails, AssertJ produces an {@link org.opentest4j.AssertionFailedError} with
+ * structured expected and actual fields, which are preserved in the failure record via {@link
+ * FailureCollector#rewrap(String, AssertionError)}.
  */
 class StatusCodeAssertionEvaluator implements AssertionEvaluator {
 
@@ -46,6 +51,12 @@ class StatusCodeAssertionEvaluator implements AssertionEvaluator {
      */
     @Override
     public void evaluate(ApiResponse response, FailureCollector collector) {
-        collector.assertThat(response.statusCode()).as("HTTP status code").isEqualTo(assertion.expected());
+        try {
+            Assertions.assertThat(response.statusCode()).isEqualTo(assertion.expected());
+        } catch (AssertionError e) {
+            String msg =
+                    String.format("Expected status code %d but was %d", assertion.expected(), response.statusCode());
+            collector.fail(FailureCollector.rewrap(msg, e));
+        }
     }
 }

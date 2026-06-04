@@ -22,6 +22,7 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -29,10 +30,12 @@ import org.jspecify.annotations.Nullable;
  * asserting that it is an exact match for the expected value.
  *
  * <p>When {@link StringMatchAssertion#caseSensitive()} is {@code true} the check uses {@link
- * org.assertj.core.api.AbstractStringAssert#isEqualTo}; when {@code false} it uses {@link
+ * org.assertj.core.api.AbstractStringAssert#isEqualTo}, which produces a structured {@link
+ * org.opentest4j.AssertionFailedError} with expected and actual fields preserved via {@link
+ * FailureCollector#rewrap(String, AssertionError)}. When {@code false} it uses {@link
  * org.assertj.core.api.AbstractStringAssert#isEqualToIgnoringCase}.
  *
- * <p>Supported path prefixes mirror those of {@link StringContainsAssertionEvaluator}:
+ * <p>Supported path prefixes:
  *
  * <ul>
  *   <li>{@code response.statusCode}
@@ -69,7 +72,7 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
     public void evaluate(ApiResponse response, FailureCollector collector) {
         String path = assertion.path();
         if (!path.startsWith(PREFIX)) {
-            collector.fail("Unsupported path '%s': must start with 'response.'", path);
+            collector.fail(String.format("Unsupported path '%s': must start with 'response.'", path), null);
             return;
         }
         String remaining = path.substring(PREFIX.length());
@@ -80,12 +83,22 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
         String actual = String.valueOf(resolved);
         boolean caseSensitive = assertion.caseSensitive() == null || assertion.caseSensitive();
         if (caseSensitive) {
-            collector.assertThat(actual).as("Value at path '%s'", path).isEqualTo(assertion.expected());
+            try {
+                Assertions.assertThat(actual).isEqualTo(assertion.expected());
+            } catch (AssertionError e) {
+                String msg = String.format(
+                        "Expected value at path '%s' to be '%s' but was '%s'", path, assertion.expected(), actual);
+                collector.fail(FailureCollector.rewrap(msg, e));
+            }
         } else {
-            collector
-                    .assertThat(actual)
-                    .as("Value at path '%s' (ignoring case)", path)
-                    .isEqualToIgnoringCase(assertion.expected());
+            try {
+                Assertions.assertThat(actual).isEqualToIgnoringCase(assertion.expected());
+            } catch (AssertionError e) {
+                String msg = String.format(
+                        "Expected value at path '%s' to be '%s' (ignoring case) but was '%s'",
+                        path, assertion.expected(), actual);
+                collector.fail(FailureCollector.rewrap(msg, e));
+            }
         }
     }
 
@@ -106,7 +119,8 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
         if (remaining.startsWith("headers.")) {
             String name = remaining.substring("headers.".length()).toLowerCase();
             if (response.headers() == null) {
-                collector.fail("No headers present in response when evaluating path '%s'", fullPath);
+                collector.fail(
+                        String.format("No headers present in response when evaluating path '%s'", fullPath), null);
                 return null;
             }
             return response.headers().get(name);
@@ -120,22 +134,28 @@ class StringMatchAssertionEvaluator implements AssertionEvaluator {
         if (remaining.startsWith(BODY_JSON_PREFIX)) {
             String jsonPathExpr = remaining.substring(BODY_JSON_PREFIX.length());
             if (response.body() == null || response.body().text() == null) {
-                collector.fail("Response body is absent when evaluating path '%s'", fullPath);
+                collector.fail(String.format("Response body is absent when evaluating path '%s'", fullPath), null);
                 return null;
             }
             try {
                 return JsonPath.read(response.body().text(), jsonPathExpr);
             } catch (PathNotFoundException e) {
                 collector.fail(
-                        "JSONPath expression '%s' not found in response body (path '%s')", jsonPathExpr, fullPath);
+                        String.format(
+                                "JSONPath expression '%s' not found in response body (path '%s')",
+                                jsonPathExpr, fullPath),
+                        null);
                 return null;
             } catch (Exception e) {
                 collector.fail(
-                        "Failed to evaluate JSONPath '%s' in path '%s': %s", jsonPathExpr, fullPath, e.getMessage());
+                        String.format(
+                                "Failed to evaluate JSONPath '%s' in path '%s': %s",
+                                jsonPathExpr, fullPath, e.getMessage()),
+                        e);
                 return null;
             }
         }
-        collector.fail("Unsupported path segment '%s' in path '%s'", remaining, fullPath);
+        collector.fail(String.format("Unsupported path segment '%s' in path '%s'", remaining, fullPath), null);
         return null;
     }
 }

@@ -20,10 +20,13 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ResponseTimeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link ResponseTimeAssertion} by comparing the actual HTTP round-trip time recorded
- * in {@link ApiResponse#responseTimeMs()} against the configured threshold.
+ * in {@link ApiResponse#responseTimeMs()} against the configured threshold using an AssertJ
+ * comparison assertion.
  *
  * <p>Fails when:
  *
@@ -54,13 +57,18 @@ class ResponseTimeAssertionEvaluator implements AssertionEvaluator {
     @Override
     public void evaluate(ApiResponse response, FailureCollector collector) {
         if (response.responseTimeMs() == null) {
-            collector.fail("Response time was not measured for this response");
+            collector.fail("Response time was not measured for this response", null);
             return;
         }
         long actual = response.responseTimeMs();
         long limit = assertion.milliseconds();
-        if (actual > limit) {
-            collector.fail("Expected response within %d ms but took %d ms", limit, actual);
+        try {
+            Assertions.assertThat(actual).isLessThanOrEqualTo(limit);
+        } catch (AssertionError e) {
+            collector.fail(new AssertionFailedError(
+                    String.format("Expected response within %d ms but took %d ms", limit, actual),
+                    "<= " + limit + " ms",
+                    actual + " ms"));
         }
     }
 }

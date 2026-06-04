@@ -72,16 +72,16 @@ class TestProgressEventTest {
                 42L,
                 3,
                 List.of(
-                        new AssertionFailure("expected 201 but was 400", null, null),
-                        new AssertionFailure("body did not match", null, null)));
+                        new AssertionFailure("expected 201 but was 400", null, null, null),
+                        new AssertionFailure("body did not match", null, null, null)));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.FAIL);
         assertThat(completed.assertionCount()).isEqualTo(3);
         assertThat(completed.failures())
                 .containsExactly(
-                        new AssertionFailure("expected 201 but was 400", null, null),
-                        new AssertionFailure("body did not match", null, null));
+                        new AssertionFailure("expected 201 but was 400", null, null, null),
+                        new AssertionFailure("body did not match", null, null, null));
     }
 
     @Test
@@ -93,12 +93,12 @@ class TestProgressEventTest {
                 TestStatus.ERROR,
                 5000L,
                 0,
-                List.of(new AssertionFailure("Connection refused", null, null)));
+                List.of(new AssertionFailure("Connection refused", null, null, null)));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.ERROR);
         assertThat(completed.assertionCount()).isEqualTo(0);
-        assertThat(completed.failures()).containsExactly(new AssertionFailure("Connection refused", null, null));
+        assertThat(completed.failures()).containsExactly(new AssertionFailure("Connection refused", null, null, null));
     }
 
     @Test

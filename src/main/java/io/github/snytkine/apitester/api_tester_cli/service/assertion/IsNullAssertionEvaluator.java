@@ -21,10 +21,13 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.IsNullAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates an {@link IsNullAssertion} by resolving the assertion's {@code path} against the
- * response and asserting that the property either does not exist or has a {@code null} value.
+ * response and asserting that the property either does not exist or has a {@code null} value, using
+ * an AssertJ {@code isNull} assertion.
  *
  * <p>Passes when:
  *
@@ -34,8 +37,8 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
  *       null})
  * </ul>
  *
- * <p>Fails when the path resolves to any non-null value, or when the path expression is unsupported
- * ({@link Result.Error}).
+ * <p>Fails when the path resolves to any non-null value, or when the path expression is
+ * unsupported ({@link Result.Error}).
  */
 class IsNullAssertionEvaluator implements AssertionEvaluator {
 
@@ -61,13 +64,19 @@ class IsNullAssertionEvaluator implements AssertionEvaluator {
     public void evaluate(ApiResponse response, FailureCollector collector) {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
-                if (f.value() != null) {
-                    collector.fail(
-                            "Expected null or absent value at path '%s' but was: %s", assertion.path(), f.value());
+                try {
+                    Assertions.assertThat(f.value()).isNull();
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected null or absent value at path '%s' but was: %s",
+                                    assertion.path(), f.value()),
+                            "null",
+                            String.valueOf(f.value())));
                 }
             }
             case Result.Missing ignored -> {} // path absent counts as null — pass
-            case Result.Error e -> collector.fail(e.message());
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

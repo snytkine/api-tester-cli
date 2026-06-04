@@ -20,10 +20,12 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.HasHeaderAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link HasHeaderAssertion} by checking that the response headers map contains the
- * specified header name (case-insensitive).
+ * specified header name (case-insensitive) using an AssertJ containment assertion.
  *
  * <p>Fails when the response has no headers or the named header is absent.
  */
@@ -50,8 +52,20 @@ class HasHeaderAssertionEvaluator implements AssertionEvaluator {
     @Override
     public void evaluate(ApiResponse response, FailureCollector collector) {
         String normalised = assertion.name().toLowerCase();
-        if (response.headers() == null || !response.headers().containsKey(normalised)) {
-            collector.fail("Expected response to contain header '%s' but it was absent", assertion.name());
+        if (response.headers() == null) {
+            collector.fail(new AssertionFailedError(
+                    String.format("Expected response to contain header '%s' but it was absent", assertion.name()),
+                    "present",
+                    "absent"));
+            return;
+        }
+        try {
+            Assertions.assertThat(response.headers()).containsKey(normalised);
+        } catch (AssertionError e) {
+            collector.fail(new AssertionFailedError(
+                    String.format("Expected response to contain header '%s' but it was absent", assertion.name()),
+                    "present",
+                    "absent"));
         }
     }
 }

@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,6 +43,10 @@ import org.slf4j.LoggerFactory;
  * directory. Fields named in {@link ObjectExpectedValue#ignore()} are removed from both the actual
  * and expected JSON trees before comparison, allowing volatile values (timestamps, generated IDs)
  * to be ignored.
+ *
+ * <p>The JSON comparison uses an AssertJ equality assertion, which produces a structured {@link
+ * org.opentest4j.AssertionFailedError} with expected and actual fields preserved via {@link
+ * FailureCollector#rewrap(String, AssertionError)}.
  *
  * <p>Current limitation: only top-level field names are supported in the ignore list. Nested
  * JSONPath expressions are not yet evaluated.
@@ -61,8 +66,8 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
      * Constructs the evaluator for the given assertion.
      *
      * @param assertion the json_match assertion to evaluate
-     * @param suiteDir directory of the test-suite file, used to resolve relative expected-file paths;
-     *     may be {@code null} when the suite was not loaded from disk
+     * @param suiteDir directory of the test-suite file, used to resolve relative expected-file
+     *     paths; may be {@code null} when the suite was not loaded from disk
      * @param objectMapper the Jackson mapper used to parse and compare JSON trees
      * @param configMap all variable namespaces ({@code suite}, {@code test}, {@code cli},
      *     {@code env}) forwarded to the Thymeleaf template processor when the expected file contains
@@ -80,8 +85,8 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
     }
 
     /**
-     * Compares the response JSON body to the expected JSON document, recording any mismatch in {@code
-     * collector}.
+     * Compares the response JSON body to the expected JSON document, recording any mismatch in
+     * {@code collector}.
      *
      * @param response the captured HTTP response
      * @param collector the shared failure collector
@@ -89,7 +94,7 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
     @Override
     public void evaluate(ApiResponse response, FailureCollector collector) {
         if (response.body() == null || response.body().json() == null) {
-            collector.fail("Response body is absent or not valid JSON for json_match assertion");
+            collector.fail("Response body is absent or not valid JSON for json_match assertion", null);
             return;
         }
 
@@ -98,8 +103,10 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
             expectedJson = loadContent(assertion.expected());
         } catch (IOException e) {
             collector.fail(
-                    "Failed to load expected JSON content '%s': %s",
-                    assertion.expected().content(), e.getMessage());
+                    String.format(
+                            "Failed to load expected JSON content '%s': %s",
+                            assertion.expected().content(), e.getMessage()),
+                    e);
             return;
         }
 
@@ -113,12 +120,16 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
             String actualSerialized = objectMapper.writeValueAsString(actualNode);
             String expectedSerialized = objectMapper.writeValueAsString(expectedNode);
 
-            collector
-                    .assertThat(actualSerialized)
-                    .as("JSON body match (ignoring: %s)", assertion.expected().ignore())
-                    .isEqualTo(expectedSerialized);
+            try {
+                Assertions.assertThat(actualSerialized).isEqualTo(expectedSerialized);
+            } catch (AssertionError e) {
+                String msg = String.format(
+                        "JSON body does not match expected (ignoring: %s)",
+                        assertion.expected().ignore());
+                collector.fail(FailureCollector.rewrap(msg, e));
+            }
         } catch (Exception e) {
-            collector.fail("Failed to compare JSON bodies: %s", e.getMessage());
+            collector.fail(String.format("Failed to compare JSON bodies: %s", e.getMessage()), e);
         }
     }
 

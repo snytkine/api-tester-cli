@@ -21,13 +21,16 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertFalseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
 
 /**
  * Evaluates an {@link AssertFalseAssertion} by resolving the value at {@code path} and asserting it
- * is the boolean literal {@code false}.
+ * equals {@link Boolean#FALSE} via an AssertJ equality assertion.
  *
  * <p>Only {@link Boolean#FALSE} passes. Any other value — including the string {@code "false"}, the
- * integer {@code 0}, {@code null}, or a missing path — records a failure.
+ * integer {@code 0}, {@code null}, or a missing path — records a failure. The AssertJ equality
+ * check produces a structured {@link org.opentest4j.AssertionFailedError} with expected and actual
+ * fields, which are preserved via {@link FailureCollector#rewrap(String, AssertionError)}.
  */
 class AssertFalseAssertionEvaluator implements AssertionEvaluator {
 
@@ -52,13 +55,19 @@ class AssertFalseAssertionEvaluator implements AssertionEvaluator {
     public void evaluate(ApiResponse response, FailureCollector collector) {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
-                if (!Boolean.FALSE.equals(f.value())) {
-                    collector.fail("Expected boolean false at path '%s' but was: %s", assertion.path(), f.value());
+                try {
+                    Assertions.assertThat((Object) f.value()).isEqualTo(Boolean.FALSE);
+                } catch (AssertionError e) {
+                    String msg = String.format(
+                            "Expected boolean false at path '%s' but was: %s", assertion.path(), f.value());
+                    collector.fail(FailureCollector.rewrap(msg, e));
                 }
             }
             case Result.Missing m ->
-                collector.fail("Expected boolean false at path '%s' but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                collector.fail(
+                        String.format("Expected boolean false at path '%s' but path does not exist", assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

@@ -20,10 +20,12 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusInAssertion;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link StatusInAssertion} by checking that the HTTP response status code is one of
- * the values in the {@code expected} list.
+ * the values in the {@code expected} list using an AssertJ containment assertion.
  *
  * <p>Fails when the response carries no status code or when the status code is not in the list.
  */
@@ -51,12 +53,21 @@ class StatusInAssertionEvaluator implements AssertionEvaluator {
     public void evaluate(ApiResponse response, FailureCollector collector) {
         if (response.statusCode() == null) {
             collector.fail(
-                    "Expected status code to be one of %s but response has no status code", assertion.expected());
+                    String.format(
+                            "Expected status code to be one of %s but response has no status code",
+                            assertion.expected()),
+                    null);
             return;
         }
-        if (!assertion.expected().contains(response.statusCode())) {
-            collector.fail(
-                    "Expected status code to be one of %s but was: %d", assertion.expected(), response.statusCode());
+        try {
+            Assertions.assertThat(response.statusCode()).isIn(assertion.expected());
+        } catch (AssertionError e) {
+            collector.fail(new AssertionFailedError(
+                    String.format(
+                            "Expected status code to be one of %s but was: %d",
+                            assertion.expected(), response.statusCode()),
+                    "one of " + assertion.expected(),
+                    String.valueOf(response.statusCode())));
         }
     }
 }

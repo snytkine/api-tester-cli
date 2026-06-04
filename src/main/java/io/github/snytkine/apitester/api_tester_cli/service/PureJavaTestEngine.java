@@ -56,6 +56,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
+import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -218,7 +219,7 @@ public class PureJavaTestEngine implements TestEngine {
                         config.name(),
                         TestResult.ERROR,
                         0,
-                        List.of(new AssertionFailure(e.getMessage(), null, null)),
+                        List.of(new AssertionFailure(e.getMessage(), null, null, null)),
                         null,
                         capturedRequest[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
@@ -228,7 +229,7 @@ public class PureJavaTestEngine implements TestEngine {
                         TestStatus.ERROR,
                         durationMs,
                         0,
-                        List.of(new AssertionFailure(e.getMessage(), null, null))));
+                        List.of(new AssertionFailure(e.getMessage(), null, null, null))));
                 log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
             }
         }
@@ -389,10 +390,11 @@ public class PureJavaTestEngine implements TestEngine {
         ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
         log.debug("Test [{}] '{}': received status {}", i, config.name(), apiResponse.statusCode());
 
-        // Evaluate one assertion at a time so each failure can be paired with its originating
-        // assertion and turned into a structured AssertionFailure (description / expected / actual).
-        // The shared FailureCollector's running failure count tells us whether the just-evaluated
-        // assertion contributed any failure.
+        // Evaluate one assertion at a time, collecting failures as AssertionFailedError instances.
+        // Each evaluator stores structured AssertionFailedError entries (with message, expected,
+        // actual) in the collector. The first new entry for each assertion is extracted to build an
+        // AssertionFailure: description from the assertion definition, error from the AFE message,
+        // and expected/actual from the AFE structured fields.
         List<AssertionFailure> failures = new ArrayList<>();
         FailureCollector collector = new FailureCollector();
         for (Assertion assertion : config.assertions()) {
@@ -400,7 +402,14 @@ public class PureJavaTestEngine implements TestEngine {
             int failuresBefore = collector.getFailures().size();
             evaluator.evaluate(apiResponse, collector);
             if (collector.getFailures().size() > failuresBefore) {
-                failures.add(evaluatorFactory.describeFailure(assertion, apiResponse));
+                AssertionFailedError afe = collector.getFailures().get(failuresBefore);
+                String description = evaluatorFactory.describe(assertion);
+                String expected = afe.isExpectedDefined()
+                        ? String.valueOf(afe.getExpected().getValue())
+                        : null;
+                String actual =
+                        afe.isActualDefined() ? String.valueOf(afe.getActual().getValue()) : null;
+                failures.add(new AssertionFailure(description, expected, actual, afe.getMessage()));
             }
         }
         if (!failures.isEmpty()) {

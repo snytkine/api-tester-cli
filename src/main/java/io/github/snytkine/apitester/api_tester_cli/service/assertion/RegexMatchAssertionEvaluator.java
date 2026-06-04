@@ -23,10 +23,13 @@ import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseVal
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link RegexMatchAssertion} by resolving the value at {@code path} and asserting that
- * it is a string matching the regular expression in {@code expected}.
+ * it is a string matching the regular expression in {@code expected} using an AssertJ {@code
+ * matches} assertion.
  *
  * <p>The match uses {@link Pattern#matches}, which requires the entire string to be covered by the
  * pattern (equivalent to anchoring with {@code ^...$}). Partial matching can be expressed by the
@@ -68,8 +71,10 @@ class RegexMatchAssertionEvaluator implements AssertionEvaluator {
             pattern = Pattern.compile(assertion.expected());
         } catch (PatternSyntaxException e) {
             collector.fail(
-                    "Invalid regex pattern '%s' in regex_match assertion at path '%s': %s",
-                    assertion.expected(), assertion.path(), e.getMessage());
+                    String.format(
+                            "Invalid regex pattern '%s' in regex_match assertion at path '%s': %s",
+                            assertion.expected(), assertion.path(), e.getMessage()),
+                    e);
             return;
         }
 
@@ -77,23 +82,34 @@ class RegexMatchAssertionEvaluator implements AssertionEvaluator {
             case Result.Found f -> {
                 if (!(f.value() instanceof String actual)) {
                     collector.fail(
-                            "Expected a string value at path '%s' for regex match but was: %s (%s)",
-                            assertion.path(),
-                            f.value(),
-                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected a string value at path '%s' for regex match but was: %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value() == null
+                                            ? "null"
+                                            : f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
-                if (!pattern.matcher(actual).matches()) {
-                    collector.fail(
-                            "Expected value at path '%s' to match pattern '%s' but was: %s",
-                            assertion.path(), assertion.expected(), actual);
+                try {
+                    Assertions.assertThat(actual).matches(pattern);
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected value at path '%s' to match pattern '%s' but was: %s",
+                                    assertion.path(), assertion.expected(), actual),
+                            "/" + assertion.expected() + "/",
+                            "\"" + actual + "\""));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected string at path '%s' to match pattern '%s' but path does not exist",
-                        assertion.path(), assertion.expected());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected string at path '%s' to match pattern '%s' but path does not exist",
+                                assertion.path(), assertion.expected()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

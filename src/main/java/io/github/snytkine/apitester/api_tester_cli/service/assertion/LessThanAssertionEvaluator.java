@@ -21,10 +21,12 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.LessThanAssertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
+import org.assertj.core.api.Assertions;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates a {@link LessThanAssertion} by resolving the value at {@code path} and asserting it is
- * strictly less than {@code expected}.
+ * strictly less than {@code expected} using an AssertJ comparison assertion.
  *
  * <p>Number values are compared as {@code double}. String values are parsed as {@code double}
  * first. Any other type, a missing path, or a non-parseable string records a failure.
@@ -54,7 +56,10 @@ class LessThanAssertionEvaluator implements AssertionEvaluator {
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
                 if (f.value() == null) {
-                    collector.fail("Expected numeric value at path '%s' for less_than but was null", assertion.path());
+                    collector.fail(
+                            String.format(
+                                    "Expected numeric value at path '%s' for less_than but was null", assertion.path()),
+                            null);
                     return;
                 }
                 double numeric;
@@ -65,26 +70,41 @@ class LessThanAssertionEvaluator implements AssertionEvaluator {
                         numeric = Double.parseDouble(s);
                     } catch (NumberFormatException e) {
                         collector.fail(
-                                "Expected numeric value at path '%s' for less_than but could not parse '%s'",
-                                assertion.path(), s);
+                                String.format(
+                                        "Expected numeric value at path '%s' for less_than but could not parse"
+                                                + " '%s'",
+                                        assertion.path(), s),
+                                e);
                         return;
                     }
                 } else {
                     collector.fail(
-                            "Expected numeric value at path '%s' for less_than but was %s (%s)",
-                            assertion.path(), f.value(), f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected numeric value at path '%s' for less_than but was %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
-                if (numeric >= assertion.expected()) {
-                    collector.fail(
-                            "Expected value at path '%s' to be less than %s but was %s",
-                            assertion.path(), assertion.expected(), numeric);
+                try {
+                    Assertions.assertThat(numeric).isLessThan(assertion.expected());
+                } catch (AssertionError e) {
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected value at path '%s' to be less than %s but was %s",
+                                    assertion.path(), assertion.expected(), numeric),
+                            "< " + assertion.expected(),
+                            String.valueOf(numeric)));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected numeric value at path '%s' for less_than but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected numeric value at path '%s' for less_than but path does not exist",
+                                assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 }

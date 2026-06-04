@@ -24,11 +24,12 @@ import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Evaluates a {@link ValueTypeAssertion} by resolving the value at {@code path} and asserting that
- * its runtime type matches the expected JSON type name.
+ * its runtime type matches the expected JSON type name using an AssertJ equality assertion.
  *
  * <p>Recognised type names and their corresponding Java types:
  *
@@ -70,25 +71,32 @@ class ValueTypeAssertionEvaluator implements AssertionEvaluator {
     public void evaluate(ApiResponse response, FailureCollector collector) {
         if (!VALID_TYPES.contains(assertion.expected())) {
             collector.fail(
-                    "Unknown type name '%s' in value_type assertion at path '%s'. Valid types: %s",
-                    assertion.expected(), assertion.path(), VALID_TYPES);
+                    String.format(
+                            "Unknown type name '%s' in value_type assertion at path '%s'. Valid types: %s",
+                            assertion.expected(), assertion.path(), VALID_TYPES),
+                    null);
             return;
         }
 
         switch (ResponseValueExtractor.extract(response, assertion.path())) {
             case Result.Found f -> {
                 String actualType = typeOf(f.value());
-                if (!assertion.expected().equals(actualType)) {
-                    collector.fail(
+                try {
+                    Assertions.assertThat(actualType).isEqualTo(assertion.expected());
+                } catch (AssertionError e) {
+                    String msg = String.format(
                             "Expected value at path '%s' to be of type '%s' but was: '%s'",
                             assertion.path(), assertion.expected(), actualType);
+                    collector.fail(FailureCollector.rewrap(msg, e));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected value of type '%s' at path '%s' but path does not exist",
-                        assertion.expected(), assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected value of type '%s' at path '%s' but path does not exist",
+                                assertion.expected(), assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 

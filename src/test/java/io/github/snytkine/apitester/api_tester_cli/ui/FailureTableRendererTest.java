@@ -41,7 +41,7 @@ class FailureTableRendererTest {
     void singleFailureContainsTestName() {
         String out = render(
                 "POST /users returns 201",
-                List.of(new AssertionFailure("status_code equals 201", null, null)),
+                List.of(new AssertionFailure("status_code equals 201", null, null, null)),
                 false,
                 80);
 
@@ -50,28 +50,31 @@ class FailureTableRendererTest {
 
     @Test
     void singleFailureContainsAssertionLabel() {
-        String out = render("my-test", List.of(new AssertionFailure("status_code equals 201", null, null)), false, 80);
+        String out =
+                render("my-test", List.of(new AssertionFailure("status_code equals 201", null, null, null)), false, 80);
 
         assertThat(out).contains("Assertion");
     }
 
     @Test
     void singleFailureContainsAssertionMessage() {
-        String out = render("my-test", List.of(new AssertionFailure("status code was 400", null, null)), false, 80);
+        String out =
+                render("my-test", List.of(new AssertionFailure("status code was 400", null, null, null)), false, 80);
 
         assertThat(out).contains("status code was 400");
     }
 
     @Test
     void singleFailureContainsBorderCharacter() {
-        String out = render("my-test", List.of(new AssertionFailure("status_code equals 201", null, null)), false, 80);
+        String out =
+                render("my-test", List.of(new AssertionFailure("status_code equals 201", null, null, null)), false, 80);
 
         assertThat(out).contains("┃");
     }
 
     @Test
     void nullExpectedAndActualSuppressesThoseRows() {
-        String out = render("my-test", List.of(new AssertionFailure("check something", null, null)), false, 80);
+        String out = render("my-test", List.of(new AssertionFailure("check something", null, null, null)), false, 80);
 
         assertThat(out).doesNotContain("Expected");
         assertThat(out).doesNotContain("Actual");
@@ -80,7 +83,8 @@ class FailureTableRendererTest {
 
     @Test
     void nonNullExpectedAndActualAppearsInOutput() {
-        String out = render("my-test", List.of(new AssertionFailure("status equals 201", "201", "400")), false, 80);
+        String out =
+                render("my-test", List.of(new AssertionFailure("status equals 201", "201", "400", null)), false, 80);
 
         assertThat(out).contains("Expected");
         assertThat(out).contains("Actual");
@@ -91,8 +95,8 @@ class FailureTableRendererTest {
     @Test
     void mixedFailuresOnlyShowExpectedActualWhenNonNull() {
         List<AssertionFailure> failures = List.of(
-                new AssertionFailure("status_code equals 201", "201", "400"),
-                new AssertionFailure("json_path $.id is not null", null, null));
+                new AssertionFailure("status_code equals 201", "201", "400", null),
+                new AssertionFailure("json_path $.id is not null", null, null, null));
 
         String out = render("multi-test", failures, false, 80);
 
@@ -105,8 +109,8 @@ class FailureTableRendererTest {
     @Test
     void multipleFailuresAllAssertionMessagesPresent() {
         List<AssertionFailure> failures = List.of(
-                new AssertionFailure("expected 200 but was 404", null, null),
-                new AssertionFailure("missing header X-Request-Id", null, null));
+                new AssertionFailure("expected 200 but was 404", null, null, null),
+                new AssertionFailure("missing header X-Request-Id", null, null, null));
 
         String out = render("multi-test", failures, false, 80);
 
@@ -116,7 +120,7 @@ class FailureTableRendererTest {
 
     @Test
     void testNameRowAppearsBeforeAssertionRows() {
-        String out = render("my-test-name", List.of(new AssertionFailure("check x", null, null)), false, 80);
+        String out = render("my-test-name", List.of(new AssertionFailure("check x", null, null, null)), false, 80);
 
         int testNamePos = out.indexOf("my-test-name");
         int assertionPos = out.indexOf("Assertion");
@@ -129,14 +133,14 @@ class FailureTableRendererTest {
 
     @Test
     void withColorsOutputContainsAnsiEscapeCodes() {
-        String out = render("my-test", List.of(new AssertionFailure("some failure", null, null)), true, 80);
+        String out = render("my-test", List.of(new AssertionFailure("some failure", null, null, null)), true, 80);
 
         assertThat(out).contains("\033[");
     }
 
     @Test
     void assertionRowsAreColoredBlue() {
-        String out = render("my-test", List.of(new AssertionFailure("first failure", null, null)), true, 80);
+        String out = render("my-test", List.of(new AssertionFailure("first failure", null, null, null)), true, 80);
 
         assertThat(out).contains(FailureTableRenderer.ASSERTION_COLOR);
     }
@@ -146,8 +150,8 @@ class FailureTableRendererTest {
         String out = render(
                 "my-test",
                 List.of(
-                        new AssertionFailure("first failure", null, null),
-                        new AssertionFailure("second failure", null, null)),
+                        new AssertionFailure("first failure", null, null, null),
+                        new AssertionFailure("second failure", null, null, null)),
                 true,
                 80);
 
@@ -157,14 +161,14 @@ class FailureTableRendererTest {
 
     @Test
     void withoutColorsOutputContainsNoAnsiEscapeCodes() {
-        String out = render("my-test", List.of(new AssertionFailure("some failure", null, null)), false, 80);
+        String out = render("my-test", List.of(new AssertionFailure("some failure", null, null, null)), false, 80);
 
         assertThat(out).doesNotContain("\033[");
     }
 
     @Test
     void expectedAndActualRowsColoredWhenNonNull() {
-        String out = render("my-test", List.of(new AssertionFailure("failed", "expect", "actual")), true, 80);
+        String out = render("my-test", List.of(new AssertionFailure("failed", "expect", "actual", null)), true, 80);
 
         assertThat(out).contains(FailureTableRenderer.ASSERTION_COLOR);
         assertThat(out).contains("Expected");

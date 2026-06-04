@@ -48,7 +48,7 @@ class NoOpProgressListenerTest {
                     TestStatus.FAIL,
                     20L,
                     2,
-                    List.of(new AssertionFailure("assertion failed", null, null))));
+                    List.of(new AssertionFailure("assertion failed", null, null, null))));
             listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 0L, 0L, 30L));
         });
     }

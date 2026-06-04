@@ -22,6 +22,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContain
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseValueExtractor.Result;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import java.util.List;
+import org.opentest4j.AssertionFailedError;
 
 /**
  * Evaluates an {@link ArrayContainsAssertion} by resolving the value at {@code path} and asserting
@@ -47,8 +48,8 @@ class ArrayContainsAssertionEvaluator implements AssertionEvaluator {
     }
 
     /**
-     * Resolves the path, confirms the value is a list, and checks whether {@code expected} appears in
-     * the list.
+     * Resolves the path, confirms the value is a list, and checks whether {@code expected} appears
+     * in the list.
      *
      * @param response the captured HTTP response
      * @param collector the shared failure collector
@@ -59,22 +60,32 @@ class ArrayContainsAssertionEvaluator implements AssertionEvaluator {
             case Result.Found f -> {
                 if (!(f.value() instanceof List<?> list)) {
                     collector.fail(
-                            "Expected an array at path '%s' for array_contains but was: %s (%s)",
-                            assertion.path(),
-                            f.value(),
-                            f.value() == null ? "null" : f.value().getClass().getSimpleName());
+                            String.format(
+                                    "Expected an array at path '%s' for array_contains but was: %s (%s)",
+                                    assertion.path(),
+                                    f.value(),
+                                    f.value() == null
+                                            ? "null"
+                                            : f.value().getClass().getSimpleName()),
+                            null);
                     return;
                 }
                 if (!containsMatch(list, assertion.expected())) {
-                    collector.fail(
-                            "Expected array at path '%s' to contain %s but it did not",
-                            assertion.path(), assertion.expected());
+                    collector.fail(new AssertionFailedError(
+                            String.format(
+                                    "Expected array at path '%s' to contain %s but it did not",
+                                    assertion.path(), assertion.expected()),
+                            "contains " + assertion.expected(),
+                            String.valueOf(list)));
                 }
             }
             case Result.Missing m ->
                 collector.fail(
-                        "Expected array at path '%s' for array_contains but path does not exist", assertion.path());
-            case Result.Error e -> collector.fail(e.message());
+                        String.format(
+                                "Expected array at path '%s' for array_contains but path does not exist",
+                                assertion.path()),
+                        null);
+            case Result.Error e -> collector.fail(e.message(), null);
         }
     }
 

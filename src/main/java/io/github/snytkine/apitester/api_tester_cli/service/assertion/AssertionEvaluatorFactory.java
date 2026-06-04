@@ -18,8 +18,6 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
-import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
-import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContainsAllAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayContainsAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArrayIsEmptyAssertion;
@@ -136,18 +134,16 @@ public class AssertionEvaluatorFactory {
     }
 
     /**
-     * Builds a structured {@link AssertionFailure} describing a failed assertion, decomposed into the
-     * assertion description, expected value, and actual observed value for tabular display.
+     * Returns a human-readable description of the given {@link Assertion}, derived purely from its
+     * definition (type, path, and configured values) without consulting the API response.
      *
-     * <p>Delegates to {@link AssertionFailureDescriber}, keeping the package-private describer and the
-     * {@code ResponseValueExtractor} it relies on encapsulated within this package while exposing a
-     * single public entry point to the engine.
+     * <p>Delegates to {@link AssertionDescriber}, keeping the package-private describer encapsulated
+     * while exposing a single public entry point to the engine.
      *
-     * @param assertion the assertion that failed
-     * @param response the response the assertion was evaluated against
-     * @return an {@link AssertionFailure} with description, expected, and actual populated
+     * @param assertion the assertion to describe
+     * @return a short description string identifying the assertion type and target
      */
-    public AssertionFailure describeFailure(Assertion assertion, ApiResponse response) {
-        return AssertionFailureDescriber.describe(assertion, response);
+    public String describe(Assertion assertion) {
+        return AssertionDescriber.describe(assertion);
     }
 }
