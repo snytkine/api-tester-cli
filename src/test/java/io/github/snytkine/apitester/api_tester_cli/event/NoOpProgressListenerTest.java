@@ -19,6 +19,7 @@ package io.github.snytkine.apitester.api_tester_cli.event;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNoException;
 
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,13 @@ class NoOpProgressListenerTest {
             listener.onProgress(new TestProgressEvent.TestCompleted("0", 0, "t1", TestStatus.PASS, 10L, 2, List.of()));
             listener.onProgress(new TestProgressEvent.TestStarted("1", 1, "t2"));
             listener.onProgress(new TestProgressEvent.TestCompleted(
-                    "1", 1, "t2", TestStatus.FAIL, 20L, 2, List.of("assertion failed")));
+                    "1",
+                    1,
+                    "t2",
+                    TestStatus.FAIL,
+                    20L,
+                    2,
+                    List.of(new AssertionFailure("assertion failed", null, null))));
             listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 1L, 0L, 0L, 30L));
         });
     }

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
@@ -61,8 +62,8 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 100L, 1, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
-        queue.offer(
-                new TestProgressEvent.TestCompleted("1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of("failed")));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of(new AssertionFailure("failed", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 300L));
 
         // await() completes only when the controller thread exits — verifies clean termination
@@ -113,7 +114,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "green-test", TestStatus.PASS, 42L, 2, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "red-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "1", 1, "red-test", TestStatus.FAIL, 99L, 2, List.of("assertion failed")));
+                "1",
+                1,
+                "red-test",
+                TestStatus.FAIL,
+                99L,
+                2,
+                List.of(new AssertionFailure("assertion failed", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 141L));
 
         ctrl.await();
@@ -209,7 +216,9 @@ class TerminalUiControllerTest {
                 TestStatus.FAIL,
                 20L,
                 3,
-                List.of("expected 200 but was 500", "missing header")));
+                List.of(
+                        new AssertionFailure("expected 200 but was 500", null, null),
+                        new AssertionFailure("missing header", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 20L));
 
         ctrl.await();
@@ -250,7 +259,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 100L, 1, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "test-two"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "1", 1, "test-two", TestStatus.FAIL, 200L, 1, List.of("expected 200 but was 404")));
+                "1",
+                1,
+                "test-two",
+                TestStatus.FAIL,
+                200L,
+                1,
+                List.of(new AssertionFailure("expected 200 but was 404", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 300L));
 
         ctrl.await();
@@ -293,7 +308,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-x"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "0", 0, "test-x", TestStatus.FAIL, 50L, 1, List.of("assertion failed")));
+                "0",
+                0,
+                "test-x",
+                TestStatus.FAIL,
+                50L,
+                1,
+                List.of(new AssertionFailure("assertion failed", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 50L));
 
         ctrl.await();
@@ -319,7 +340,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "passing-test", TestStatus.PASS, 40L, 1, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "failing-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "1", 1, "failing-test", TestStatus.FAIL, 60L, 1, List.of("expected 200 but was 500")));
+                "1",
+                1,
+                "failing-test",
+                TestStatus.FAIL,
+                60L,
+                1,
+                List.of(new AssertionFailure("expected 200 but was 500", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 1, 0L, 0L, 100L));
 
         ctrl.await();
@@ -359,7 +386,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "network-error-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "0", 0, "network-error-test", TestStatus.ERROR, 30L, 0, List.of("Connection refused")));
+                "0",
+                0,
+                "network-error-test",
+                TestStatus.ERROR,
+                30L,
+                0,
+                List.of(new AssertionFailure("Connection refused", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 30L));
 
         ctrl.await();
@@ -379,13 +412,13 @@ class TerminalUiControllerTest {
 
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 3, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "fail-a"));
-        queue.offer(
-                new TestProgressEvent.TestCompleted("0", 0, "fail-a", TestStatus.FAIL, 10L, 1, List.of("reason-a")));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "0", 0, "fail-a", TestStatus.FAIL, 10L, 1, List.of(new AssertionFailure("reason-a", null, null))));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "pass-b"));
         queue.offer(new TestProgressEvent.TestCompleted("1", 1, "pass-b", TestStatus.PASS, 20L, 1, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("2", 2, "fail-c"));
-        queue.offer(
-                new TestProgressEvent.TestCompleted("2", 2, "fail-c", TestStatus.ERROR, 30L, 0, List.of("reason-c")));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "2", 2, "fail-c", TestStatus.ERROR, 30L, 0, List.of(new AssertionFailure("reason-c", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(1, 2, 0L, 0L, 60L));
 
         ctrl.await();
@@ -417,7 +450,10 @@ class TerminalUiControllerTest {
                 TestStatus.FAIL,
                 50L,
                 3,
-                List.of("expected 200 but was 404", "body did not match", "missing header X-Request-Id")));
+                List.of(
+                        new AssertionFailure("expected 200 but was 404", null, null),
+                        new AssertionFailure("body did not match", null, null),
+                        new AssertionFailure("missing header X-Request-Id", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 1, 0L, 0L, 50L));
 
         ctrl.await();
@@ -456,7 +492,13 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "error-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "0", 0, "error-test", TestStatus.ERROR, 10L, 0, List.of("Connection refused")));
+                "0",
+                0,
+                "error-test",
+                TestStatus.ERROR,
+                10L,
+                0,
+                List.of(new AssertionFailure("Connection refused", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 1L, 10L));
 
         ctrl.await();
@@ -475,13 +517,19 @@ class TerminalUiControllerTest {
         queue.offer(new TestProgressEvent.TestStarted("0", 0, "pass-test"));
         queue.offer(new TestProgressEvent.TestCompleted("0", 0, "pass-test", TestStatus.PASS, 10L, 1, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("1", 1, "fail-test"));
-        queue.offer(
-                new TestProgressEvent.TestCompleted("1", 1, "fail-test", TestStatus.FAIL, 20L, 1, List.of("failed")));
+        queue.offer(new TestProgressEvent.TestCompleted(
+                "1", 1, "fail-test", TestStatus.FAIL, 20L, 1, List.of(new AssertionFailure("failed", null, null))));
         queue.offer(new TestProgressEvent.TestStarted("2", 2, "skip-test"));
         queue.offer(new TestProgressEvent.TestCompleted("2", 2, "skip-test", TestStatus.SKIP, 0L, 0, List.of()));
         queue.offer(new TestProgressEvent.TestStarted("3", 3, "error-test"));
         queue.offer(new TestProgressEvent.TestCompleted(
-                "3", 3, "error-test", TestStatus.ERROR, 5L, 0, List.of("Connection refused")));
+                "3",
+                3,
+                "error-test",
+                TestStatus.ERROR,
+                5L,
+                0,
+                List.of(new AssertionFailure("Connection refused", null, null))));
         queue.offer(new TestProgressEvent.SuiteCompleted(1L, 1L, 1L, 1L, 35L));
 
         ctrl.await();

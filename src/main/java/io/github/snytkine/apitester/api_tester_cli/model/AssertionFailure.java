@@ -19,21 +19,19 @@ package io.github.snytkine.apitester.api_tester_cli.model;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Represents a single assertion failure within a test case.
+ * Represents a single assertion failure within a test case, decomposed into the three pieces of
+ * information needed to render a structured failure table (one row per piece): a human-readable
+ * description of the assertion, the expected value/condition, and the actual observed value.
  *
- * <p>When an assertion fails via AssertJ's {@link org.assertj.core.api.SoftAssertions}, each
- * individual failure is captured as an {@code AssertionFailure}. The {@code expected} and {@code
- * actual} fields are populated when the underlying failure is an {@link
- * org.opentest4j.AssertionFailedError} with defined values (e.g. from {@code isEqualTo()}). They
- * are {@code null} for free-form failures produced by {@code soft.fail("message")}, or for
- * non-assertion errors such as HTTP network failures.
+ * <p>For a normal assertion mismatch all three fields are populated, e.g. {@code description =
+ * "status_code equals 201"}, {@code expected = "201"}, {@code actual = "400"}. For non-assertion
+ * errors such as an HTTP network failure or an unsupported path, {@code description} carries the
+ * error text and both {@code expected} and {@code actual} are {@code null} so that the renderer can
+ * omit the Expected/Actual rows.
+ *
+ * @param description human-readable description of the assertion that was evaluated, or the error
+ *     text for non-assertion failures
+ * @param expected the value or condition the assertion expected, or {@code null} when not applicable
+ * @param actual the value actually observed in the response, or {@code null} when not applicable
  */
-public record AssertionFailure(
-        /** Human-readable description of what failed. */
-        String message,
-
-        /** The value the assertion expected, or {@code null} if not applicable. */
-        @Nullable Object expected,
-
-        /** The value the assertion actually observed, or {@code null} if not applicable. */
-        @Nullable Object actual) {}
+public record AssertionFailure(String description, @Nullable String expected, @Nullable String actual) {}

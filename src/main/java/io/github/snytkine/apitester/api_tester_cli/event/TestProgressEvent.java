@@ -16,6 +16,7 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.event;
 
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import java.time.Instant;
 import java.util.List;
 
@@ -71,7 +72,7 @@ public sealed interface TestProgressEvent
      *     0} for skipped tests
      * @param assertionCount total number of assertions that were evaluated; {@code 0} for skipped
      *     tests; used to display "{@code N passed}" in the Result column on pass
-     * @param failureMessages all failure messages when {@code status} is {@link TestStatus#FAIL} or
+     * @param failures all assertion failures when {@code status} is {@link TestStatus#FAIL} or
      *     {@link TestStatus#ERROR}; empty list otherwise
      */
     record TestCompleted(
@@ -81,7 +82,7 @@ public sealed interface TestProgressEvent
             TestStatus status,
             long durationMs,
             int assertionCount,
-            List<String> failureMessages)
+            List<AssertionFailure> failures)
             implements TestProgressEvent {}
 
     /**

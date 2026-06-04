@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.event;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -49,7 +50,7 @@ class TestProgressEventTest {
     }
 
     @Test
-    void testCompletedPassCarriesAssertionCountAndEmptyFailureMessages() {
+    void testCompletedPassCarriesAssertionCountAndEmptyFailures() {
         TestProgressEvent event =
                 new TestProgressEvent.TestCompleted("uid-0", 0, "get users", TestStatus.PASS, 123L, 5, List.of());
 
@@ -58,11 +59,11 @@ class TestProgressEventTest {
         assertThat(completed.status()).isEqualTo(TestStatus.PASS);
         assertThat(completed.durationMs()).isEqualTo(123L);
         assertThat(completed.assertionCount()).isEqualTo(5);
-        assertThat(completed.failureMessages()).isEmpty();
+        assertThat(completed.failures()).isEmpty();
     }
 
     @Test
-    void testCompletedFailCarriesAllFailureMessages() {
+    void testCompletedFailCarriesAllFailures() {
         TestProgressEvent event = new TestProgressEvent.TestCompleted(
                 "uid-1",
                 1,
@@ -70,27 +71,38 @@ class TestProgressEventTest {
                 TestStatus.FAIL,
                 42L,
                 3,
-                List.of("expected 201 but was 400", "body did not match"));
+                List.of(
+                        new AssertionFailure("expected 201 but was 400", null, null),
+                        new AssertionFailure("body did not match", null, null)));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.FAIL);
         assertThat(completed.assertionCount()).isEqualTo(3);
-        assertThat(completed.failureMessages()).containsExactly("expected 201 but was 400", "body did not match");
+        assertThat(completed.failures())
+                .containsExactly(
+                        new AssertionFailure("expected 201 but was 400", null, null),
+                        new AssertionFailure("body did not match", null, null));
     }
 
     @Test
-    void testCompletedErrorCarriesErrorMessage() {
+    void testCompletedErrorCarriesFailureWithErrorMessage() {
         TestProgressEvent event = new TestProgressEvent.TestCompleted(
-                "uid-3", 3, "timeout test", TestStatus.ERROR, 5000L, 0, List.of("Connection refused"));
+                "uid-3",
+                3,
+                "timeout test",
+                TestStatus.ERROR,
+                5000L,
+                0,
+                List.of(new AssertionFailure("Connection refused", null, null)));
 
         TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) event;
         assertThat(completed.status()).isEqualTo(TestStatus.ERROR);
         assertThat(completed.assertionCount()).isEqualTo(0);
-        assertThat(completed.failureMessages()).containsExactly("Connection refused");
+        assertThat(completed.failures()).containsExactly(new AssertionFailure("Connection refused", null, null));
     }
 
     @Test
-    void testCompletedSkipCarriesEmptyFailureMessages() {
+    void testCompletedSkipCarriesEmptyFailures() {
         TestProgressEvent event =
                 new TestProgressEvent.TestCompleted("uid-4", 4, "skip-me", TestStatus.SKIP, 0L, 0, List.of());
 
@@ -98,7 +110,7 @@ class TestProgressEventTest {
         assertThat(completed.status()).isEqualTo(TestStatus.SKIP);
         assertThat(completed.durationMs()).isEqualTo(0L);
         assertThat(completed.assertionCount()).isEqualTo(0);
-        assertThat(completed.failureMessages()).isEmpty();
+        assertThat(completed.failures()).isEmpty();
     }
 
     @Test

@@ -265,7 +265,7 @@ public final class TerminalUiController {
                 if (event != null) {
                     if (event instanceof TestProgressEvent.TestCompleted tc
                             && tc.status() != TestStatus.PASS
-                            && !tc.failureMessages().isEmpty()) {
+                            && !tc.failures().isEmpty()) {
                         collectedFailures.add(tc);
                     }
                     if (event instanceof TestProgressEvent.SuiteCompleted sc) {
@@ -370,7 +370,7 @@ public final class TerminalUiController {
                 String resultStr =
                         switch (e.status()) {
                             case PASS -> e.assertionCount() + " passed";
-                            case FAIL -> e.failureMessages().size() + " failed";
+                            case FAIL -> e.failures().size() + " failed";
                             case SKIP -> "skipped";
                             case ERROR -> "error";
                         };
@@ -560,21 +560,20 @@ public final class TerminalUiController {
 
     /**
      * Prints the failure-detail block to {@link #output} after the run loop exits. Each failing test
-     * is listed with its name followed by all failure messages, one per line. Nothing is printed when
-     * {@code failures} is empty.
+     * is rendered as a bordered two-column table (via {@link FailureTableRenderer}) with one row per
+     * assertion failure and distinct colour coding per group when colours are enabled. Nothing is
+     * printed when {@code failures} is empty.
      *
      * @param failures {@link TestProgressEvent.TestCompleted} events for non-passing tests that carry
-     *     at least one failure message; may be empty
+     *     at least one failure; may be empty
      */
     private void printFailures(List<TestProgressEvent.TestCompleted> failures) {
         if (failures.isEmpty()) return;
         output.println();
         output.println("Failures:");
+        FailureTableRenderer renderer = new FailureTableRenderer();
         for (TestProgressEvent.TestCompleted tc : failures) {
-            output.println("  " + colorize(Glyphs.FAIL + " " + tc.testName(), ANSI_RED));
-            for (String message : tc.failureMessages()) {
-                output.println("    " + message);
-            }
+            renderer.render(tc.testName(), tc.failures(), useColors, terminalWidth, output);
         }
     }
 }

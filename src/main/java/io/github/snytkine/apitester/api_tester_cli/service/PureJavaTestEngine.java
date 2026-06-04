@@ -22,6 +22,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
+import io.github.snytkine.apitester.api_tester_cli.exception.AssertionFailuresException;
 import io.github.snytkine.apitester.api_tester_cli.exception.SkipTestException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
@@ -38,6 +39,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
@@ -54,8 +56,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
-import org.opentest4j.AssertionFailedError;
-import org.opentest4j.MultipleFailuresError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
@@ -202,21 +202,16 @@ public class PureJavaTestEngine implements TestEngine {
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
                 log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
-            } catch (MultipleFailuresError e) {
+            } catch (AssertionFailuresException e) {
                 long durationMs = System.currentTimeMillis() - testStart;
-                List<AssertionFailure> failures = extractFailures(e);
+                List<AssertionFailure> failures = e.failures();
                 int totalAssertions = config.assertions().size();
                 int passedAssertions = totalAssertions - failures.size();
                 results.add(new TestCaseResult(
                         config.name(), TestResult.FAILED, passedAssertions, failures, null, capturedRequest[0]));
-                List<String> messages =
-                        e.getFailures().stream().map(Throwable::getMessage).toList();
                 listener.onProgress(new TestProgressEvent.TestCompleted(
-                        uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, messages));
-                log.debug(
-                        "Test case '{}' failed with {} assertion failure(s)",
-                        config.name(),
-                        e.getFailures().size());
+                        uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, failures));
+                log.debug("Test case '{}' failed with {} assertion failure(s)", config.name(), failures.size());
             } catch (Throwable e) {
                 long durationMs = System.currentTimeMillis() - testStart;
                 results.add(new TestCaseResult(
@@ -227,7 +222,13 @@ public class PureJavaTestEngine implements TestEngine {
                         null,
                         capturedRequest[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
-                        uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, List.of(e.getMessage())));
+                        uniqueId,
+                        i,
+                        config.name(),
+                        TestStatus.ERROR,
+                        durationMs,
+                        0,
+                        List.of(new AssertionFailure(e.getMessage(), null, null))));
                 log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
             }
         }
@@ -244,40 +245,6 @@ public class PureJavaTestEngine implements TestEngine {
                 passedCount, failedCount, skippedCount, errorCount, totalDurationMs));
 
         return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results);
-    }
-
-    /**
-     * Converts the individual failures inside a {@link MultipleFailuresError} into
-     * a list of {@link
-     * AssertionFailure} records, preserving actual and expected values when
-     * available.
-     *
-     * <p>
-     * Each failure is an {@link AssertionFailedError} when produced by an AssertJ
-     * comparison (e.g.
-     * {@code isEqualTo()}), in which case the actual and expected values are
-     * extracted via {@link
-     * AssertionFailedError#getActual()} and
-     * {@link AssertionFailedError#getExpected()}. Free- form
-     * failures from {@code soft.fail("message")} produce an
-     * {@code AssertionFailedError} with no
-     * defined actual/expected, so both fields are {@code null} in that case.
-     *
-     * @param e the composite error from {@link FailureCollector#assertAll()}
-     * @return a non-empty list of individual {@link AssertionFailure} records
-     */
-    private List<AssertionFailure> extractFailures(MultipleFailuresError e) {
-        return e.getFailures().stream()
-                .map(failure -> {
-                    if (failure instanceof AssertionFailedError afe) {
-                        Object actual = afe.isActualDefined() ? afe.getActual().getValue() : null;
-                        Object expected =
-                                afe.isExpectedDefined() ? afe.getExpected().getValue() : null;
-                        return new AssertionFailure(failure.getMessage(), expected, actual);
-                    }
-                    return new AssertionFailure(failure.getMessage(), null, null);
-                })
-                .toList();
     }
 
     /**
@@ -413,17 +380,32 @@ public class PureJavaTestEngine implements TestEngine {
         RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, resolvedBody);
         RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
-        List<AssertionEvaluator> evaluators = config.assertions().stream()
-                .map(a -> evaluatorFactory.create(a, suiteDir, testConfigMap))
-                .toList();
-        log.debug("Test [{}] '{}': evaluating {} assertion(s)", i, config.name(), evaluators.size());
+        log.debug(
+                "Test [{}] '{}': evaluating {} assertion(s)",
+                i,
+                config.name(),
+                config.assertions().size());
 
         ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
         log.debug("Test [{}] '{}': received status {}", i, config.name(), apiResponse.statusCode());
 
+        // Evaluate one assertion at a time so each failure can be paired with its originating
+        // assertion and turned into a structured AssertionFailure (description / expected / actual).
+        // The shared FailureCollector's running failure count tells us whether the just-evaluated
+        // assertion contributed any failure.
+        List<AssertionFailure> failures = new ArrayList<>();
         FailureCollector collector = new FailureCollector();
-        evaluators.forEach(e -> e.evaluate(apiResponse, collector));
-        collector.assertAll();
+        for (Assertion assertion : config.assertions()) {
+            AssertionEvaluator evaluator = evaluatorFactory.create(assertion, suiteDir, testConfigMap);
+            int failuresBefore = collector.getFailures().size();
+            evaluator.evaluate(apiResponse, collector);
+            if (collector.getFailures().size() > failuresBefore) {
+                failures.add(evaluatorFactory.describeFailure(assertion, apiResponse));
+            }
+        }
+        if (!failures.isEmpty()) {
+            throw new AssertionFailuresException(failures);
+        }
     }
 
     /**
