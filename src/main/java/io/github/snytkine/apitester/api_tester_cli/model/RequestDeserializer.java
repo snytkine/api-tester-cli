@@ -97,8 +97,17 @@ public class RequestDeserializer extends StdDeserializer<Request> {
     }
 
     /**
-     * Reads the optional {@code body} object as a {@link RequestBody}, delegating to Jackson's
-     * standard deserializer for that type.
+     * Reads the optional {@code body} field as a {@link RequestBody}.
+     *
+     * <p>Two forms are accepted:
+     *
+     * <ul>
+     *   <li><b>Plain string</b> — the string value becomes the body content with an implicit type
+     *       of {@link BodyType#STRING}. Example: {@code body: '{"name": "Alice"}'}
+     *   <li><b>Object form</b> — an object with {@code type} and {@code content} fields,
+     *       deserialized via Jackson's standard {@link RequestBody} deserializer. Example: {@code
+     *       body: {type: string, content: '{"name": "Alice"}'}}
+     * </ul>
      *
      * @param codec the codec used to read the sub-tree
      * @param node the root request node
@@ -109,6 +118,9 @@ public class RequestDeserializer extends StdDeserializer<Request> {
         JsonNode bodyNode = node.get("body");
         if (bodyNode == null) {
             return null;
+        }
+        if (bodyNode.isTextual()) {
+            return new RequestBody(BodyType.STRING, bodyNode.asText());
         }
         return codec.treeToValue(bodyNode, RequestBody.class);
     }

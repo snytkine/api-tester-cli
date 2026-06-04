@@ -67,6 +67,20 @@ class RequestDeserializerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE"})
+    void payloadRequestDeserializesInlineStringBody(String method) throws Exception {
+        String json = "{\"method\":\"" + method + "\",\"url\":\"/api/resource\"," + "\"body\":\"hello world\"}";
+
+        Request request = mapper.readValue(json, Request.class);
+
+        assertThat(request).isInstanceOf(PayloadRequest.class);
+        PayloadRequest pr = (PayloadRequest) request;
+        assertThat(pr.body()).isNotNull();
+        assertThat(pr.body().type()).isEqualTo(BodyType.STRING);
+        assertThat(pr.body().content()).isEqualTo("hello world");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE"})
     void payloadRequestDeserializesBodyWhenPresent(String method) throws Exception {
         String json = "{\"method\":\""
                 + method

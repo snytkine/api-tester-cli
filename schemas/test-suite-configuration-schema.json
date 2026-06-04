@@ -120,7 +120,15 @@
           }
         },
         "body": {
-          "$ref": "#/$defs/RequestBody"
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Inline body content (implicitly BodyType.STRING)"
+            },
+            {
+              "$ref": "#/$defs/RequestBody"
+            }
+          ]
         }
       }
     },
