@@ -28,6 +28,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
+import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.PrintWriter;
 import java.nio.file.Path;
@@ -49,7 +50,8 @@ class RunSuiteCommandTest {
     @BeforeEach
     void setUp() {
         mockEngine = mock(TestEngine.class);
-        command = new RunSuiteCommand(new TestSuiteLoader(), mockEngine, new DotEnvLoader(), null);
+        command = new RunSuiteCommand(
+                new TestSuiteLoader(), new TestSuiteValidator(), mockEngine, new DotEnvLoader(), null);
     }
 
     @Test

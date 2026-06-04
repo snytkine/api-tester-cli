@@ -227,13 +227,20 @@ public final class TerminalUiController {
     /**
      * Main controller thread loop.
      *
-     * <p>Waits for {@link TestProgressEvent.SuiteStarted}, draws the banner and grid, then runs
-     * the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}. After the loop
-     * exits, appends the one-line summary and any failure details below the grid.
+     * <p>Waits for the first event from the queue. If it is a {@link
+     * TestProgressEvent.ValidationFailed}, renders an {@link ErrorBox} and exits immediately without
+     * drawing a suite grid. If it is a {@link TestProgressEvent.SuiteStarted}, draws the banner and
+     * grid, then runs the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}.
+     * After the loop exits, appends the one-line summary and any failure details below the grid.
      */
     private void runLoop() {
         try {
             TestProgressEvent firstEvent = queue.poll(SUITE_STARTED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            if (firstEvent instanceof TestProgressEvent.ValidationFailed vf) {
+                new ErrorBox().render(vf.errors(), useColors, terminalWidth, output);
+                output.flush();
+                return;
+            }
             if (!(firstEvent instanceof TestProgressEvent.SuiteStarted suiteStarted)) {
                 log.warn("TUI controller received unexpected first event or timed out; aborting UI render");
                 return;
@@ -380,6 +387,8 @@ public final class TerminalUiController {
                 yield false;
             }
             case TestProgressEvent.SuiteCompleted ignored -> true;
+            // Handled before the main loop starts; should never reach here.
+            case TestProgressEvent.ValidationFailed ignored -> false;
         };
     }
 

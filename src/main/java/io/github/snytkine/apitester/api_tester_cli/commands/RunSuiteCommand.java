@@ -25,6 +25,8 @@ import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
+import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
+import io.github.snytkine.apitester.api_tester_cli.ui.ErrorBox;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
 import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
@@ -54,6 +56,7 @@ import org.springframework.stereotype.Component;
 public class RunSuiteCommand {
 
     private final TestSuiteLoader testSuiteLoader;
+    private final TestSuiteValidator testSuiteValidator;
     private final ObjectMapper jsonMapper;
     private final TestEngine testEngine;
     private final DotEnvLoader dotEnvLoader;
@@ -69,16 +72,20 @@ public class RunSuiteCommand {
      * full Spring Shell TUI stack on the classpath), UI mode is disabled regardless of TTY detection.
      *
      * @param testSuiteLoader loads and template-processes test-suite YAML files
+     * @param testSuiteValidator validates the loaded suite for structural errors such as duplicate
+     *     test names
      * @param testEngine executes the loaded test cases
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      */
     public RunSuiteCommand(
             TestSuiteLoader testSuiteLoader,
+            TestSuiteValidator testSuiteValidator,
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
             @Nullable ViewComponentBuilder viewComponentBuilder) {
         this.testSuiteLoader = testSuiteLoader;
+        this.testSuiteValidator = testSuiteValidator;
         this.testEngine = testEngine;
         this.dotEnvLoader = dotEnvLoader;
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
@@ -155,9 +162,25 @@ public class RunSuiteCommand {
             TerminalUiController controller = new TerminalUiController(
                     queue, TtyDetector.supportsColor(), TtyDetector.getTerminalWidth(), context.outputWriter());
             controller.start();
-            testEngine.runConfigurationSuite(testSuite, suiteRunContext, uiListener);
+            List<String> errors = testSuiteValidator.validate(testSuite);
+            if (!errors.isEmpty()) {
+                uiListener.onProgress(new TestProgressEvent.ValidationFailed(errors));
+            } else {
+                testEngine.runConfigurationSuite(testSuite, suiteRunContext, uiListener);
+            }
             controller.await();
         } else {
+            List<String> errors = testSuiteValidator.validate(testSuite);
+            if (!errors.isEmpty()) {
+                new ErrorBox()
+                        .render(
+                                errors,
+                                TtyDetector.supportsColor(),
+                                TtyDetector.getTerminalWidth(),
+                                context.outputWriter());
+                context.outputWriter().flush();
+                return;
+            }
             TestRunResult result =
                     testEngine.runConfigurationSuite(testSuite, suiteRunContext, NoOpProgressListener.INSTANCE);
             context.outputWriter().println(toJson(result));

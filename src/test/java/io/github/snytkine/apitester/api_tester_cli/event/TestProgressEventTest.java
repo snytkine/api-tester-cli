@@ -131,7 +131,8 @@ class TestProgressEventTest {
             new TestProgressEvent.SuiteStarted("s", 1, Instant.now()),
             new TestProgressEvent.TestStarted("0", 0, "t"),
             new TestProgressEvent.TestCompleted("0", 0, "t", TestStatus.PASS, 10L, 1, List.of()),
-            new TestProgressEvent.SuiteCompleted(1L, 0L, 0L, 0L, 100L)
+            new TestProgressEvent.SuiteCompleted(1L, 0L, 0L, 0L, 100L),
+            new TestProgressEvent.ValidationFailed(List.of("Duplicate test name: \"x\" appears 2 times"))
         };
 
         for (TestProgressEvent event : events) {
@@ -141,6 +142,7 @@ class TestProgressEventTest {
                         case TestProgressEvent.TestStarted e -> "test-started";
                         case TestProgressEvent.TestCompleted e -> "test-completed";
                         case TestProgressEvent.SuiteCompleted e -> "suite-completed";
+                        case TestProgressEvent.ValidationFailed e -> "validation-failed";
                     };
             assertThat(label).isNotBlank();
         }

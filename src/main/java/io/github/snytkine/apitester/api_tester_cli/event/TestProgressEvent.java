@@ -35,7 +35,8 @@ public sealed interface TestProgressEvent
         permits TestProgressEvent.SuiteStarted,
                 TestProgressEvent.TestStarted,
                 TestProgressEvent.TestCompleted,
-                TestProgressEvent.SuiteCompleted {
+                TestProgressEvent.SuiteCompleted,
+                TestProgressEvent.ValidationFailed {
 
     /**
      * Fired once before any test cases begin. Carries enough information for the UI to pre-allocate
@@ -97,4 +98,15 @@ public sealed interface TestProgressEvent
      */
     record SuiteCompleted(long passCount, long failCount, long skipCount, long errorCount, long totalDurationMs)
             implements TestProgressEvent {}
+
+    /**
+     * Fired when pre-execution validation finds one or more errors (e.g. duplicate test names). The
+     * UI render loop handles this as a terminal event: it renders an {@link
+     * io.github.snytkine.apitester.api_tester_cli.ui.ErrorBox} and exits without drawing a suite
+     * grid. No test execution takes place after this event is fired.
+     *
+     * @param errors non-empty list of human-readable error messages describing the validation
+     *     failures
+     */
+    record ValidationFailed(List<String> errors) implements TestProgressEvent {}
 }
