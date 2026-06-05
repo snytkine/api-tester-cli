@@ -11,20 +11,32 @@
   <groupId>io.github.snytkine.apitester</groupId>
   <artifactId>api-tester-cli</artifactId>
   <version>0.0.1-SNAPSHOT</version>
-  <name/>
-  <description/>
-  <url/>
+  <name>api-tester-cli</name>
+  <description>Spring Boot + Spring Shell CLI for running HTTP API test suites defined in YAML,
+    with Thymeleaf expression support and GraalVM native-image compatibility.</description>
+  <url>https://github.com/snytkine/api-tester-cli</url>
   <licenses>
-    <license/>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+      <distribution>repo</distribution>
+    </license>
   </licenses>
   <developers>
-    <developer/>
+    <developer>
+      <name>Dmitri Snytkine</name>
+      <email>d.snytkine@gmail.com</email>
+      <url>https://github.com/snytkine</url>
+      <roles>
+        <role>developer</role>
+      </roles>
+    </developer>
   </developers>
   <scm>
-    <connection/>
-    <developerConnection/>
-    <tag/>
-    <url/>
+    <connection>scm:git:git://github.com/snytkine/api-tester-cli.git</connection>
+    <developerConnection>scm:git:https://github.com/snytkine/api-tester-cli.git</developerConnection>
+    <tag>HEAD</tag>
+    <url>https://github.com/snytkine/api-tester-cli</url>
   </scm>
   <properties>
     <dotenv-java.version>3.2.0</dotenv-java.version>
