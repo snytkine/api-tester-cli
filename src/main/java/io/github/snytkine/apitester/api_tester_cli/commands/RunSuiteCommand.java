@@ -122,9 +122,9 @@ public class RunSuiteCommand {
      * @param suite absolute path to the test-suite YAML file to load
      * @param noUi when {@code true}, forces JSON output even on a TTY
      * @param forceUi when {@code true}, forces the interactive UI even when not on a TTY
-     * @param tag when non-blank, only test cases whose {@code tag} field exactly matches this value
-     *     are executed; a no-match condition surfaces an {@link ErrorBox} and aborts the run;
-     *     mutually exclusive with {@code testName}
+     * @param tag when non-blank, only test cases whose {@code tags} list contains this value are
+     *     executed; a no-match condition surfaces an {@link ErrorBox} and aborts the run; mutually
+     *     exclusive with {@code testName}
      * @param testName when non-blank, only the single test case whose {@code name} exactly matches
      *     this value is executed; a no-match condition surfaces an {@link ErrorBox} and aborts the
      *     run; mutually exclusive with {@code tag}; use double quotes if the name contains spaces:
@@ -187,7 +187,7 @@ public class RunSuiteCommand {
         // Apply tag filter when --tag is supplied.
         TestSuite suiteToRun = tagFilterActive
                 ? testSuite.withFilteredTests(testSuite.tests().stream()
-                        .filter(tc -> tag.equals(tc.tag()))
+                        .filter(tc -> tc.tags() != null && tc.tags().contains(tag))
                         .toList())
                 : testSuite;
 

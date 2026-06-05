@@ -171,7 +171,8 @@ class RunSuiteCommandTest {
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
         assertThat(suiteCaptor.getValue().tests()).hasSize(2);
-        assertThat(suiteCaptor.getValue().tests()).allMatch(tc -> "smoke".equals(tc.tag()));
+        assertThat(suiteCaptor.getValue().tests())
+                .allMatch(tc -> tc.tags() != null && tc.tags().contains("smoke"));
     }
 
     @Test
@@ -238,6 +239,22 @@ class RunSuiteCommandTest {
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("cannot be used together");
+    }
+
+    @Test
+    void tagFilterMatchesSecondTagInMultiTagList() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, "regression", null, buildContext());
+
+        ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
+        verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
+        assertThat(suiteCaptor.getValue().tests()).hasSize(2);
+        assertThat(suiteCaptor.getValue().tests())
+                .allMatch(tc -> tc.tags() != null && tc.tags().contains("regression"));
     }
 
     private CommandContext buildContext(String... argValues) {

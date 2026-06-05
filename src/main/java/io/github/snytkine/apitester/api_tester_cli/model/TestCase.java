@@ -16,6 +16,8 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +27,10 @@ import org.jspecify.annotations.Nullable;
  * A single HTTP test case within a {@link TestSuite}.
  *
  * <p>The {@code name} field uniquely identifies the test within its suite and appears in the
- * terminal UI grid. The optional {@code skip} field, when non-blank, causes the engine to bypass
+ * terminal UI grid. The optional {@code tags} field (YAML key: {@code tag}) accepts a plain string
+ * or a list of strings; a plain string is automatically coerced to a single-element list during
+ * deserialization. The {@code --tag} CLI filter runs only tests whose tag list contains the
+ * supplied value. The optional {@code skip} field, when non-blank, causes the engine to bypass
  * execution entirely and record a {@link TestResult#SKIPPED} outcome; the field value is stored as
  * the skip reason. The {@code skip} field supports Thymeleaf expressions (e.g. {@code
  * [[${suite.skip_flag}]]}) that are resolved during template processing before the engine runs.
@@ -40,11 +45,20 @@ public record TestCase(
         @Nullable String description,
 
         /**
-         * Optional tag used to group and selectively run related tests. When a {@code --tag} filter is
-         * active, only tests whose tag exactly matches the supplied value are executed. Supports
-         * Thymeleaf expressions so tags can be driven by suite or CLI variables.
+         * Optional list of tags used to group and selectively run related tests. The YAML key is
+         * {@code tag} and accepts either a plain string (coerced to a single-element list) or a YAML
+         * sequence. When a {@code --tag} filter is active, only tests whose tag list contains the
+         * supplied value are executed. Supports Thymeleaf expressions so tag values can be driven by
+         * suite or CLI variables.
+         *
+         * <p>Examples:
+         *
+         * <pre>
+         * tag: "smoke"                        # deserialized as List.of("smoke")
+         * tag: ["smoke", "regression"]        # deserialized as List.of("smoke", "regression")
+         * </pre>
          */
-        @Nullable String tag,
+        @JsonProperty("tag") @JsonDeserialize(using = TagsDeserializer.class) @Nullable List<String> tags,
 
         /**
          * When non-blank, the test is skipped and this value is recorded as the skip reason. Supports

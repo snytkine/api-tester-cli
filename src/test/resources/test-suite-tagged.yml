@@ -10,7 +10,9 @@ tests:
   - type: "status_code"
     expected: 200
 - name: "smoke test two"
-  tag: "smoke"
+  tag:
+  - "smoke"
+  - "regression"
   request:
     method: "GET"
     url: "http://example.com/two"

@@ -69,8 +69,18 @@
           "description": "Optional description of what this test verifies"
         },
         "tag": {
-          "type": "string",
-          "description": "Optional tag for grouping tests. Used with --tag CLI filter to run a subset. Supports Thymeleaf expressions."
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Single tag (shorthand — equivalent to a one-element list)."
+            },
+            {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "List of tags this test case belongs to."
+            }
+          ],
+          "description": "Optional tag or list of tags for grouping tests. Used with --tag CLI filter."
         },
         "skip": {
           "type": "string",
