@@ -3,7 +3,7 @@ name: Deploy documentation to GitHub Pages
 on:
   push:
     branches:
-      - main
+      - some_branch
     paths:
       - docs/**
       - mkdocs.yml
