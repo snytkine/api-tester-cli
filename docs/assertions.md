@@ -1,4 +1,4 @@
-# Assertions.
+# Assertions
 
 Assertions are evaluated after the HTTP response is received. Each test must include at least one assertion. When an assertion fails, the test is marked as failed, but execution continues to evaluate all assertions (soft assertions).
 
