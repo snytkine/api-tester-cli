@@ -40,6 +40,13 @@ public record TestCase(
         @Nullable String description,
 
         /**
+         * Optional tag used to group and selectively run related tests. When a {@code --tag} filter is
+         * active, only tests whose tag exactly matches the supplied value are executed. Supports
+         * Thymeleaf expressions so tags can be driven by suite or CLI variables.
+         */
+        @Nullable String tag,
+
+        /**
          * When non-blank, the test is skipped and this value is recorded as the skip reason. Supports
          * Thymeleaf expressions resolved before the engine runs.
          */

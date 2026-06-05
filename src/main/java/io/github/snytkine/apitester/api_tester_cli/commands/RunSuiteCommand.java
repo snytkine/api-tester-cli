@@ -121,6 +121,8 @@ public class RunSuiteCommand {
      * @param suite absolute path to the test-suite YAML file to load
      * @param noUi when {@code true}, forces JSON output even on a TTY
      * @param forceUi when {@code true}, forces the interactive UI even when not on a TTY
+     * @param tag when non-blank, only test cases whose {@code tag} field exactly matches this value
+     *     are executed; a no-match condition surfaces an {@link ErrorBox} and aborts the run
      * @param context Spring Shell command context; positional arguments are extracted from it as CLI
      *     variables forwarded to the Thymeleaf template engine
      * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
@@ -141,6 +143,7 @@ public class RunSuiteCommand {
                             description =
                                     "Force the interactive terminal UI even when stdout does not look like a TTY.")
                     boolean forceUi,
+            @Option(longName = "tag", description = "Run only test cases whose tag matches this value.") @Nullable String tag,
             CommandContext context)
             throws Exception {
 
@@ -156,25 +159,54 @@ public class RunSuiteCommand {
         SuiteRunContext suiteRunContext = SuiteRunContext.of(envVars, cliVars);
         TestSuite testSuite = testSuiteLoader.load(suitePath, suiteRunContext);
 
+        // Apply tag filter when --tag is supplied.
+        boolean tagFilterActive = tag != null && !tag.isBlank();
+        TestSuite suiteToRun = tagFilterActive
+                ? testSuite.withFilteredTests(testSuite.tests().stream()
+                        .filter(tc -> tag.equals(tc.tag()))
+                        .toList())
+                : testSuite;
+
+        // Build the applied-options map for JSON output.
+        Map<String, String> appliedOptions = new LinkedHashMap<>();
+        if (tagFilterActive) appliedOptions.put("tag", tag);
+
         if (useUi) {
             LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
             TerminalUiListener uiListener = new TerminalUiListener(queue);
             TerminalUiController controller = new TerminalUiController(
-                    queue, TtyDetector.supportsColor(), TtyDetector.getTerminalWidth(), context.outputWriter());
+                    queue,
+                    TtyDetector.supportsColor(),
+                    TtyDetector.getTerminalWidth(),
+                    context.outputWriter(),
+                    tagFilterActive ? tag : null);
             controller.start();
-            List<String> errors = testSuiteValidator.validate(testSuite);
-            if (!errors.isEmpty()) {
-                uiListener.onProgress(new TestProgressEvent.ValidationFailed(errors));
+            List<String> validationErrors = testSuiteValidator.validate(suiteToRun);
+            if (!validationErrors.isEmpty()) {
+                uiListener.onProgress(new TestProgressEvent.ValidationFailed(validationErrors));
+            } else if (tagFilterActive && suiteToRun.tests().isEmpty()) {
+                uiListener.onProgress(
+                        new TestProgressEvent.ValidationFailed(List.of("No tests found with tag: \"" + tag + "\"")));
             } else {
-                testEngine.runConfigurationSuite(testSuite, suiteRunContext, uiListener);
+                testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, uiListener);
             }
             controller.await();
         } else {
-            List<String> errors = testSuiteValidator.validate(testSuite);
-            if (!errors.isEmpty()) {
+            List<String> validationErrors = testSuiteValidator.validate(suiteToRun);
+            if (!validationErrors.isEmpty()) {
                 new ErrorBox()
                         .render(
-                                errors,
+                                validationErrors,
+                                TtyDetector.supportsColor(),
+                                TtyDetector.getTerminalWidth(),
+                                context.outputWriter());
+                context.outputWriter().flush();
+                return;
+            }
+            if (tagFilterActive && suiteToRun.tests().isEmpty()) {
+                new ErrorBox()
+                        .render(
+                                List.of("No tests found with tag: \"" + tag + "\""),
                                 TtyDetector.supportsColor(),
                                 TtyDetector.getTerminalWidth(),
                                 context.outputWriter());
@@ -182,8 +214,8 @@ public class RunSuiteCommand {
                 return;
             }
             TestRunResult result =
-                    testEngine.runConfigurationSuite(testSuite, suiteRunContext, NoOpProgressListener.INSTANCE);
-            context.outputWriter().println(toJson(result));
+                    testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
+            context.outputWriter().println(toJson(result.withAppliedOptions(appliedOptions)));
             context.outputWriter().flush();
         }
     }

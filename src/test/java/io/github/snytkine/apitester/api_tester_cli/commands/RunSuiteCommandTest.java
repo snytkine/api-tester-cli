@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,16 +28,19 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
 import org.springframework.shell.core.command.CommandRegistry;
@@ -92,10 +96,16 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
         TestRunResult fakeResult = new TestRunResult(
-                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)));
+                1,
+                0,
+                0L,
+                0L,
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)),
+                Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
+        command.runSuite(
+                suite, false, false, null, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -105,10 +115,15 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
         TestRunResult fakeResult = new TestRunResult(
-                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)));
+                1,
+                0,
+                0L,
+                0L,
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)),
+                Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, buildContext());
+        command.runSuite(suite, false, false, null, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -118,19 +133,56 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
         TestRunResult fakeResult = new TestRunResult(
-                1, 0, 0L, 0L, List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)));
+                1,
+                0,
+                0L,
+                0L,
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)),
+                Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, true, false, buildContext());
+        command.runSuite(suite, true, false, null, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
 
     @Test
     void runSuiteThrowsWhenFileDoesNotExist() {
-        assertThatThrownBy(() -> command.runSuite("/nonexistent/path/suite.yml", false, false, buildContext()))
+        assertThatThrownBy(() -> command.runSuite("/nonexistent/path/suite.yml", false, false, null, buildContext()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Test suite file not found");
+    }
+
+    @Test
+    void tagFilterPassesOnlyMatchingTestsToEngine() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        TestRunResult fakeResult = new TestRunResult(2, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, "smoke", buildContext());
+
+        ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
+        verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
+        assertThat(suiteCaptor.getValue().tests()).hasSize(2);
+        assertThat(suiteCaptor.getValue().tests()).allMatch(tc -> "smoke".equals(tc.tag()));
+    }
+
+    @Test
+    void tagFilterWithNoMatchDoesNotCallEngine() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new org.springframework.shell.core.command.ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new org.springframework.shell.core.command.CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        command.runSuite(suite, false, false, "nonexistent-tag", ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+        assertThat(output.toString()).contains("No tests found with tag");
     }
 
     private CommandContext buildContext(String... argValues) {

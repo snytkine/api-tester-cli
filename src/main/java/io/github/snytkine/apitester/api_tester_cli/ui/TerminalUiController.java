@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,6 +150,12 @@ public final class TerminalUiController {
     private final PrintWriter output;
 
     /**
+     * When non-null, a one-line tag-filter notice is printed below the suite banner and above the
+     * test grid.
+     */
+    @Nullable private final String activeTagFilter;
+
+    /**
      * Computed visible character width for the Test Name column; equals {@code max(10,
      * terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH)}.
      */
@@ -173,10 +180,10 @@ public final class TerminalUiController {
     private Thread controllerThread;
 
     /**
-     * Constructs a controller for one suite run.
+     * Constructs a controller for one suite run with no active tag filter.
      *
-     * <p>Column widths and 1-indexed column start positions are computed once from {@code
-     * terminalWidth} and stored for use throughout the run loop.
+     * <p>Delegates to {@link #TerminalUiController(LinkedBlockingQueue, boolean, int, PrintWriter,
+     * String)} with {@code activeTagFilter = null}.
      *
      * @param queue the shared event queue populated by a {@link TerminalUiListener}
      * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
@@ -185,10 +192,34 @@ public final class TerminalUiController {
      */
     public TerminalUiController(
             LinkedBlockingQueue<TestProgressEvent> queue, boolean useColors, int terminalWidth, PrintWriter output) {
+        this(queue, useColors, terminalWidth, output, null);
+    }
+
+    /**
+     * Constructs a controller for one suite run, optionally displaying a tag-filter notice.
+     *
+     * <p>Column widths and 1-indexed column start positions are computed once from {@code
+     * terminalWidth} and stored for use throughout the run loop. When {@code activeTagFilter} is
+     * non-null, a notice line is printed below the suite banner and above the test grid.
+     *
+     * @param queue the shared event queue populated by a {@link TerminalUiListener}
+     * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
+     * @param terminalWidth terminal column count used to derive the name-column width and banner width
+     * @param output writer connected to the terminal; used for all UI output and post-TUI details
+     * @param activeTagFilter when non-null, the tag value that was used to filter the test list;
+     *     displayed as a notice between the banner and the test grid
+     */
+    public TerminalUiController(
+            LinkedBlockingQueue<TestProgressEvent> queue,
+            boolean useColors,
+            int terminalWidth,
+            PrintWriter output,
+            @Nullable String activeTagFilter) {
         this.queue = queue;
         this.useColors = useColors;
         this.terminalWidth = terminalWidth;
         this.output = output;
+        this.activeTagFilter = activeTagFilter;
         this.nameColWidth =
                 Math.max(10, terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH);
         // 1-indexed column starts:
@@ -229,9 +260,10 @@ public final class TerminalUiController {
      *
      * <p>Waits for the first event from the queue. If it is a {@link
      * TestProgressEvent.ValidationFailed}, renders an {@link ErrorBox} and exits immediately without
-     * drawing a suite grid. If it is a {@link TestProgressEvent.SuiteStarted}, draws the banner and
-     * grid, then runs the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}.
-     * After the loop exits, appends the one-line summary and any failure details below the grid.
+     * drawing a suite grid. If it is a {@link TestProgressEvent.SuiteStarted}, draws the banner, an
+     * optional tag-filter notice (when {@link #activeTagFilter} is non-null), and the test grid,
+     * then runs the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}. After the
+     * loop exits, appends the one-line summary and any failure details below the grid.
      */
     private void runLoop() {
         try {
@@ -248,8 +280,11 @@ public final class TerminalUiController {
 
             int rowCount = suiteStarted.totalTestCount();
 
-            // Draw static elements — banner and the grid frame with blank data rows.
+            // Draw static elements — banner, optional tag-filter notice, and grid frame.
             drawBanner(suiteStarted.suiteName());
+            if (activeTagFilter != null) {
+                drawTagNotice(activeTagFilter);
+            }
             drawGrid(rowCount);
             output.flush();
 
@@ -452,6 +487,19 @@ public final class TerminalUiController {
         output.println(colorize(indent + "┌" + "─".repeat(innerWidth) + "┐", ANSI_YELLOW));
         output.println(colorize(indent + "│" + " ".repeat(leftPad) + text + " ".repeat(rightPad) + "│", ANSI_YELLOW));
         output.println(colorize(indent + "└" + "─".repeat(innerWidth) + "┘", ANSI_YELLOW));
+    }
+
+    /**
+     * Prints the one-line tag-filter notice immediately below the suite banner.
+     *
+     * <p>Format: {@code   ▶ Filtering by tag: <tagFilter>}. The {@link Glyphs#RUNNING} glyph is
+     * rendered in yellow when {@link #useColors} is {@code true}; the remainder of the line uses
+     * the default terminal colour. Two leading spaces align the notice with the banner indent.
+     *
+     * @param tagFilter the tag value that was used to filter the test list
+     */
+    private void drawTagNotice(String tagFilter) {
+        output.println("  " + colorize(Glyphs.RUNNING, ANSI_YELLOW) + " Filtering by tag: " + tagFilter);
     }
 
     /**

@@ -1,0 +1,34 @@
+---
+name: "Tagged Test Suite"
+tests:
+- name: "smoke test one"
+  tag: "smoke"
+  request:
+    method: "GET"
+    url: "http://example.com/one"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "smoke test two"
+  tag: "smoke"
+  request:
+    method: "GET"
+    url: "http://example.com/two"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "regression test"
+  tag: "regression"
+  request:
+    method: "GET"
+    url: "http://example.com/three"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "untagged test"
+  request:
+    method: "GET"
+    url: "http://example.com/four"
+  assertions:
+  - type: "status_code"
+    expected: 200

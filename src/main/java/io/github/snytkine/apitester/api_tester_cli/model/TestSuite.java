@@ -46,4 +46,21 @@ public record TestSuite(
         @Nullable Map<String, String> variables,
         List<TestCase> tests,
         @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath,
-        @JsonIgnore @Nullable String templateContent) {}
+        @JsonIgnore @Nullable String templateContent) {
+
+    /**
+     * Returns a new {@link TestSuite} that is identical to this one except that the {@code tests}
+     * list is replaced by {@code filteredTests}. All other fields — name, description, REST-client
+     * config, variables, file path, and template content — are carried over unchanged.
+     *
+     * <p>Intended for use in {@link
+     * io.github.snytkine.apitester.api_tester_cli.commands.RunSuiteCommand} to narrow the test list
+     * when a {@code --tag} filter is applied before execution begins.
+     *
+     * @param filteredTests the replacement test-case list; may be empty but must not be {@code null}
+     * @return a new {@link TestSuite} with the supplied test list
+     */
+    public TestSuite withFilteredTests(List<TestCase> filteredTests) {
+        return new TestSuite(name, description, restClientConfig, variables, filteredTests, filePath, templateContent);
+    }
+}

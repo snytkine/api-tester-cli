@@ -670,4 +670,40 @@ class TerminalUiControllerTest {
         // resultColStart = timeColStart + TIME_COL_WIDTH + 3 = 51 + 15 + 3 = 69
         assertThat(ctrl.resultColStart).isEqualTo(69);
     }
+
+    // ---------------------------------------------------------------------------
+    // Tag filter notice
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void tagNoticeAppearsWhenActiveTagFilterIsSet() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = new TerminalUiController(queue, false, 80, new PrintWriter(capture), "smoke");
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("Filtering by tag: smoke");
+    }
+
+    @Test
+    void tagNoticeAbsentWhenNoTagFilter() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        assertThat(capture.toString()).doesNotContain("Filtering by tag");
+    }
 }

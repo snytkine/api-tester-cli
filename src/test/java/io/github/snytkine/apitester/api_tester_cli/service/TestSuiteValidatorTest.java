@@ -32,7 +32,8 @@ class TestSuiteValidatorTest {
     private final TestSuiteValidator validator = new TestSuiteValidator();
 
     private static TestCase tc(String name) {
-        return new TestCase(name, null, null, Map.of(), new BodylessRequest(HttpMethod.GET, "/", null), List.of());
+        return new TestCase(
+                name, null, null, null, Map.of(), new BodylessRequest(HttpMethod.GET, "/", null), List.of());
     }
 
     private static TestSuite suite(TestCase... cases) {

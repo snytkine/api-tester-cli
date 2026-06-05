@@ -17,6 +17,7 @@
 package io.github.snytkine.apitester.api_tester_cli.model;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Aggregated outcome of executing all test cases in a {@link TestSuite}.
@@ -40,4 +41,24 @@ public record TestRunResult(
         long errorCount,
 
         /** Per-test-case results in execution order. */
-        List<TestCaseResult> results) {}
+        List<TestCaseResult> results,
+
+        /**
+         * Named CLI options that were actively applied during this run (e.g. {@code {"tag":
+         * "smoke"}}). Populated by the command layer, not the engine; empty when no extra options
+         * were used.
+         */
+        Map<String, String> appliedOptions) {
+
+    /**
+     * Returns a new {@link TestRunResult} identical to this one except that {@code appliedOptions} is
+     * replaced by an immutable copy of {@code options}. Intended for use in the command layer to stamp
+     * the active CLI options after the engine returns its result.
+     *
+     * @param options the options map to record; must not be {@code null}
+     * @return a new {@link TestRunResult} with the supplied options
+     */
+    public TestRunResult withAppliedOptions(Map<String, String> options) {
+        return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results, Map.copyOf(options));
+    }
+}

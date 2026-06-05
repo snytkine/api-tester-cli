@@ -245,7 +245,7 @@ public class PureJavaTestEngine implements TestEngine {
         listener.onProgress(new TestProgressEvent.SuiteCompleted(
                 passedCount, failedCount, skippedCount, errorCount, totalDurationMs));
 
-        return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results);
+        return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results, Map.of());
     }
 
     /**
@@ -269,10 +269,14 @@ public class PureJavaTestEngine implements TestEngine {
      * variable
      * expressions (e.g. {@code [[${test.username}]]} in the request URL or headers)
      * are resolved.
-     * The resolved {@link TestCase} is then extracted from the re-parsed suite at
-     * the same index
-     * {@code i}. When {@code templateContent} is absent the raw test case is used
-     * as-is.
+     * The resolved {@link TestCase} is then located in the re-parsed suite by matching
+     * {@link TestCase#name()} rather than by position index. This is necessary because
+     * when a tag filter is active the index {@code i} refers to a position in the
+     * filtered list, while {@code templateContent} still holds the full original YAML;
+     * looking up by name is always correct because
+     * {@link io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator}
+     * guarantees unique names.
+     * When {@code templateContent} is absent the raw test case is used as-is.
      *
      * <p>
      * HTTP errors propagate as unchecked exceptions; assertion failures surface as
@@ -340,7 +344,17 @@ public class PureJavaTestEngine implements TestEngine {
                     testVariables.size());
             String resolvedYaml = FileLoader.parseFile(testSuite.templateContent(), testConfigMap);
             TestSuite resolvedSuite = yamlMapper.readValue(resolvedYaml, TestSuite.class);
-            config = resolvedSuite.tests().get(i);
+            // Look up the resolved test case by name rather than by index.
+            // When the suite has been filtered (e.g. by --tag), the index i refers to a
+            // position in the filtered list, while templateContent still contains the full
+            // original YAML.  Using get(i) on the re-parsed (unfiltered) suite would fetch
+            // the wrong test case; a name-based lookup is always correct because
+            // TestSuiteValidator guarantees unique names.
+            String targetName = rawConfig.name();
+            config = resolvedSuite.tests().stream()
+                    .filter(tc -> targetName.equals(tc.name()))
+                    .findFirst()
+                    .orElse(rawConfig);
             log.debug(
                     "Test [{}] '{}': resolved request {} {}",
                     i,
