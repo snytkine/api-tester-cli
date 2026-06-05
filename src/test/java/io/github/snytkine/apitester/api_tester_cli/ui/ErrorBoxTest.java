@@ -94,12 +94,27 @@ class ErrorBoxTest {
     }
 
     @Test
-    void renderTruncatesLongMessageWithEllipsis() {
+    void renderWrapsLongMessageAcrossMultipleLines() {
+        // "A".repeat(200) at width=40 → msgArea=26 → forces at least 8 content lines
         String longMsg = "A".repeat(200);
         String out = render(List.of(longMsg), false, 40);
 
-        assertThat(out).contains("…");
-        assertThat(out).doesNotContain(longMsg);
+        // Full message must appear in output (not truncated)
+        assertThat(out).contains(longMsg.substring(0, 26)); // first chunk present
+        // No ellipsis — message is wrapped, not truncated
+        assertThat(out).doesNotContain("…");
+    }
+
+    @Test
+    void renderWrapsAtWordBoundary() {
+        // Message designed to exceed one line so wrapping kicks in at a space
+        String msg = "Options --tag and --test cannot be used together. Use one or the other.";
+        String out = render(List.of(msg), false, 50); // msgArea = 36
+
+        // The full message text must appear somewhere in the output
+        assertThat(out).contains("Options --tag and --test cannot be");
+        assertThat(out).contains("used together. Use one or the other.");
+        assertThat(out).doesNotContain("…");
     }
 
     @Test

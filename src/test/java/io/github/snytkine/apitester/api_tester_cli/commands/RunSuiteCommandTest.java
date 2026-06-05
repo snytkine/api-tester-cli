@@ -105,7 +105,12 @@ class RunSuiteCommandTest {
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
         command.runSuite(
-                suite, false, false, null, buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
+                suite,
+                false,
+                false,
+                null,
+                null,
+                buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -123,7 +128,7 @@ class RunSuiteCommandTest {
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, null, buildContext());
+        command.runSuite(suite, false, false, null, null, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -141,14 +146,15 @@ class RunSuiteCommandTest {
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, true, false, null, buildContext());
+        command.runSuite(suite, true, false, null, null, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
 
     @Test
     void runSuiteThrowsWhenFileDoesNotExist() {
-        assertThatThrownBy(() -> command.runSuite("/nonexistent/path/suite.yml", false, false, null, buildContext()))
+        assertThatThrownBy(
+                        () -> command.runSuite("/nonexistent/path/suite.yml", false, false, null, null, buildContext()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Test suite file not found");
     }
@@ -160,7 +166,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(2, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, "smoke", buildContext());
+        command.runSuite(suite, false, false, "smoke", null, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -179,10 +185,59 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, "nonexistent-tag", ctx);
+        command.runSuite(suite, false, false, "nonexistent-tag", null, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("No tests found with tag");
+    }
+
+    @Test
+    void testNameFilterRunsOnlyMatchingTest() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, null, "smoke test one", buildContext());
+
+        ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
+        verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
+        assertThat(suiteCaptor.getValue().tests()).hasSize(1);
+        assertThat(suiteCaptor.getValue().tests().get(0).name()).isEqualTo("smoke test one");
+    }
+
+    @Test
+    void testNameFilterWithNoMatchDoesNotCallEngine() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        command.runSuite(suite, false, false, null, "nonexistent test name", ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+        assertThat(output.toString()).contains("No test found with name");
+    }
+
+    @Test
+    void tagAndTestTogetherDoesNotCallEngine() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        command.runSuite(suite, false, false, "smoke", "smoke test one", ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+        assertThat(output.toString()).contains("cannot be used together");
     }
 
     private CommandContext buildContext(String... argValues) {

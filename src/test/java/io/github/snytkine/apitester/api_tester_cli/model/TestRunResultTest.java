@@ -68,6 +68,16 @@ class TestRunResultTest {
     }
 
     @Test
+    void appliedOptionsIncludesTestKeyWhenOptionUsed() throws Exception {
+        TestRunResult result = new TestRunResult(1, 0, 0, 0, List.of(), Map.of("test", "my exact test"));
+
+        String json = mapper.writeValueAsString(result);
+
+        assertThat(json).contains("\"test\"");
+        assertThat(json).contains("\"my exact test\"");
+    }
+
+    @Test
     void emptyAppliedOptionsSerializesAsEmptyObject() throws Exception {
         TestRunResult result = new TestRunResult(1, 0, 0, 0, List.of(), Map.of());
 

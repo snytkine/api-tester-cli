@@ -22,6 +22,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
@@ -122,7 +123,12 @@ public class RunSuiteCommand {
      * @param noUi when {@code true}, forces JSON output even on a TTY
      * @param forceUi when {@code true}, forces the interactive UI even when not on a TTY
      * @param tag when non-blank, only test cases whose {@code tag} field exactly matches this value
-     *     are executed; a no-match condition surfaces an {@link ErrorBox} and aborts the run
+     *     are executed; a no-match condition surfaces an {@link ErrorBox} and aborts the run;
+     *     mutually exclusive with {@code testName}
+     * @param testName when non-blank, only the single test case whose {@code name} exactly matches
+     *     this value is executed; a no-match condition surfaces an {@link ErrorBox} and aborts the
+     *     run; mutually exclusive with {@code tag}; use double quotes if the name contains spaces:
+     *     {@code --test="My Test Name"}
      * @param context Spring Shell command context; positional arguments are extracted from it as CLI
      *     variables forwarded to the Thymeleaf template engine
      * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
@@ -143,7 +149,17 @@ public class RunSuiteCommand {
                             description =
                                     "Force the interactive terminal UI even when stdout does not look like a TTY.")
                     boolean forceUi,
-            @Option(longName = "tag", description = "Run only test cases whose tag matches this value.") @Nullable String tag,
+            @Option(
+                            longName = "tag",
+                            description = "Run only test cases whose tag matches this value."
+                                    + " Mutually exclusive with --test.")
+                    @Nullable String tag,
+            @Option(
+                            longName = "test",
+                            description = "Run only the single test case whose name matches this value exactly."
+                                    + " Use double quotes if the name contains spaces:"
+                                    + " --test=\"My Test Name\". Mutually exclusive with --tag.")
+                    @Nullable String testName,
             CommandContext context)
             throws Exception {
 
@@ -159,17 +175,39 @@ public class RunSuiteCommand {
         SuiteRunContext suiteRunContext = SuiteRunContext.of(envVars, cliVars);
         TestSuite testSuite = testSuiteLoader.load(suitePath, suiteRunContext);
 
-        // Apply tag filter when --tag is supplied.
         boolean tagFilterActive = tag != null && !tag.isBlank();
+        boolean testNameFilterActive = testName != null && !testName.isBlank();
+
+        // Reject the combination of --tag and --test up front, before touching the suite.
+        if (tagFilterActive && testNameFilterActive) {
+            renderErrors(List.of("Options --tag and --test cannot be used together. Use one or the other."), context);
+            return;
+        }
+
+        // Apply tag filter when --tag is supplied.
         TestSuite suiteToRun = tagFilterActive
                 ? testSuite.withFilteredTests(testSuite.tests().stream()
                         .filter(tc -> tag.equals(tc.tag()))
                         .toList())
                 : testSuite;
 
+        // Apply test-name filter when --test is supplied (overrides any tag filter, but
+        // mutual-exclusion above ensures they are never both active simultaneously).
+        if (testNameFilterActive) {
+            List<TestCase> matched = testSuite.tests().stream()
+                    .filter(tc -> testName.equals(tc.name()))
+                    .toList();
+            if (matched.isEmpty()) {
+                renderErrors(List.of("No test found with name: \"" + testName + "\""), context);
+                return;
+            }
+            suiteToRun = testSuite.withFilteredTests(matched);
+        }
+
         // Build the applied-options map for JSON output.
         Map<String, String> appliedOptions = new LinkedHashMap<>();
         if (tagFilterActive) appliedOptions.put("tag", tag);
+        if (testNameFilterActive) appliedOptions.put("test", testName);
 
         if (useUi) {
             LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
@@ -179,7 +217,8 @@ public class RunSuiteCommand {
                     TtyDetector.supportsColor(),
                     TtyDetector.getTerminalWidth(),
                     context.outputWriter(),
-                    tagFilterActive ? tag : null);
+                    tagFilterActive ? tag : null,
+                    testNameFilterActive ? testName : null);
             controller.start();
             List<String> validationErrors = testSuiteValidator.validate(suiteToRun);
             if (!validationErrors.isEmpty()) {
@@ -229,6 +268,24 @@ public class RunSuiteCommand {
      */
     private String toJson(Object value) throws IOException {
         return jsonMapper.writeValueAsString(value);
+    }
+
+    /**
+     * Routes pre-run error messages to the appropriate output channel.
+     *
+     * <p>In UI mode ({@code useUi = true}) the controller has not been started yet, so errors are
+     * rendered directly via {@link ErrorBox} to the output writer. In non-UI mode the same {@link
+     * ErrorBox} is used directly. This helper avoids duplicating the routing logic at every early-
+     * exit point.
+     *
+     * @param errors the non-empty list of error messages to display
+     * @param useUi whether the interactive UI mode is active for this run
+     * @param context the command context whose output writer receives the rendered output
+     */
+    private static void renderErrors(List<String> errors, CommandContext context) {
+        new ErrorBox()
+                .render(errors, TtyDetector.supportsColor(), TtyDetector.getTerminalWidth(), context.outputWriter());
+        context.outputWriter().flush();
     }
 
     /**

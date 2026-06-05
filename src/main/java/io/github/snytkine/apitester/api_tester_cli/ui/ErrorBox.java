@@ -17,6 +17,7 @@
 package io.github.snytkine.apitester.api_tester_cli.ui;
 
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.shell.jline.tui.style.FigureSettings;
 
@@ -41,7 +42,8 @@ import org.springframework.shell.jline.tui.style.FigureSettings;
  *       the word {@code Error}. Both the figure and the word are rendered in red (ANSI code 31) when
  *       {@code useColors} is {@code true}.
  *   <li>The error message text following the label uses the default terminal colour.
- *   <li>Messages that exceed the available inner width are truncated with "…".
+ *   <li>Messages that exceed the available inner width are word-wrapped across multiple lines.
+ *       Continuation lines are indented to align with the message text on the first line.
  * </ul>
  *
  * <p>This class is stateless and not a Spring bean; instantiate it directly wherever needed. It is
@@ -60,17 +62,22 @@ public final class ErrorBox {
     /**
      * Renders the bordered error panel to {@code output}.
      *
-     * <p>The panel is {@code width} characters wide. Each error message is rendered on its own line
-     * inside the box with the prefix: {@link FigureSettings#error()} figure followed by the word
-     * {@code Error}. When {@code useColors} is {@code true}, both the figure and the word {@code
-     * Error} are coloured red (ANSI code 31); the message itself is always rendered in the default
-     * terminal colour. Messages that exceed the available inner width are truncated with "…".
+     * <p>The panel is {@code width} characters wide. Each error message is rendered inside the box
+     * with the prefix {@link FigureSettings#error()} figure followed by the word {@code Error}. When
+     * {@code useColors} is {@code true}, both the figure and the word {@code Error} are coloured red
+     * (ANSI code 31); the message itself is always rendered in the default terminal colour.
      *
-     * <p>Visible line layout: {@code │  <figure>  Error  <message padded>│}. The fixed prefix
-     * occupies 12 visible characters (2 leading spaces + 1 figure + 2 spaces + 5 for "Error" + 2
-     * spaces), leaving {@code width - 14} characters for the message.
+     * <p>Messages that exceed the available inner width are word-wrapped across multiple lines.
+     * Continuation lines are indented by 12 spaces so that the message text aligns with the first
+     * line. Breaks are made at the last space before the column limit; when no space is available in
+     * the range the line is broken at the column limit directly.
      *
-     * @param errors non-empty list of error messages to display; each element produces one line
+     * <p>Visible line layout (first line): {@code │  <figure>  Error  <message chunk>│}. The fixed
+     * prefix occupies 12 visible characters (2 leading spaces + 1 figure + 2 spaces + 5 for "Error"
+     * + 2 spaces), leaving {@code width - 14} characters per line for the message.
+     *
+     * @param errors non-empty list of error messages to display; each element may produce multiple
+     *     wrapped lines
      * @param useColors {@code true} to render the figure and the word "Error" in red (ANSI code 31)
      * @param width terminal column count used to size the box; values below 14 are clamped to 14
      * @param output target writer; the caller is responsible for flushing after this call returns
@@ -80,7 +87,9 @@ public final class ErrorBox {
         int innerWidth = w - 2; // visible chars between the two │ borders
         // Fixed prefix per content line (visible chars):
         //   "  " (2) + figure (1) + "  " (2) + "Error" (5) + "  " (2) = 12
-        int msgArea = innerWidth - 12;
+        int prefixWidth = 12;
+        int msgArea = innerWidth - prefixWidth;
+        String continuation = " ".repeat(prefixWidth); // indent for wrapped continuation lines
 
         String figure = FigureSettings.defaults().error();
         String topBorder = "┌" + "─".repeat(innerWidth) + "┐";
@@ -90,26 +99,63 @@ public final class ErrorBox {
         for (String error : errors) {
             String coloredFigure = useColors ? ANSI_RED + figure + ANSI_RESET : figure;
             String coloredLabel = useColors ? ANSI_RED + "Error" + ANSI_RESET : "Error";
-            String msg = truncate(error, msgArea);
-            // Pad message to fill msgArea so the closing │ stays at column w
-            String paddedMsg = msg + " ".repeat(Math.max(0, msgArea - msg.length()));
-            output.println("│  " + coloredFigure + "  " + coloredLabel + "  " + paddedMsg + "│");
+
+            List<String> chunks = wrapMessage(error, msgArea);
+
+            // First chunk: print with the figure + label prefix
+            String first = chunks.get(0);
+            output.println("│  " + coloredFigure + "  " + coloredLabel + "  " + pad(first, msgArea) + "│");
+
+            // Continuation chunks: indent to align message text under the first line
+            for (int i = 1; i < chunks.size(); i++) {
+                output.println("│" + continuation + pad(chunks.get(i), msgArea) + "│");
+            }
         }
         output.println(botBorder);
     }
 
     /**
-     * Truncates {@code message} to at most {@code maxLen} visible characters. When truncation is
-     * needed the last character of the result is replaced with "…".
+     * Splits {@code message} into lines of at most {@code lineWidth} visible characters, breaking at
+     * word boundaries (spaces) where possible. When no space is available within the range the break
+     * is made at the column limit directly.
      *
-     * @param message the message to truncate; must not be {@code null}
-     * @param maxLen maximum number of visible characters to return; values ≤ 0 return an empty string
-     * @return the original message if it fits, otherwise a truncated string ending with "…"
+     * @param message the message to wrap; must not be {@code null}
+     * @param lineWidth maximum visible characters per line; values ≤ 0 return a single empty string
+     * @return a non-empty list of line chunks, each at most {@code lineWidth} characters long
      */
-    private static String truncate(String message, int maxLen) {
-        if (maxLen <= 0) return "";
-        if (message.length() <= maxLen) return message;
-        if (maxLen == 1) return "…";
-        return message.substring(0, maxLen - 1) + "…";
+    static List<String> wrapMessage(String message, int lineWidth) {
+        if (lineWidth <= 0) return List.of("");
+        if (message.length() <= lineWidth) return List.of(message);
+        List<String> lines = new ArrayList<>();
+        int start = 0;
+        while (start < message.length()) {
+            if (message.length() - start <= lineWidth) {
+                lines.add(message.substring(start));
+                break;
+            }
+            int end = start + lineWidth;
+            int spaceIndex = message.lastIndexOf(' ', end - 1);
+            if (spaceIndex > start) {
+                lines.add(message.substring(start, spaceIndex));
+                start = spaceIndex + 1; // skip the space
+            } else {
+                lines.add(message.substring(start, end));
+                start = end;
+            }
+        }
+        return lines.isEmpty() ? List.of("") : lines;
+    }
+
+    /**
+     * Right-pads {@code text} with spaces to exactly {@code width} visible characters, or returns it
+     * unchanged if it is already {@code width} characters or longer.
+     *
+     * @param text the string to pad
+     * @param width the desired visible width
+     * @return a string of at least {@code width} characters
+     */
+    private static String pad(String text, int width) {
+        if (text.length() >= width) return text;
+        return text + " ".repeat(width - text.length());
     }
 }

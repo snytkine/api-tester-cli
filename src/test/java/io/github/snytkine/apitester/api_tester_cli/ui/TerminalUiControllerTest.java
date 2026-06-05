@@ -692,6 +692,39 @@ class TerminalUiControllerTest {
     }
 
     @Test
+    void testNoticeAppearsWhenActiveTestNameIsSet() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl =
+                new TerminalUiController(queue, false, 80, new PrintWriter(capture), null, "my exact test");
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "my exact test"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "my exact test", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("Running single test: \"my exact test\"");
+    }
+
+    @Test
+    void testNoticeAbsentWhenNoTestNameFilter() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "t"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "t", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        assertThat(capture.toString()).doesNotContain("Running single test");
+    }
+
+    @Test
     void tagNoticeAbsentWhenNoTagFilter() throws InterruptedException {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         StringWriter capture = new StringWriter();

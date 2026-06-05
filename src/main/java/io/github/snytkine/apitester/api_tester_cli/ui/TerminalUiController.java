@@ -156,6 +156,12 @@ public final class TerminalUiController {
     @Nullable private final String activeTagFilter;
 
     /**
+     * When non-null, a one-line single-test notice is printed below the suite banner (and below any
+     * tag-filter notice) and above the test grid.
+     */
+    @Nullable private final String activeTestName;
+
+    /**
      * Computed visible character width for the Test Name column; equals {@code max(10,
      * terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH)}.
      */
@@ -180,10 +186,10 @@ public final class TerminalUiController {
     private Thread controllerThread;
 
     /**
-     * Constructs a controller for one suite run with no active tag filter.
+     * Constructs a controller for one suite run with no active filters.
      *
      * <p>Delegates to {@link #TerminalUiController(LinkedBlockingQueue, boolean, int, PrintWriter,
-     * String)} with {@code activeTagFilter = null}.
+     * String, String)} with both filter arguments {@code null}.
      *
      * @param queue the shared event queue populated by a {@link TerminalUiListener}
      * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
@@ -192,22 +198,21 @@ public final class TerminalUiController {
      */
     public TerminalUiController(
             LinkedBlockingQueue<TestProgressEvent> queue, boolean useColors, int terminalWidth, PrintWriter output) {
-        this(queue, useColors, terminalWidth, output, null);
+        this(queue, useColors, terminalWidth, output, null, null);
     }
 
     /**
-     * Constructs a controller for one suite run, optionally displaying a tag-filter notice.
+     * Constructs a controller for one suite run with an optional tag-filter notice and no
+     * single-test notice.
      *
-     * <p>Column widths and 1-indexed column start positions are computed once from {@code
-     * terminalWidth} and stored for use throughout the run loop. When {@code activeTagFilter} is
-     * non-null, a notice line is printed below the suite banner and above the test grid.
+     * <p>Delegates to {@link #TerminalUiController(LinkedBlockingQueue, boolean, int, PrintWriter,
+     * String, String)} with {@code activeTestName = null}.
      *
      * @param queue the shared event queue populated by a {@link TerminalUiListener}
      * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
      * @param terminalWidth terminal column count used to derive the name-column width and banner width
      * @param output writer connected to the terminal; used for all UI output and post-TUI details
-     * @param activeTagFilter when non-null, the tag value that was used to filter the test list;
-     *     displayed as a notice between the banner and the test grid
+     * @param activeTagFilter when non-null, the tag value displayed as a filter notice
      */
     public TerminalUiController(
             LinkedBlockingQueue<TestProgressEvent> queue,
@@ -215,11 +220,40 @@ public final class TerminalUiController {
             int terminalWidth,
             PrintWriter output,
             @Nullable String activeTagFilter) {
+        this(queue, useColors, terminalWidth, output, activeTagFilter, null);
+    }
+
+    /**
+     * Constructs a controller for one suite run, optionally displaying a tag-filter notice and/or a
+     * single-test notice below the suite banner.
+     *
+     * <p>Column widths and 1-indexed column start positions are computed once from {@code
+     * terminalWidth} and stored for use throughout the run loop. At most one of {@code
+     * activeTagFilter} and {@code activeTestName} is expected to be non-null at any time (the
+     * command layer enforces mutual exclusion between {@code --tag} and {@code --test}).
+     *
+     * @param queue the shared event queue populated by a {@link TerminalUiListener}
+     * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
+     * @param terminalWidth terminal column count used to derive the name-column width and banner width
+     * @param output writer connected to the terminal; used for all UI output and post-TUI details
+     * @param activeTagFilter when non-null, the tag value that was used to filter the test list;
+     *     displayed as a notice between the banner and the test grid
+     * @param activeTestName when non-null, the exact test name that was selected via {@code --test};
+     *     displayed as a notice between the banner and the test grid
+     */
+    public TerminalUiController(
+            LinkedBlockingQueue<TestProgressEvent> queue,
+            boolean useColors,
+            int terminalWidth,
+            PrintWriter output,
+            @Nullable String activeTagFilter,
+            @Nullable String activeTestName) {
         this.queue = queue;
         this.useColors = useColors;
         this.terminalWidth = terminalWidth;
         this.output = output;
         this.activeTagFilter = activeTagFilter;
+        this.activeTestName = activeTestName;
         this.nameColWidth =
                 Math.max(10, terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH);
         // 1-indexed column starts:
@@ -260,9 +294,9 @@ public final class TerminalUiController {
      *
      * <p>Waits for the first event from the queue. If it is a {@link
      * TestProgressEvent.ValidationFailed}, renders an {@link ErrorBox} and exits immediately without
-     * drawing a suite grid. If it is a {@link TestProgressEvent.SuiteStarted}, draws the banner, an
-     * optional tag-filter notice (when {@link #activeTagFilter} is non-null), and the test grid,
-     * then runs the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}. After the
+     * drawing a suite grid. If it is a {@link TestProgressEvent.SuiteStarted}, draws the banner,
+     * optional filter notices ({@link #activeTagFilter} and/or {@link #activeTestName}), and the
+     * test grid, then runs the event-and-spinner loop until {@link TestProgressEvent.SuiteCompleted}. After the
      * loop exits, appends the one-line summary and any failure details below the grid.
      */
     private void runLoop() {
@@ -280,10 +314,13 @@ public final class TerminalUiController {
 
             int rowCount = suiteStarted.totalTestCount();
 
-            // Draw static elements — banner, optional tag-filter notice, and grid frame.
+            // Draw static elements — banner, optional filter notices, and grid frame.
             drawBanner(suiteStarted.suiteName());
             if (activeTagFilter != null) {
                 drawTagNotice(activeTagFilter);
+            }
+            if (activeTestName != null) {
+                drawTestNotice(activeTestName);
             }
             drawGrid(rowCount);
             output.flush();
@@ -500,6 +537,20 @@ public final class TerminalUiController {
      */
     private void drawTagNotice(String tagFilter) {
         output.println("  " + colorize(Glyphs.RUNNING, ANSI_YELLOW) + " Filtering by tag: " + tagFilter);
+    }
+
+    /**
+     * Prints the one-line single-test notice immediately below the suite banner (and below any
+     * tag-filter notice).
+     *
+     * <p>Format: {@code   ▶ Running single test: "<testName>"}. The {@link Glyphs#RUNNING} glyph
+     * is rendered in yellow when {@link #useColors} is {@code true}; the remainder of the line uses
+     * the default terminal colour. Two leading spaces align the notice with the banner indent.
+     *
+     * @param testName the exact test name that was selected via {@code --test}
+     */
+    private void drawTestNotice(String testName) {
+        output.println("  " + colorize(Glyphs.RUNNING, ANSI_YELLOW) + " Running single test: \"" + testName + "\"");
     }
 
     /**
