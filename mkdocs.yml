@@ -1,0 +1,36 @@
+site_name: api-tester-cli
+site_url: https://snytkine.github.io/api-tester-cli/
+site_description: Spring Boot CLI for running HTTP API test suites defined in YAML
+site_author: Dmitri Snytkine
+repo_url: https://github.com/snytkine/api-tester-cli
+repo_name: snytkine/api-tester-cli
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+nav:
+  - Introduction: index.md
+  - Getting Started: getting-started.md
+  - CLI Reference: cli-reference.md
+  - Test Suite Configuration: test-suite-configuration.md
+  - Templating: templating.md
+  - Assertions: assertions.md
+  - Environment Variables & Debugging: environment-variables.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true

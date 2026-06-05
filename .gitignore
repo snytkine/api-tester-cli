@@ -72,3 +72,9 @@ api-tester-cli
 # Spring Boot
 # ----------------------------------------
 spring-shell.log
+
+# ----------------------------------------
+# Documentation build output & environments
+# ----------------------------------------
+site/
+.venv/
