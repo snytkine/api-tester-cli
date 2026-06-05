@@ -3,13 +3,14 @@ name: Deploy documentation to GitHub Pages
 on:
   push:
     branches:
-      - some_branch
+      - main
     paths:
       - docs/**
       - mkdocs.yml
       - docs-requirements.txt
 
 permissions:
+  contents: read
   pages: write
   id-token: write
 
