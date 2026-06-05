@@ -2,7 +2,7 @@
 
 Assertions are evaluated after the HTTP response is received. Each test must include at least one assertion. When an assertion fails, the test is marked as failed, but execution continues to evaluate all assertions (soft assertions).
 
-## Path syntax
+## Path syntax.
 
 Most assertions reference a location in the response using a `path` field. Paths start with `response.`:
 
