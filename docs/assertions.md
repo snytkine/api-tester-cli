@@ -16,7 +16,7 @@ Most assertions reference a location in the response using a `path` field. Paths
 | `response.body.json[0]` | Array element access |
 | `response.body.json.users[?(@.role == 'admin')]` | JSONPath filter expressions |
 
-## Status code assertions
+## Status code assertions.
 
 ### `status_code`
 
