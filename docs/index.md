@@ -4,7 +4,7 @@
 
 The tool runs as a regular JVM application (fast builds, simplest development) or as a GraalVM native binary (fast startup, no JVM runtime required).
 
-## Application Key features
+## Application Key features.
 
 - **Thymeleaf templating** — inject command-line values (`[[${cli.api_url}]]`), environment variables (`[[${env.DB_PASSWORD}]]`), suite-level config (`[[${suite.base_url}]]`), and per-test variables (`[[${test.username}]]`) into any YAML string
 - **25+ assertion types** — validate status codes, response headers, body content (with JSONPath and JSON Schema), array elements, null checks, numeric ranges, regex patterns, and more
