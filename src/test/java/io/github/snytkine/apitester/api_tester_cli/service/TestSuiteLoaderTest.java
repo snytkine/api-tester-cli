@@ -233,4 +233,56 @@ class TestSuiteLoaderTest {
         assertThat(withDefaults.headers()).isNotNull();
         assertThat(withDefaults.headers()).containsEntry("x-api-key", "test-key-123");
     }
+
+    @Test
+    void loadWithoutContextSetsFilePathAndTemplateContent() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+
+        TestSuite testSuite = loader.load(path);
+
+        assertThat(testSuite.filePath()).isEqualTo(path);
+        assertThat(testSuite.templateContent()).isNotNull();
+        assertThat(testSuite.templateContent()).contains("Test Suite for My Application v1.0");
+    }
+
+    @Test
+    void loadWithoutContextPreservesRawTemplateExpressionsWithoutProcessing() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-2.yml").toURI());
+
+        TestSuite testSuite = loader.load(path);
+
+        assertThat(testSuite.name()).isEqualTo("Test Suite for My Application v1.0");
+        Map<String, String> variables = testSuite.variables();
+        // No template processing occurs — expressions are stored as-is
+        assertThat(variables.get("api_base_url")).isEqualTo("[[${cli.api_base_url}]]");
+        assertThat(variables.get("admin_system")).isEqualTo("[[${cli.admin_system}]]");
+    }
+
+    @Test
+    void loadWithoutContextAppliesRestClientDefaultsWhenConfigPresent() throws Exception {
+        Path path = Path.of(
+                getClass().getResource("/test-suite-rest-client-headers.yml").toURI());
+
+        TestSuite testSuite = loader.load(path);
+
+        RestClientConfig config = testSuite.restClientConfig();
+        assertThat(config).isNotNull();
+        assertThat(config.baseUrl()).isEqualTo("https://api.example.com");
+        assertThat(config.connectTimeout()).isEqualTo(RestClientConfig.DEFAULT_CONNECT_TIMEOUT_MS);
+        assertThat(config.headers()).containsEntry("x-api-key", "test-key-123");
+        assertThat(config.headers()).containsEntry("Accept", "application/json");
+    }
+
+    @Test
+    void loadWithoutContextAppliesDefaultRestClientConfigWhenAbsent() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+
+        TestSuite testSuite = loader.load(path);
+
+        RestClientConfig config = testSuite.restClientConfig();
+        assertThat(config).isNotNull();
+        assertThat(config.baseUrl()).isEqualTo(RestClientConfig.DEFAULT_BASE_URL);
+        assertThat(config.connectTimeout()).isEqualTo(RestClientConfig.DEFAULT_CONNECT_TIMEOUT_MS);
+        assertThat(config.headers()).isNull();
+    }
 }

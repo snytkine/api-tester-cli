@@ -1,0 +1,16 @@
+---
+name: "Suite with auth and pre-existing Authorization header"
+tests:
+- name: "GET with auth and Authorization header"
+  request:
+    method: "GET"
+    url: "/objects"
+    headers:
+      Authorization: "Bearer existing-token"
+    auth:
+      type: "basic"
+      username: "user"
+      password: "pass"
+  assertions:
+  - type: "status_code"
+    expected: 200

@@ -1,0 +1,12 @@
+---
+name: "Suite with Test Variables"
+tests:
+- name: "GET with test variable url"
+  variables:
+    path: "/objects"
+  request:
+    method: "GET"
+    url: "[[${test.path}]]"
+  assertions:
+  - type: "status_code"
+    expected: 200

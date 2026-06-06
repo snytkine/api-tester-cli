@@ -1,0 +1,13 @@
+---
+name: "All Skipped Suite"
+rest_client:
+  connect_timeout: 5000
+tests:
+- name: "skipped test"
+  skip: "Not implemented"
+  request:
+    method: "GET"
+    url: "/objects"
+  assertions:
+  - type: "status_code"
+    expected: 200

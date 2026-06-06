@@ -1,0 +1,17 @@
+---
+name: "Dup Suite"
+tests:
+- name: "dup"
+  request:
+    method: "GET"
+    url: "http://x.com"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "dup"
+  request:
+    method: "GET"
+    url: "http://x.com"
+  assertions:
+  - type: "status_code"
+    expected: 200

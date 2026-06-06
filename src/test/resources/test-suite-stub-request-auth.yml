@@ -1,0 +1,14 @@
+---
+name: "Suite with request-level basic auth"
+tests:
+- name: "GET with basic auth"
+  request:
+    method: "GET"
+    url: "/objects"
+    auth:
+      type: "basic"
+      username: "user"
+      password: "pass"
+  assertions:
+  - type: "status_code"
+    expected: 200

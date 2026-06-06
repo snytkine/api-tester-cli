@@ -1,0 +1,15 @@
+---
+name: "Suite with POST string body"
+tests:
+- name: "POST with string body"
+  request:
+    method: "POST"
+    url: "/items"
+    headers:
+      Content-Type: "application/json"
+    body:
+      type: "string"
+      content: "{\"name\":\"test\"}"
+  assertions:
+  - type: "status_code"
+    expected: 201

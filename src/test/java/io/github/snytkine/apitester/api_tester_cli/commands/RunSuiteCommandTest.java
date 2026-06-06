@@ -24,6 +24,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
+import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
@@ -36,6 +39,7 @@ import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +51,7 @@ import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
 import org.springframework.shell.core.command.CommandRegistry;
 import org.springframework.shell.core.command.ParsedInput;
+import org.springframework.shell.jline.tui.component.ViewComponentBuilder;
 
 class RunSuiteCommandTest {
 
@@ -56,6 +61,7 @@ class RunSuiteCommandTest {
     private TestEngine mockEngine;
     private HtmlReportGenerator mockReportGenerator;
     private RunSuiteCommand command;
+    private RunSuiteCommand commandWithUi;
 
     @BeforeEach
     void setUp() {
@@ -68,6 +74,13 @@ class RunSuiteCommandTest {
                 new DotEnvLoader(),
                 mockReportGenerator,
                 null);
+        commandWithUi = new RunSuiteCommand(
+                new TestSuiteLoader(),
+                new TestSuiteValidator(),
+                mockEngine,
+                new DotEnvLoader(),
+                mockReportGenerator,
+                mock(ViewComponentBuilder.class));
     }
 
     @Test
@@ -314,6 +327,146 @@ class RunSuiteCommandTest {
         command.runSuite(suite, false, false, null, null, null, buildContext());
 
         verify(mockReportGenerator, never()).generate(any(), any(), any());
+    }
+
+    @Test
+    void blankTagTreatedAsNoFilter() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        TestRunResult fakeResult = new TestRunResult(4, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, "", null, null, buildContext());
+
+        ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
+        verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
+        assertThat(suiteCaptor.getValue().tests()).hasSize(4);
+    }
+
+    @Test
+    void blankTestNameTreatedAsNoFilter() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        TestRunResult fakeResult = new TestRunResult(4, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, null, "", null, buildContext());
+
+        ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
+        verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
+        assertThat(suiteCaptor.getValue().tests()).hasSize(4);
+    }
+
+    @Test
+    void validationErrorInNonUiModeRendersErrorAndSkipsEngine() throws Exception {
+        String suite = Path.of(getClass()
+                        .getResource("/test-suite-duplicate-names.yml")
+                        .toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        command.runSuite(suite, false, false, null, null, null, ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+        assertThat(output.toString()).contains("Duplicate test name");
+    }
+
+    @Test
+    void uiModeValidationFailureRendersErrorAndSkipsEngine() throws Exception {
+        String suite = Path.of(getClass()
+                        .getResource("/test-suite-duplicate-names.yml")
+                        .toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        commandWithUi.runSuite(suite, false, true, null, null, null, ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void uiModeTagFilterWithNoMatchSkipsEngine() throws Exception {
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        commandWithUi.runSuite(suite, false, true, "nonexistent-tag", null, null, ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void uiModeNormalRunCallsEngine() throws Exception {
+        String suite =
+                Path.of(getClass().getResource("/test-suite-1.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenAnswer(invocation -> {
+            TestProgressListener listener = invocation.getArgument(2);
+            listener.onProgress(
+                    new TestProgressEvent.SuiteStarted("Test Suite for My Application v1.0", 1, Instant.now()));
+            listener.onProgress(new TestProgressEvent.TestStarted("uid-0", 0, "Objects Test"));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    "uid-0", 0, "Objects Test", TestStatus.PASS, 100L, 1, List.of()));
+            listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 0L, 0L, 0L, 100L));
+            return fakeResult;
+        });
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        commandWithUi.runSuite(suite, false, true, null, null, null, ctx);
+
+        verify(mockEngine).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void uiModeWithReportDirAndNullResultSkipsReportGeneration() throws Exception {
+        String suite = Path.of(getClass()
+                        .getResource("/test-suite-duplicate-names.yml")
+                        .toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), ctx);
+
+        verify(mockReportGenerator, never()).generate(any(), any(), any());
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void viewComponentBuilderWithNoUiFlagFallsBackToNonUiMode() throws Exception {
+        // noUi=true forces non-UI mode even when viewComponentBuilder is non-null.
+        String suite =
+                Path.of(getClass().getResource("/test-suite-1.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        commandWithUi.runSuite(suite, true, false, null, null, null, buildContext());
+
+        verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
 
     private CommandContext buildContext(String... argValues) {
