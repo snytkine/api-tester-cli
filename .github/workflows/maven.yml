@@ -19,6 +19,11 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # The "Update dependency graph" step POSTs the dependency tree to GitHub's
+    # Dependency Submission API, which requires contents: write on GITHUB_TOKEN.
+    permissions:
+      contents: write
+
     steps:
     - uses: actions/checkout@v4
     - name: Set up JDK 25
@@ -30,6 +35,8 @@ jobs:
     - name: Build with Maven
       run: mvn -B package --file pom.xml
 
-    # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
+    # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive.
+    # Only runs on push (incl. PR merges to main); skipped on pull_request, where fork PRs get a read-only token that cannot submit.
     - name: Update dependency graph
+      if: github.event_name == 'push'
       uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6
