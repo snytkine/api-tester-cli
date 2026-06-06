@@ -39,6 +39,12 @@ import org.jspecify.annotations.Nullable;
  * was constructed. It is {@code null} for {@link TestResult#SKIPPED} outcomes (no request sent)
  * and for {@link TestResult#ERROR} outcomes where the error occurred before request construction
  * (e.g. a missing body file).
+ *
+ * <p>The {@code apiResponse} field holds the HTTP response details received from the server. It is
+ * populated for {@link TestResult#PASSED} and {@link TestResult#FAILED} outcomes, and for {@link
+ * TestResult#ERROR} outcomes where the response was received before the failure occurred. It is
+ * {@code null} for {@link TestResult#SKIPPED} outcomes (no request sent) and for {@link
+ * TestResult#ERROR} outcomes where the request never completed.
  */
 public record TestCaseResult(
         /** Name of the test case as declared in the suite YAML. */
@@ -69,4 +75,12 @@ public record TestCaseResult(
          * TestResult#ERROR} if the error occurred after request construction; always {@code null}
          * for {@link TestResult#SKIPPED}.
          */
-        @Nullable ExecutedRequestInfo requestInfo) {}
+        @Nullable ExecutedRequestInfo requestInfo,
+
+        /**
+         * The HTTP response received for this test case. Non-null for {@link TestResult#PASSED} and
+         * {@link TestResult#FAILED}; may be non-null for {@link TestResult#ERROR} if the response
+         * was received before the failure; always {@code null} for {@link TestResult#SKIPPED} and
+         * for {@link TestResult#ERROR} cases where the request never completed.
+         */
+        @Nullable ApiResponse apiResponse) {}

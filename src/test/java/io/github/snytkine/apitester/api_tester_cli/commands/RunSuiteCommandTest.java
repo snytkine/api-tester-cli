@@ -100,7 +100,7 @@ class RunSuiteCommandTest {
                 0,
                 0L,
                 0L,
-                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)),
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null, null)),
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
@@ -124,7 +124,7 @@ class RunSuiteCommandTest {
                 0,
                 0L,
                 0L,
-                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)),
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null, null)),
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
@@ -142,7 +142,7 @@ class RunSuiteCommandTest {
                 0,
                 0L,
                 0L,
-                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null)),
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null, null)),
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 

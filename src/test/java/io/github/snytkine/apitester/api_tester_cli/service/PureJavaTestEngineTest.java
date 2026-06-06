@@ -202,4 +202,37 @@ class PureJavaTestEngineTest {
                 .count();
         assertThat(skipEvents).isEqualTo(1);
     }
+
+    @Test
+    void passedTestResultHasApiResponsePopulated() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        var firstResult = result.results().get(0);
+        assertThat(firstResult.apiResponse()).isNotNull();
+        assertThat(firstResult.apiResponse().statusCode()).isEqualTo(200);
+        assertThat(firstResult.apiResponse().headers()).isNotNull();
+    }
+
+    @Test
+    void skippedTestResultHasNullApiResponse() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass().getResource("/test-suite-stub-skip.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        var skippedResult = result.results().stream()
+                .filter(r -> r.result() == TestResult.SKIPPED)
+                .findFirst()
+                .orElseThrow();
+        assertThat(skippedResult.apiResponse()).isNull();
+    }
 }

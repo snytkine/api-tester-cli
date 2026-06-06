@@ -194,17 +194,37 @@ public class PureJavaTestEngine implements TestEngine {
             // synchronously on this thread — no sharing between concurrent iterations.
             @Nullable ExecutedRequestInfo[] capturedRequest = new ExecutedRequestInfo[1];
 
+            // Single-element holder: written by the responseCapture callback inside
+            // executeSingleTest (after ApiResponse is received), read by all non-skip catch branches.
+            // Safe because it is created fresh per iteration and the callback fires
+            // synchronously on this thread — no sharing between concurrent iterations.
+            @Nullable ApiResponse[] capturedResponse = new ApiResponse[1];
+
             try {
-                executeSingleTest(restClient, testSuite, i, suiteDir, configMap, info -> capturedRequest[0] = info);
+                executeSingleTest(
+                        restClient,
+                        testSuite,
+                        i,
+                        suiteDir,
+                        configMap,
+                        info -> capturedRequest[0] = info,
+                        resp -> capturedResponse[0] = resp);
                 long durationMs = System.currentTimeMillis() - testStart;
                 int totalAssertions = config.assertions().size();
                 results.add(new TestCaseResult(
-                        config.name(), TestResult.PASSED, totalAssertions, List.of(), null, capturedRequest[0]));
+                        config.name(),
+                        TestResult.PASSED,
+                        totalAssertions,
+                        List.of(),
+                        null,
+                        capturedRequest[0],
+                        capturedResponse[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
             } catch (SkipTestException e) {
                 long durationMs = System.currentTimeMillis() - testStart;
-                results.add(new TestCaseResult(config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage(), null));
+                results.add(new TestCaseResult(
+                        config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage(), null, null));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
                 log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
@@ -214,7 +234,13 @@ public class PureJavaTestEngine implements TestEngine {
                 int totalAssertions = config.assertions().size();
                 int passedAssertions = totalAssertions - failures.size();
                 results.add(new TestCaseResult(
-                        config.name(), TestResult.FAILED, passedAssertions, failures, null, capturedRequest[0]));
+                        config.name(),
+                        TestResult.FAILED,
+                        passedAssertions,
+                        failures,
+                        null,
+                        capturedRequest[0],
+                        capturedResponse[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, failures));
                 log.debug("Test case '{}' failed with {} assertion failure(s)", config.name(), failures.size());
@@ -226,7 +252,8 @@ public class PureJavaTestEngine implements TestEngine {
                         0,
                         List.of(new AssertionFailure(e.getMessage(), null, null, null)),
                         null,
-                        capturedRequest[0]));
+                        capturedRequest[0],
+                        capturedResponse[0]));
                 listener.onProgress(new TestProgressEvent.TestCompleted(
                         uniqueId,
                         i,
@@ -303,6 +330,10 @@ public class PureJavaTestEngine implements TestEngine {
      *                       immediately before the HTTP request is dispatched; always called for
      *                       non-skipped tests regardless of whether assertions later pass or fail,
      *                       allowing the caller to capture request details for both outcomes
+     * @param responseCapture callback invoked with the {@link ApiResponse} immediately after the
+     *                        HTTP response is received and parsed; called before assertions are
+     *                        evaluated, allowing the caller to capture response details regardless
+     *                        of assertion outcome
      * @throws IOException if the template cannot be re-parsed or a file-type request body cannot
      *     be read from disk
      */
@@ -312,7 +343,8 @@ public class PureJavaTestEngine implements TestEngine {
             int i,
             @Nullable Path suiteDir,
             Map<String, Map<String, String>> configMap,
-            Consumer<ExecutedRequestInfo> requestCapture)
+            Consumer<ExecutedRequestInfo> requestCapture,
+            Consumer<ApiResponse> responseCapture)
             throws IOException {
 
         TestCase rawConfig = testSuite.tests().get(i);
@@ -408,6 +440,8 @@ public class PureJavaTestEngine implements TestEngine {
 
         ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
         log.debug("Test [{}] '{}': received status {}", i, config.name(), apiResponse.statusCode());
+
+        responseCapture.accept(apiResponse);
 
         // Evaluate one assertion at a time, collecting failures as AssertionFailedError instances.
         // Each evaluator stores structured AssertionFailedError entries (with message, expected,
