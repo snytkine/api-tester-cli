@@ -79,3 +79,4 @@ spring-shell.log
 .venv/
 venv/
 env/
+site/

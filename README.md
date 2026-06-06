@@ -4,6 +4,8 @@
 
 The project can run as a regular JVM application or as a GraalVM native binary. The JVM build is easiest for development; the native build starts faster and runs without a JVM at runtime.
 
+**Full documentation:** [https://snytkine.github.io/api-tester-cli/test-suite-configuration/](https://snytkine.github.io/api-tester-cli/test-suite-configuration/)
+
 ## What It Does
 
 - Executes HTTP test suites described in YAML
