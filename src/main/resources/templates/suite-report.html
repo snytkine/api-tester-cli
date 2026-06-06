@@ -73,7 +73,8 @@
       flex-wrap: wrap;
     }
     .test-name { font-weight: 600; flex: 1; }
-    .assertion-counts { font-size: .85rem; color: #555; white-space: nowrap; }
+    .assertion-counts { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+    .assertions-prefix { font-size: .82rem; font-weight: 700; color: #888; }
 
     /* Badge */
     .badge {
@@ -88,10 +89,12 @@
       background: #dde1e7;
       color: #333;
     }
-    .badge.passed  { background: #2e7d32; color: #fff; }
-    .badge.failed  { background: #c62828; color: #fff; }
-    .badge.skipped { background: #e65100; color: #fff; }
-    .badge.error   { background: #6a1a6a; color: #fff; }
+    .badge.passed      { background: #2e7d32; color: #fff; }
+    .badge.failed      { background: #c62828; color: #fff; }
+    .badge.skipped     { background: #e65100; color: #fff; }
+    .badge.error       { background: #6a1a6a; color: #fff; }
+    .badge.count-pass  { background: #2e7d32; color: #fff; }
+    .badge.count-fail  { background: #c62828; color: #fff; }
 
     .skip-reason {
       padding: 6px 16px 12px;
@@ -124,8 +127,8 @@
     details[open] summary::before { transform: rotate(90deg); }
     .detail-content { padding: 8px 16px 14px; }
 
-    /* Request / response */
-    .request-line, .response-line {
+    /* Request line (method + URL) */
+    .request-line {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -142,30 +145,72 @@
       font-size: .8rem;
     }
     .url { color: #1e3a5f; word-break: break-all; }
-    .status-code {
-      font-weight: 700;
-      font-size: 1rem;
-    }
-    .response-time { color: #555; font-size: .85rem; }
 
-    /* Headers grid */
-    .headers-grid {
+    /* Response metadata grid (status + response time as key-value pairs) */
+    .meta-grid {
       display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 2px 12px;
-      margin-bottom: 8px;
+      grid-template-columns: 140px 1fr;
+      gap: 4px 16px;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+    .meta-key {
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #666;
+    }
+    .status-code { font-weight: 700; font-size: 1rem; }
+    .response-time { color: #555; font-size: .9rem; }
+
+    /* Section label (Headers / Body) */
+    .section-label {
+      font-size: .72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: #666;
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+
+    /* Headers — display:table ensures the key column is identically wide across all rows */
+    .headers-grid {
+      display: table;
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 4px;
       font-family: monospace;
       font-size: .82rem;
+      border-radius: 4px;
+      overflow: hidden;
     }
-    .header-name { color: #1e3a5f; font-weight: 600; white-space: nowrap; }
-    .header-value { color: #444; word-break: break-all; }
+    .header-row { display: table-row; }
+    .header-row:nth-child(odd)  { background: #f0f2f5; }
+    .header-row:nth-child(even) { background: transparent; }
+    .header-name {
+      display: table-cell;
+      color: #1e3a5f;
+      font-weight: 600;
+      white-space: nowrap;
+      padding: 4px 12px 4px 8px;
+      vertical-align: top;
+    }
+    .header-value {
+      display: table-cell;
+      color: #444;
+      word-break: break-all;
+      padding: 4px 8px 4px 0;
+      vertical-align: top;
+    }
 
     pre {
       background: #f0f2f5;
       border-radius: 4px;
       padding: 10px 12px;
       overflow-x: auto;
-      margin-top: 6px;
+      margin-top: 4px;
     }
     pre code {
       font-family: monospace;
@@ -182,21 +227,50 @@
       gap: 8px;
     }
     .failures li {
-      background: #fff5f5;
+      background: transparent;
       border-left: 3px solid #c62828;
       border-radius: 4px;
       padding: 8px 12px;
       font-size: .88rem;
     }
-    .failures li strong { color: #c62828; }
-    .failures li code {
-      background: #f0f2f5;
-      padding: 1px 4px;
-      border-radius: 3px;
-      font-family: monospace;
-      font-size: .85em;
+    .failures li > strong { color: #c62828; display: block; margin-bottom: 2px; }
+    .failure-label {
+      font-weight: 700;
+      font-size: .72rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: #666;
+      margin-top: 8px;
+      margin-bottom: 3px;
     }
-    .error-msg { margin-top: 4px; color: #666; font-style: italic; }
+    .failure-expected,
+    .failure-actual {
+      border-radius: 3px;
+      padding: 6px 10px;
+      font-family: monospace;
+      font-size: .85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .failure-expected { background: #f0f2f5; }
+    .failure-actual   { background: #fff5f5; }
+    .error-msg { margin-top: 6px; color: #666; font-style: italic; font-size: .85rem; }
+
+    /* No-body notice */
+    .notice-block {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-radius: 4px;
+      padding: 10px 12px;
+      margin-top: 10px;
+      font-size: .85rem;
+      color: #78350f;
+      line-height: 1.4;
+    }
+    .notice-block svg { flex-shrink: 0; color: #d97706; margin-top: 1px; }
   </style>
 </head>
 <body>
@@ -238,10 +312,9 @@
         <span class="badge" th:classappend="${t.statusClass}" th:text="${t.result}">STATUS</span>
         <span class="test-name" th:text="${t.name}">Test Name</span>
         <span class="assertion-counts">
-          Assertions: <span th:text="${t.passedAssertions}">0</span> passed
-          <span th:if="${t.failedAssertions > 0}">,
-            <span th:text="${t.failedAssertions}">0</span> failed
-          </span>
+          <strong class="assertions-prefix">Assertions:</strong>
+          <span class="badge count-pass"><span th:text="${t.passedAssertions}">0</span> passed</span>
+          <span class="badge count-fail" th:if="${t.failedAssertions > 0}"><span th:text="${t.failedAssertions}">0</span> failed</span>
         </span>
       </div>
 
@@ -256,47 +329,71 @@
             <span class="method" th:text="${t.requestMethod}">GET</span>
             <span class="url" th:text="${t.requestUrl}">/api</span>
           </div>
-          <div class="headers-grid" th:if="${#lists.size(t.requestHeaders) > 0}">
-            <th:block th:each="h : ${t.requestHeaders}">
-              <span class="header-name" th:text="${h.name}">Name</span>
-              <span class="header-value" th:text="${h.value}">Value</span>
-            </th:block>
+          <div th:if="${#lists.size(t.requestHeaders) > 0}">
+            <p class="section-label">Headers</p>
+            <div class="headers-grid">
+              <div class="header-row" th:each="h : ${t.requestHeaders}">
+                <span class="header-name" th:text="${h.name}">Name</span>
+                <span class="header-value" th:text="${h.value}">Value</span>
+              </div>
+            </div>
           </div>
-          <pre th:if="${t.requestBody != null}"><code th:text="${t.requestBody}"></code></pre>
+          <div th:if="${t.requestBody != null}">
+            <p class="section-label">Body</p>
+            <pre><code th:text="${t.requestBody}"></code></pre>
+          </div>
         </div>
       </details>
 
       <details th:if="${t.hasResponse}">
         <summary>Response</summary>
         <div class="detail-content">
-          <div class="response-line">
+          <div class="meta-grid">
+            <span class="meta-key">Status</span>
             <span class="status-code" th:text="${t.responseStatus}">200</span>
+            <span class="meta-key" th:if="${t.responseTimeMs != null}">Response time</span>
             <span class="response-time" th:if="${t.responseTimeMs != null}"
                   th:text="${t.responseTimeMs} + ' ms'">0 ms</span>
           </div>
-          <div class="headers-grid" th:if="${#lists.size(t.responseHeaders) > 0}">
-            <th:block th:each="h : ${t.responseHeaders}">
-              <span class="header-name" th:text="${h.name}">Name</span>
-              <span class="header-value" th:text="${h.value}">Value</span>
-            </th:block>
+          <div th:if="${#lists.size(t.responseHeaders) > 0}">
+            <p class="section-label">Headers</p>
+            <div class="headers-grid">
+              <div class="header-row" th:each="h : ${t.responseHeaders}">
+                <span class="header-name" th:text="${h.name}">Name</span>
+                <span class="header-value" th:text="${h.value}">Value</span>
+              </div>
+            </div>
           </div>
-          <pre th:if="${t.formattedResponseBody != null}"><code
-              th:text="${t.formattedResponseBody}"></code></pre>
+          <div th:if="${t.formattedResponseBody != null}">
+            <p class="section-label">Body</p>
+            <pre><code th:text="${t.formattedResponseBody}"></code></pre>
+          </div>
+          <div class="notice-block" th:if="${t.formattedResponseBody == null}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                 fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            <span>Body was not extracted because this test has no assertions that require the response body.</span>
+          </div>
         </div>
       </details>
 
-      <details th:if="${t.failedAssertions > 0}" open="open">
+      <details th:if="${t.failedAssertions > 0}">
         <summary>Failed Assertions</summary>
         <div class="detail-content">
           <ul class="failures">
             <li th:each="f : ${t.failures}">
               <strong th:text="${f.description}">description</strong>
-              <span th:if="${f.expected != null}">
-                &mdash; expected: <code th:text="${f.expected}">expected</code>
-              </span>
-              <span th:if="${f.actual != null}">
-                &mdash; actual: <code th:text="${f.actual}">actual</code>
-              </span>
+              <div th:if="${f.expected != null}">
+                <p class="failure-label">Expected</p>
+                <div class="failure-expected" th:text="${f.expected}">expected value</div>
+              </div>
+              <div th:if="${f.actual != null}">
+                <p class="failure-label">Actual</p>
+                <div class="failure-actual" th:text="${f.actual}">actual value</div>
+              </div>
               <div class="error-msg" th:if="${f.error != null}" th:text="${f.error}">error</div>
             </li>
           </ul>
