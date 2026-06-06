@@ -74,7 +74,8 @@ api-tester-cli
 spring-shell.log
 
 # ----------------------------------------
-# Documentation build output & environments
+# Python virtual environments
 # ----------------------------------------
-site/
 .venv/
+venv/
+env/
