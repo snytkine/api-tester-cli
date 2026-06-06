@@ -22,6 +22,7 @@ nav:
   - Test Suite Configuration: test-suite-configuration.md
   - Templating: templating.md
   - Assertions: assertions.md
+  - HTML Execution Report: html-report.md
   - Environment Variables & Debugging: environment-variables.md
 
 markdown_extensions:

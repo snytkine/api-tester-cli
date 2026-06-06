@@ -17,6 +17,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
 - Emits JSON results in non-interactive mode
 - Can show an interactive terminal UI when running in a compatible TTY
+- Can generate a self-contained single-page HTML execution report with `--report`
 - Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
 
 ## Build And Run
@@ -318,6 +319,49 @@ export-schema --out ./schemas/test-suite-configuration-schema.json
 ```
 
 Until that command lands, use the repository sources directly when working on schema-related changes.
+
+## Generating an HTML Report
+
+Add `--report=<directory>` to any `run-suite` invocation to write a self-contained HTML report
+after the run completes. Pass the **absolute path to a directory**; the file name is generated
+automatically.
+
+```bash
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+  --suite ./src/test/resources/test-suite-1.yml \
+  --report /tmp/reports \
+  api_base_url=https://api.restful-api.dev
+```
+
+The CLI prints the exact path once the file is written:
+
+```
+Report written to /tmp/reports/test-suite_Test_Suite_1_20260606142300.html
+```
+
+### Filename format
+
+```
+test-suite_<suiteName>_<yyyyMMddHHmmss>.html
+```
+
+`<suiteName>` is the `name` field from your YAML with all non-alphanumeric characters replaced
+by underscores.
+
+### What the report contains
+
+- **Header** — suite name, optional description, and generation timestamp
+- **Summary cards** — passed / failed / skipped / error / total counts
+- **Per-test cards** — one card per test case, showing:
+  - Result badge and assertion pass/fail counts
+  - Expandable **Request** section (method, URL, headers, body)
+  - Expandable **Response** section (status code, response time, headers, pretty-printed body)
+  - Expandable **Failed Assertions** section (description, expected vs actual, error message)
+
+The report is fully self-contained (CSS embedded, no JavaScript, no CDN dependencies) and opens
+in any browser without an internet connection.
+
+For full documentation see [HTML Execution Report](https://snytkine.github.io/api-tester-cli/html-report/).
 
 ## Debug Logging
 

@@ -5,7 +5,7 @@ The command is `run-suite` with alias `rs`.
 ## Syntax
 
 ```
-rs --suite=<path> [--tag=<value>] [--test=<name>] [--ui|--no-ui] [key=value ...]
+rs --suite=<path> [--tag=<value>] [--test=<name>] [--ui|--no-ui] [--report=<dir>] [key=value ...]
 ```
 
 ## Options
@@ -17,6 +17,7 @@ rs --suite=<path> [--tag=<value>] [--test=<name>] [--ui|--no-ui] [key=value ...]
 | `--test=<name>` | No | Run only the single test case whose `name` field exactly matches this value. Use double quotes if the name contains spaces: `--test="My Test Name"`. Cannot be used together with `--tag`. |
 | `--no-ui` | No | Force JSON output even when stdout looks like a TTY. |
 | `--ui` | No | Force the interactive terminal UI even when stdout does not look like a TTY. |
+| `--report=<dir>` | No | Absolute path to a directory where the HTML execution report will be written. The filename is auto-generated as `test-suite_<name>_yyyyMMddHHmmss.html`. The directory is created if it does not exist. See [HTML Report](html-report.md). |
 
 ## Positional arguments (CLI variables)
 
@@ -79,3 +80,11 @@ rs --suite=/path/to/suite.yml --no-ui > results.json
 ```bash
 rs --suite=/path/to/suite.yml --ui
 ```
+
+### Generate an HTML execution report
+```bash
+rs --suite=/path/to/suite.yml --report=/path/to/reports
+```
+
+The file is written to `/path/to/reports/test-suite_<suiteName>_<timestamp>.html`. See
+[HTML Execution Report](html-report.md) for the full description of report contents.
