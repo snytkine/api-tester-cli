@@ -21,6 +21,7 @@ Provide suite-level HTTP client defaults:
 | `base_url` | String | `""` (empty) | Base URL prepended to all relative test URLs. Test URLs are used as-is when empty. |
 | `connect_timeout` | Integer | `30000` | Connection timeout in milliseconds. |
 | `headers` | Map | (none) | Default HTTP headers sent with every request. Per-test headers take precedence for same-named keys. |
+| `auth` | Object | (none) | Optional HTTP Basic Auth applied as default to all requests in the suite. See "Authentication" section below. |
 
 Example:
 
@@ -31,6 +32,99 @@ rest_client:
   headers:
     x-api-key: "test-key-123"
     Accept: "application/json"
+```
+
+### Authentication
+
+Declare suite-level HTTP Basic Auth to apply credentials to every request:
+
+```yaml
+rest_client:
+  base_url: "https://api.example.com"
+  auth:
+    type: "basic"
+    username: "[[${env.API_USER}]]"
+    password: "[[${env.API_PASSWORD}]]"
+```
+
+**Best Practice for Credentials:**
+
+Never hardcode usernames and passwords directly in your test suite YAML. Instead:
+
+1. **Use a `.env` file** — Create a `.env` file in the same directory as your suite YAML:
+
+   ```dotenv
+   API_USER=myuser
+   API_PASSWORD=mypassword
+   ADMIN_USER=admin
+   ADMIN_PASSWORD=adminpass
+   ```
+
+   Then reference them in your suite:
+
+   ```yaml
+   rest_client:
+     auth:
+       type: "basic"
+       username: "[[${env.API_USER}]]"
+       password: "[[${env.API_PASSWORD}]]"
+   ```
+
+2. **Use environment variables** — Export them before running the CLI:
+
+   ```bash
+   export API_USER=myuser
+   export API_PASSWORD=mypassword
+   java -jar api-tester-cli-0.1.1-SNAPSHOT.jar run-suite --suite ./suite.yml
+   ```
+
+   Then reference them the same way: `[[${env.API_USER}]]`
+
+3. **Use CI/CD secrets** — In GitHub Actions or other CI systems, set environment variables from secrets and reference them the same way.
+
+#### Authentication Precedence
+
+When multiple authentication methods are specified, they follow this precedence (lowest to highest):
+
+1. **Suite-level default** (`rest_client.auth`) — applied to all requests
+2. **Per-request override** (`request.auth`) — overrides suite-level auth for that test
+3. **Explicit header** (`request.headers.Authorization`) — always takes precedence
+
+Example demonstrating precedence:
+
+```yaml
+rest_client:
+  base_url: "https://api.example.com"
+  auth:
+    type: "basic"
+    username: "[[${env.API_USER}]]"
+    password: "[[${env.API_PASSWORD}]]"
+
+tests:
+  - name: "Test with suite-level auth"
+    request:
+      method: "GET"
+      url: "/data"
+    # Uses rest_client.auth credentials automatically
+
+  - name: "Test with per-request auth override"
+    request:
+      method: "GET"
+      url: "/admin/users"
+      auth:
+        type: "basic"
+        username: "[[${env.ADMIN_USER}]]"
+        password: "[[${env.ADMIN_PASSWORD}]]"
+    # Uses request.auth credentials (overrides suite default)
+
+  - name: "Test with explicit Authorization header"
+    request:
+      method: "GET"
+      url: "/special"
+      headers:
+        Authorization: "Bearer [[${env.CUSTOM_TOKEN}]]"
+    # Uses the explicit Authorization header (highest precedence)
+    # request.auth (if present) would be ignored
 ```
 
 ## `variables` block (optional)
@@ -164,6 +258,10 @@ rest_client:
   connect_timeout: 30000
   headers:
     Accept: "application/json"
+  auth:
+    type: "basic"
+    username: "[[${env.API_USER}]]"
+    password: "[[${env.API_PASSWORD}]]"
 
 variables:
   api_base_url: "[[${suite.rest_client.base_url}]]"
@@ -176,7 +274,6 @@ tests:
   variables:
     username: "testuser"
     email: "test@example.com"
-    password: "SecurePass123"
   request:
     method: "POST"
     url: "/users"
@@ -217,6 +314,21 @@ tests:
       content: "schemas/user-schema.json"
   - type: "not_null"
     path: "response.body.json.id"
+
+- name: "List protected admin data"
+  description: "Fetch data with different admin credentials"
+  request:
+    method: "GET"
+    url: "/admin/data"
+    auth:
+      type: "basic"
+      username: "[[${env.ADMIN_USER}]]"
+      password: "[[${env.ADMIN_PASSWORD}]]"
+  assertions:
+  - type: "status_code"
+    expected: 200
+  - type: "array_is_not_empty"
+    path: "response.body.json"
 ```
 
 ---

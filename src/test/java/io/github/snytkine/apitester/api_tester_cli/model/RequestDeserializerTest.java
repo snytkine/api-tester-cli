@@ -95,4 +95,48 @@ class RequestDeserializerTest {
         assertThat(pr.body().type()).isEqualTo(BodyType.STRING);
         assertThat(pr.body().content()).isEqualTo("hello");
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"GET", "HEAD", "OPTIONS", "TRACE"})
+    void bodylessRequestDeserializesAuthWhenPresent(String method) throws Exception {
+        String json = "{\"method\":\""
+                + method
+                + "\",\"url\":\"/api/resource\","
+                + "\"auth\":{\"type\":\"basic\",\"username\":\"user\",\"password\":\"pass\"}}";
+
+        Request request = mapper.readValue(json, Request.class);
+
+        assertThat(request).isInstanceOf(BodylessRequest.class);
+        assertThat(request.auth()).isNotNull();
+        assertThat(request.auth().type()).isEqualTo(AuthType.BASIC);
+        assertThat(request.auth().username()).isEqualTo("user");
+        assertThat(request.auth().password()).isEqualTo("pass");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE"})
+    void payloadRequestDeserializesAuthWhenPresent(String method) throws Exception {
+        String json = "{\"method\":\""
+                + method
+                + "\",\"url\":\"/api/resource\","
+                + "\"auth\":{\"type\":\"basic\",\"username\":\"admin\",\"password\":\"secret\"}}";
+
+        Request request = mapper.readValue(json, Request.class);
+
+        assertThat(request).isInstanceOf(PayloadRequest.class);
+        assertThat(request.auth()).isNotNull();
+        assertThat(request.auth().type()).isEqualTo(AuthType.BASIC);
+        assertThat(request.auth().username()).isEqualTo("admin");
+        assertThat(request.auth().password()).isEqualTo("secret");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"GET", "POST"})
+    void authIsNullWhenNotPresent(String method) throws Exception {
+        String json = "{\"method\":\"" + method + "\",\"url\":\"/api/resource\"}";
+
+        Request request = mapper.readValue(json, Request.class);
+
+        assertThat(request.auth()).isNull();
+    }
 }

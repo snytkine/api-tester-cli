@@ -25,12 +25,12 @@ import org.jspecify.annotations.Nullable;
  * rest_client} key.
  *
  * <p>When present, these values configure the underlying HTTP client for the entire suite (e.g. a
- * base URL so test cases can use relative paths, a connect timeout, or default headers applied to
- * every request).
+ * base URL so test cases can use relative paths, a connect timeout, default headers, or
+ * authentication applied to every request).
  *
  * <p>Use {@link #withDefaults(RestClientConfig)} to obtain an instance where {@code baseUrl} and
- * {@code connectTimeout} are guaranteed non-null. {@code headers} has no default and remains
- * {@code null} when the {@code headers} key is absent from the YAML.
+ * {@code connectTimeout} are guaranteed non-null. {@code headers} and {@code auth} have no
+ * defaults and remain {@code null} when absent from the YAML.
  */
 public record RestClientConfig(
         /**
@@ -47,7 +47,16 @@ public record RestClientConfig(
          * precedence when the same header name appears in both places. May be {@code null} when the
          * {@code headers} key is absent from the YAML.
          */
-        @JsonProperty("headers") @Nullable Map<String, String> headers) {
+        @JsonProperty("headers") @Nullable Map<String, String> headers,
+
+        /**
+         * Optional suite-wide authentication. When non-null, the auth credentials are applied as a
+         * default {@code Authorization} header on every request built by this suite's
+         * {@link org.springframework.web.client.RestClient}. Per-request authentication and explicit
+         * {@code Authorization} headers take precedence. May be {@code null} when the {@code auth}
+         * key is absent from the YAML.
+         */
+        @JsonProperty("auth") @Nullable RequestAuth auth) {
 
     /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
     public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
@@ -62,8 +71,8 @@ public record RestClientConfig(
      * <p>If {@code raw} is {@code null} (i.e. the {@code rest_client} key was absent from the YAML),
      * a fully-defaulted instance is returned. Otherwise the non-null fields of {@code raw} are
      * preserved and only the missing scalar fields are filled in with their defaults. {@code headers}
-     * is always passed through as-is: it is {@code null} when the {@code headers} key was absent from
-     * the YAML and non-null otherwise.
+     * and {@code auth} are always passed through as-is: they are {@code null} when the respective
+     * keys were absent from the YAML and non-null otherwise.
      *
      * @param raw the config parsed from YAML, or {@code null} if the key was absent
      * @return a non-null {@link RestClientConfig} with {@code baseUrl} and {@code connectTimeout}
@@ -71,11 +80,12 @@ public record RestClientConfig(
      */
     public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
         if (raw == null) {
-            return new RestClientConfig(DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null);
+            return new RestClientConfig(DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null, null);
         }
         return new RestClientConfig(
                 raw.baseUrl() != null ? raw.baseUrl() : DEFAULT_BASE_URL,
                 raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS,
-                raw.headers());
+                raw.headers(),
+                raw.auth());
     }
 }

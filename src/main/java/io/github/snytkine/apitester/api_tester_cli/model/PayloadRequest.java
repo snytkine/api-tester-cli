@@ -32,6 +32,12 @@ import org.jspecify.annotations.Nullable;
  * @param url the target URL or path
  * @param headers optional HTTP headers; {@code null} when none are declared
  * @param body optional request body descriptor; {@code null} when no body is declared
+ * @param auth optional authentication configuration; {@code null} when none are declared
  */
-public record PayloadRequest(HttpMethod method, String url, Map<String, String> headers, @Nullable RequestBody body)
+public record PayloadRequest(
+        HttpMethod method,
+        String url,
+        Map<String, String> headers,
+        @Nullable RequestBody body,
+        @Nullable RequestAuth auth)
         implements Request {}

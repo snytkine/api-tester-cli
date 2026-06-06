@@ -23,8 +23,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link RestClientConfig#withDefaults(RestClientConfig)}, verifying that {@code
- * baseUrl} and {@code connectTimeout} receive defaults when absent, while {@code headers} is always
- * passed through as-is (null when absent, non-null when present).
+ * baseUrl} and {@code connectTimeout} receive defaults when absent, while {@code headers} and
+ * {@code auth} are always passed through as-is (null when absent, non-null when present).
  */
 class RestClientConfigTest {
 
@@ -35,11 +35,12 @@ class RestClientConfigTest {
         assertThat(result.baseUrl()).isEqualTo(RestClientConfig.DEFAULT_BASE_URL);
         assertThat(result.connectTimeout()).isEqualTo(RestClientConfig.DEFAULT_CONNECT_TIMEOUT_MS);
         assertThat(result.headers()).isNull();
+        assertThat(result.auth()).isNull();
     }
 
     @Test
     void withDefaultsPreservesExplicitValues() {
-        RestClientConfig raw = new RestClientConfig("https://api.example.com", 1000, null);
+        RestClientConfig raw = new RestClientConfig("https://api.example.com", 1000, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -49,7 +50,7 @@ class RestClientConfigTest {
 
     @Test
     void withDefaultsFillsMissingBaseUrlAndTimeout() {
-        RestClientConfig raw = new RestClientConfig(null, null, null);
+        RestClientConfig raw = new RestClientConfig(null, null, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -60,7 +61,7 @@ class RestClientConfigTest {
     @Test
     void withDefaultsPassesThroughHeadersWhenPresent() {
         Map<String, String> headers = Map.of("x-api-key", "secret", "Accept", "application/json");
-        RestClientConfig raw = new RestClientConfig(null, null, headers);
+        RestClientConfig raw = new RestClientConfig(null, null, headers, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -69,10 +70,29 @@ class RestClientConfigTest {
 
     @Test
     void withDefaultsPassesThroughNullHeadersWhenAbsent() {
-        RestClientConfig raw = new RestClientConfig("https://api.example.com", 5000, null);
+        RestClientConfig raw = new RestClientConfig("https://api.example.com", 5000, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
         assertThat(result.headers()).isNull();
+    }
+
+    @Test
+    void withDefaultsPassesThroughAuthWhenPresent() {
+        RequestAuth auth = new RequestAuth(AuthType.BASIC, "user", "pass");
+        RestClientConfig raw = new RestClientConfig(null, null, null, auth);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.auth()).isEqualTo(auth);
+    }
+
+    @Test
+    void withDefaultsPassesThroughNullAuthWhenAbsent() {
+        RestClientConfig raw = new RestClientConfig(null, null, null, null);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.auth()).isNull();
     }
 }

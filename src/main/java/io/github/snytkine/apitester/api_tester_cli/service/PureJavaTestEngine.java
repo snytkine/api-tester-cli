@@ -28,9 +28,11 @@ import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.AuthType;
 import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
@@ -45,10 +47,12 @@ import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseRes
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +63,7 @@ import org.jspecify.annotations.Nullable;
 import org.opentest4j.AssertionFailedError;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -458,6 +463,13 @@ public class PureJavaTestEngine implements TestEngine {
             }
         }
 
+        RequestAuth auth = config.request().auth();
+        if (auth != null
+                && auth.type() == AuthType.BASIC
+                && !hasAuthorizationHeader(config.request().headers())) {
+            requestSpec.header(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue(auth));
+        }
+
         if (resolvedBody != null) {
             requestSpec.body(resolvedBody);
         }
@@ -548,6 +560,10 @@ public class PureJavaTestEngine implements TestEngine {
         if (config.headers() != null) {
             config.headers().forEach((name, value) -> builder.defaultHeader(name, value));
         }
+        RequestAuth suiteAuth = config.auth();
+        if (suiteAuth != null && suiteAuth.type() == AuthType.BASIC) {
+            builder.defaultHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue(suiteAuth));
+        }
         return builder.build();
     }
 
@@ -560,5 +576,35 @@ public class PureJavaTestEngine implements TestEngine {
      */
     private org.springframework.http.HttpMethod toSpringHttpMethod(HttpMethod method) {
         return org.springframework.http.HttpMethod.valueOf(method.name());
+    }
+
+    /**
+     * Builds the {@code Basic <base64(user:pass)>} header value for Basic authentication.
+     *
+     * <p>This method is stateless and thread-safe.
+     *
+     * @param auth the authentication configuration with username and password
+     * @return the HTTP Authorization header value for Basic auth
+     */
+    private static String basicAuthHeaderValue(RequestAuth auth) {
+        String credentials = auth.username() + ":" + auth.password();
+        String encoded = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encoded;
+    }
+
+    /**
+     * Checks whether the given headers map contains an Authorization header (case-insensitive).
+     *
+     * <p>This method is stateless and thread-safe.
+     *
+     * @param headers the request headers map, or {@code null}
+     * @return {@code true} when an {@code Authorization} header is present (case-insensitive),
+     *     {@code false} otherwise
+     */
+    private static boolean hasAuthorizationHeader(@Nullable Map<String, String> headers) {
+        if (headers == null) {
+            return false;
+        }
+        return headers.keySet().stream().anyMatch(h -> h.equalsIgnoreCase(HttpHeaders.AUTHORIZATION));
     }
 }

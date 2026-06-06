@@ -82,20 +82,49 @@ Place a `.env` file in the same directory as your test suite YAML. It will be au
 API_KEY=sk-12345abcde
 DB_PASSWORD=postgres123
 OAUTH_TOKEN=oauth_abc123def456
+API_USER=testuser
+API_PASSWORD=testpass123
+ADMIN_USER=admin
+ADMIN_PASSWORD=adminpass456
 ```
 
-In your test suite or body files:
+In your test suite:
 
 ```yaml
+# For bearer token authentication
 request:
   headers:
     Authorization: "Bearer [[${env.API_KEY}]]"
     x-api-key: "[[${env.API_KEY}]]"
+
+# For HTTP Basic Auth (suite-level default)
+rest_client:
+  auth:
+    type: "basic"
+    username: "[[${env.API_USER}]]"
+    password: "[[${env.API_PASSWORD}]]"
+
+# For HTTP Basic Auth (per-request override)
+request:
+  auth:
+    type: "basic"
+    username: "[[${env.ADMIN_USER}]]"
+    password: "[[${env.ADMIN_PASSWORD}]]"
 ```
 
 **Priority:** System environment variables take precedence. If both `.env` and a system environment variable define the same key, the system value is used.
 
 **Best practice:** Never commit `.env` to version control. Add `.env` to your `.gitignore`. This way, each developer and CI environment can have its own secrets without risk of accidental exposure.
+
+**Tip:** You can also set credentials via environment variables without using `.env`:
+
+```bash
+export API_USER=myusername
+export API_PASSWORD=mypassword
+rs --suite=suite.yml
+```
+
+This is especially useful in CI/CD pipelines where secrets come from a secure secret management system (GitHub Secrets, GitLab CI Variables, Jenkins Credentials, etc.).
 
 ### `.env` file format
 

@@ -33,7 +33,7 @@ class TestSuiteValidatorTest {
 
     private static TestCase tc(String name) {
         return new TestCase(
-                name, null, null, null, Map.of(), new BodylessRequest(HttpMethod.GET, "/", null), List.of());
+                name, null, null, null, Map.of(), new BodylessRequest(HttpMethod.GET, "/", null, null), List.of());
     }
 
     private static TestSuite suite(TestCase... cases) {

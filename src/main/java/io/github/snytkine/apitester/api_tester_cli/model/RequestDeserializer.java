@@ -71,11 +71,12 @@ public class RequestDeserializer extends StdDeserializer<Request> {
         HttpMethod method = HttpMethod.fromValue(methodStr);
         String url = node.path("url").asText();
         Map<String, String> headers = readHeaders(node);
+        RequestAuth auth = readAuth(codec, node);
 
         if (PAYLOAD_METHODS.contains(method)) {
-            return new PayloadRequest(method, url, headers, readBody(codec, node));
+            return new PayloadRequest(method, url, headers, readBody(codec, node), auth);
         }
-        return new BodylessRequest(method, url, headers);
+        return new BodylessRequest(method, url, headers, auth);
     }
 
     /**
@@ -123,5 +124,21 @@ public class RequestDeserializer extends StdDeserializer<Request> {
             return new RequestBody(BodyType.STRING, bodyNode.asText());
         }
         return codec.treeToValue(bodyNode, RequestBody.class);
+    }
+
+    /**
+     * Reads the optional {@code auth} field as a {@link RequestAuth}.
+     *
+     * @param codec the codec used to read the sub-tree
+     * @param node the root request node
+     * @return a {@link RequestAuth} when the {@code auth} key is present, otherwise {@code null}
+     * @throws IOException if the auth node cannot be deserialized
+     */
+    private static RequestAuth readAuth(ObjectCodec codec, JsonNode node) throws IOException {
+        JsonNode authNode = node.get("auth");
+        if (authNode == null) {
+            return null;
+        }
+        return codec.treeToValue(authNode, RequestAuth.class);
     }
 }

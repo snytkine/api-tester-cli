@@ -17,12 +17,14 @@
 package io.github.snytkine.apitester.api_tester_cli;
 
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.AuthType;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.BodylessRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestDeserializer;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
@@ -89,6 +91,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     AssertFalseAssertion.class,
     AssertTrueAssertion.class,
     AssertionFailure.class,
+    AuthType.class,
     BodylessRequest.class,
     BodyType.class,
     SuiteRunContext.class,
@@ -110,6 +113,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     RangeAssertion.class,
     RegexMatchAssertion.class,
     Request.class,
+    RequestAuth.class,
     RequestBody.class,
     RequestDeserializer.class,
     ResponseTimeAssertion.class,

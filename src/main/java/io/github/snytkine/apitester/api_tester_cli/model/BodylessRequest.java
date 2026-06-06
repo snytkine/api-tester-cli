@@ -17,6 +17,7 @@
 package io.github.snytkine.apitester.api_tester_cli.model;
 
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * An HTTP request whose method does not conventionally carry a request body: {@code GET}, {@code
@@ -31,5 +32,7 @@ import java.util.Map;
  * @param method the HTTP method; must be one of GET, HEAD, OPTIONS, TRACE
  * @param url the target URL or path
  * @param headers optional HTTP headers; {@code null} when none are declared
+ * @param auth optional authentication configuration; {@code null} when none are declared
  */
-public record BodylessRequest(HttpMethod method, String url, Map<String, String> headers) implements Request {}
+public record BodylessRequest(HttpMethod method, String url, Map<String, String> headers, @Nullable RequestAuth auth)
+        implements Request {}

@@ -35,6 +35,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "auth": {
+          "$ref": "#/$defs/RequestAuth",
+          "description": "Optional authentication configuration applied as a default to every request in the suite"
         }
       }
     },
@@ -133,6 +137,10 @@
             "type": "string"
           }
         },
+        "auth": {
+          "$ref": "#/$defs/RequestAuth",
+          "description": "Optional authentication configuration for this request; overrides suite-level auth"
+        },
         "body": {
           "oneOf": [
             {
@@ -167,6 +175,10 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "auth": {
+          "$ref": "#/$defs/RequestAuth",
+          "description": "Optional authentication configuration for this request; overrides suite-level auth"
         }
       }
     },
@@ -206,6 +218,27 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "RequestAuth": {
+      "type": "object",
+      "description": "Authentication configuration for a request or suite-level default",
+      "required": ["type", "username", "password"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Authentication scheme",
+          "enum": ["basic"]
+        },
+        "username": {
+          "type": "string",
+          "description": "Username; supports Thymeleaf expressions (e.g. [[${env.USER}]])"
+        },
+        "password": {
+          "type": "string",
+          "description": "Password; supports Thymeleaf expressions (e.g. [[${env.PASS}]])"
         }
       }
     },

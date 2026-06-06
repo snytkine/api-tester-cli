@@ -141,6 +141,35 @@ variables:
 
 **Recommended use:** Store secrets (API keys, passwords, tokens) in `.env` so they don't appear in the YAML or command line, and never commit `.env` to version control.
 
+**Example: HTTP Basic Auth with .env:**
+
+Create a `.env` file in your suite directory:
+
+```
+API_USER=myusername
+API_PASSWORD=mypassword
+```
+
+Then reference them in your suite:
+
+```yaml
+rest_client:
+  auth:
+    type: "basic"
+    username: "[[${env.API_USER}]]"
+    password: "[[${env.API_PASSWORD}]]"
+```
+
+Or at the CLI:
+
+```bash
+export API_USER=myusername
+export API_PASSWORD=mypassword
+rs --suite=suite.yml
+```
+
+This way, credentials never appear in your test suite file or command-line history.
+
 ## Complete templating examples
 
 ### Example 1: CLI variables + suite variables

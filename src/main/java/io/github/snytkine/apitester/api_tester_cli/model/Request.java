@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.model;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Sealed interface representing an HTTP request in a test case.
@@ -59,4 +60,13 @@ public sealed interface Request permits BodylessRequest, PayloadRequest {
      * @return a map of header name to value, or {@code null}
      */
     Map<String, String> headers();
+
+    /**
+     * Returns the authentication configuration for this request, or {@code null} when no
+     * authentication is declared on this request. When non-null, the credentials override any
+     * authentication declared at the suite level ({@code rest_client.auth}).
+     *
+     * @return a {@link RequestAuth} when authentication is declared, or {@code null}
+     */
+    @Nullable RequestAuth auth();
 }

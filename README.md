@@ -9,7 +9,8 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 ## What It Does
 
 - Executes HTTP test suites described in YAML
-- Supports suite-level `rest_client` defaults such as `base_url`, `connect_timeout`, and shared headers
+- Supports suite-level `rest_client` defaults such as `base_url`, `connect_timeout`, shared headers, and HTTP Basic Auth
+- Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
 - Emits JSON results in non-interactive mode
@@ -145,8 +146,46 @@ tests:
 - `base_url`: prepended to relative request URLs
 - `connect_timeout`: timeout in milliseconds; defaults to `30000`
 - `headers`: default headers added to every request in the suite
+- `auth`: optional HTTP Basic Auth (suite-level default)
 
-Per-test headers override same-named suite-level headers.
+Per-test headers override same-named suite-level headers. Per-test authentication and explicit `Authorization` headers in request headers override suite-level authentication.
+
+#### HTTP Basic Auth
+
+Declare suite-level authentication with `auth`:
+
+```yaml
+rest_client:
+  base_url: "https://api.example.com"
+  auth:
+    type: "basic"
+    username: "[[${env.API_USER}]]"
+    password: "[[${env.API_PASSWORD}]]"
+```
+
+Or override with per-request authentication:
+
+```yaml
+tests:
+  - name: "Admin task"
+    request:
+      method: "GET"
+      url: "/admin/users"
+      auth:
+        type: "basic"
+        username: "[[${env.ADMIN_USER}]]"
+        password: "[[${env.ADMIN_PASSWORD}]]"
+    assertions:
+      - type: "status_code"
+        expected: 200
+```
+
+**Best Practice:** Store usernames and passwords in a `.env` file or environment variables, then reference them via `[[${env.API_USER}]]` and `[[${env.API_PASSWORD}]]` (never hardcode credentials in the YAML).
+
+Precedence (lowest to highest):
+1. Suite-level `rest_client.auth` (applied as default to all requests)
+2. Per-request `request.auth` (overrides suite-level)
+3. Explicit `Authorization` header in `request.headers` (always wins)
 
 ### Test cases
 
