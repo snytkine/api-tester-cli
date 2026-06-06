@@ -105,4 +105,28 @@ class ArrayContainsAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void nullValueNotArrayFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("response.body.json", "a"))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(List.of("a"));
+
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAssertionEvaluator(new ArrayContainsAssertion("invalid.path", "a"))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

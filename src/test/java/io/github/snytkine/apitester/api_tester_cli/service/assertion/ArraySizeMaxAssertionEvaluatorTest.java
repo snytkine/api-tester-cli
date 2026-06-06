@@ -83,4 +83,38 @@ class ArraySizeMaxAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of());
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMaxAssertionEvaluator(new ArraySizeMaxAssertion("response.body.json.$.missing", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void nullValueNotArrayFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMaxAssertionEvaluator(new ArraySizeMaxAssertion("response.body.json", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of());
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMaxAssertionEvaluator(new ArraySizeMaxAssertion("invalid.path", 5)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

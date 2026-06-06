@@ -99,4 +99,40 @@ class ArrayContainsAllAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("java", "spring")));
+
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAllAssertionEvaluator(
+                        new ArrayContainsAllAssertion("response.body.json.$.missing", List.of("java")))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void nullValueNotArrayFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAllAssertionEvaluator(new ArrayContainsAllAssertion("response.body.json", List.of("a")))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of("tags", List.of("java")));
+
+        FailureCollector collector = new FailureCollector();
+        new ArrayContainsAllAssertionEvaluator(new ArrayContainsAllAssertion("invalid.path", List.of("java")))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

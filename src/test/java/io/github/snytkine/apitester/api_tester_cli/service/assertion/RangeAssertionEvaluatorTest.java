@@ -176,4 +176,13 @@ class RangeAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        FailureCollector collector = new FailureCollector();
+        new RangeAssertionEvaluator(new RangeAssertion("invalid.path", 0, 100))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

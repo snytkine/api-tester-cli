@@ -188,4 +188,134 @@ class JsonSchemaAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void draft4SchemaIsRecognised() {
+        String schema =
+                """
+        {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "type": "object",
+          "properties": {"id": {"type": "integer"}}
+        }
+        """;
+        ApiResponse response = responseWithJson("{\"id\":1}", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", schema).evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void draft6SchemaIsRecognised() {
+        String schema =
+                """
+        {
+          "$schema": "http://json-schema.org/draft-06/schema#",
+          "type": "object",
+          "properties": {"id": {"type": "integer"}}
+        }
+        """;
+        ApiResponse response = responseWithJson("{\"id\":1}", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", schema).evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void draft201909SchemaIsRecognised() {
+        String schema =
+                """
+        {
+          "$schema": "https://json-schema.org/draft/2019-09/schema",
+          "type": "object",
+          "properties": {"id": {"type": "integer"}}
+        }
+        """;
+        ApiResponse response = responseWithJson("{\"id\":1}", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", schema).evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void schemaWithoutDollarSchemaDefaultsToDraft7() {
+        String schema =
+                """
+        {
+          "type": "object",
+          "required": ["id"],
+          "properties": {"id": {"type": "integer"}}
+        }
+        """;
+        ApiResponse response = responseWithJson("{\"id\":1}", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorFor("response.body.json", schema).evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void nullBodyTextForJsonpathSubpathRecordsFailure() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body(null, Map.of("id", 1)));
+        ObjectExpectedValue expected = new ObjectExpectedValue("inline", OBJECT_SCHEMA_2020, List.of());
+        JsonSchemaAssertionEvaluator ev = new JsonSchemaAssertionEvaluator(
+                new JsonSchemaAssertion("response.body.json.$.id", expected), null, OBJECT_MAPPER);
+
+        FailureCollector collector = new FailureCollector();
+        ev.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("absent");
+    }
+
+    @Test
+    void nullSuiteDirWithFileReferenceThrowsIllegalState() {
+        ObjectExpectedValue expected = new ObjectExpectedValue("file", "schema.json", List.of());
+        JsonSchemaAssertionEvaluator ev = new JsonSchemaAssertionEvaluator(
+                new JsonSchemaAssertion("response.body.json", expected), null, OBJECT_MAPPER);
+        ApiResponse response = responseWithJson("{\"id\":\"abc\"}", Map.of("id", "abc"));
+
+        FailureCollector collector = new FailureCollector();
+        // IllegalStateException propagates because the first try-catch only catches IOException
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> ev.evaluate(response, collector))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Suite directory is required");
+    }
+
+    @Test
+    void bodyJsonSubpathInvalidJsonpathRecordsFailure() {
+        // Invalid JSONPath expression causes the catch (Exception e) branch
+        ApiResponse response = responseWithJson("{\"id\":1}", Map.of("id", 1));
+        ObjectExpectedValue expected = new ObjectExpectedValue("inline", OBJECT_SCHEMA_2020, List.of());
+        JsonSchemaAssertionEvaluator ev = new JsonSchemaAssertionEvaluator(
+                new JsonSchemaAssertion("response.body.json.$..[invalid", expected), null, OBJECT_MAPPER);
+
+        FailureCollector collector = new FailureCollector();
+        ev.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void unsupportedBodyPathRecordsFailure() {
+        ApiResponse response = responseWithJson("{\"id\":1}", Map.of("id", 1));
+        ObjectExpectedValue expected = new ObjectExpectedValue("inline", OBJECT_SCHEMA_2020, List.of());
+        JsonSchemaAssertionEvaluator ev = new JsonSchemaAssertionEvaluator(
+                new JsonSchemaAssertion("response.body.text", expected), null, OBJECT_MAPPER);
+
+        FailureCollector collector = new FailureCollector();
+        ev.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Unsupported path");
+    }
 }

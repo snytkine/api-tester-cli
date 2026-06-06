@@ -93,4 +93,50 @@ class LessThanAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void nullValueFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json", 10.0)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void nonNumericStringFails() {
+        ApiResponse response = responseWithJson(Map.of("price", "cheap"));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.price", 10.0))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void nonNumericNonStringTypeFails() {
+        ApiResponse response = responseWithJson(Map.of("active", true));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("response.body.json.$.active", 10.0))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Boolean");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of("price", 5.0));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanAssertionEvaluator(new LessThanAssertion("invalid.path", 10.0)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

@@ -83,4 +83,38 @@ class ArraySizeMinAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of());
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json.$.missing", 1))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void nullValueNotArrayFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("response.body.json", 1))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of());
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeMinAssertionEvaluator(new ArraySizeMinAssertion("invalid.path", 1)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

@@ -148,4 +148,13 @@ class OneOfAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        FailureCollector collector = new FailureCollector();
+        new OneOfAssertionEvaluator(new OneOfAssertion("invalid.path", List.of("a", "b")))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

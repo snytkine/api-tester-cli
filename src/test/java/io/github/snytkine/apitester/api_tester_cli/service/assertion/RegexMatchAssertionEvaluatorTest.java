@@ -175,4 +175,13 @@ class RegexMatchAssertionEvaluatorTest {
 
         assertThatCode(collector::assertAll).doesNotThrowAnyException();
     }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        FailureCollector collector = new FailureCollector();
+        new RegexMatchAssertionEvaluator(new RegexMatchAssertion("invalid.path", "[0-9]+"))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

@@ -130,4 +130,95 @@ class StringContainsAssertionEvaluatorTest {
                 .isInstanceOf(MultipleFailuresError.class)
                 .hasMessageContaining("response.");
     }
+
+    @Test
+    void bodyJsonPathReturnsStringRepresentationOfJson() {
+        var evaluator =
+                new StringContainsAssertionEvaluator(new StringContainsAssertion("response.body.json", "Alice", null));
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void nullHeadersRecordsFailure() {
+        var evaluator =
+                new StringContainsAssertionEvaluator(new StringContainsAssertion("response.headers.x-id", "123", null));
+        ApiResponse response = new ApiResponse(200, null, null);
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("No headers present");
+    }
+
+    @Test
+    void jsonpathNotFoundRecordsFailure() {
+        var evaluator = new StringContainsAssertionEvaluator(
+                new StringContainsAssertion("response.body.json.$.missing", "value", null));
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void bodyTextNullBodyReturnsNullAndNoFailure() {
+        var evaluator =
+                new StringContainsAssertionEvaluator(new StringContainsAssertion("response.body.text", "x", null));
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        // resolved == null → returns early without recording a failure
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void unsupportedPathSegmentRecordsFailure() {
+        var evaluator = new StringContainsAssertionEvaluator(
+                new StringContainsAssertion("response.unsupported.field", "value", null));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(responseWithStatus(200), collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Unsupported path segment");
+    }
+
+    @Test
+    void caseInsensitiveContainsFailsWhenSubstringAbsent() {
+        var evaluator = new StringContainsAssertionEvaluator(
+                new StringContainsAssertion("response.headers.content-type", "text/html", false));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void jsonpathInvalidExpressionRecordsFailure() {
+        // An invalid JSONPath syntax triggers the general catch(Exception) branch
+        var evaluator = new StringContainsAssertionEvaluator(
+                new StringContainsAssertion("response.body.json.$.[", "value", null));
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title th:text="'Test Suite Report — ' + ${suiteName}">Test Suite Report</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #f5f7fa;
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      color: #222;
+    }
+    .container { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Header */
+    header {
+      background: #1e3a5f;
+      color: #fff;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    header h1 { font-size: 1.5rem; margin-bottom: 6px; }
+    header .description { opacity: .85; margin-bottom: 8px; }
+    header .generated { font-size: .85rem; opacity: .7; }
+
+    /* Stats */
+    .stats {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .stat {
+      flex: 1;
+      min-width: 100px;
+      background: #fff;
+      border-radius: 8px;
+      border-top: 4px solid #dde1e7;
+      padding: 12px 16px;
+      text-align: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+    }
+    .stat.passed  { border-top-color: #2e7d32; }
+    .stat.failed  { border-top-color: #c62828; }
+    .stat.skipped { border-top-color: #e65100; }
+    .stat.error   { border-top-color: #6a1a6a; }
+    .stat .count  { display: block; font-size: 1.8rem; font-weight: 700; line-height: 1.1; }
+    .stat .label  { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: #555; }
+
+    /* Test articles */
+    article {
+      background: #fff;
+      border-radius: 8px;
+      border-left: 4px solid #dde1e7;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,.07);
+      overflow: hidden;
+    }
+    article:hover { box-shadow: 0 3px 8px rgba(0,0,0,.12); }
+    article.passed  { border-left-color: #2e7d32; }
+    article.failed  { border-left-color: #c62828; }
+    article.skipped { border-left-color: #e65100; }
+    article.error   { border-left-color: #6a1a6a; }
+
+    .test-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      flex-wrap: wrap;
+    }
+    .test-name { font-weight: 600; flex: 1; }
+    .assertion-counts { font-size: .85rem; color: #555; white-space: nowrap; }
+
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      white-space: nowrap;
+      background: #dde1e7;
+      color: #333;
+    }
+    .badge.passed  { background: #2e7d32; color: #fff; }
+    .badge.failed  { background: #c62828; color: #fff; }
+    .badge.skipped { background: #e65100; color: #fff; }
+    .badge.error   { background: #6a1a6a; color: #fff; }
+
+    .skip-reason {
+      padding: 6px 16px 12px;
+      color: #555;
+      font-style: italic;
+    }
+
+    /* Details / summary */
+    details { border-top: 1px solid #dde1e7; }
+    details summary {
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      padding: 8px 16px;
+      font-size: .82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #1e3a5f;
+      list-style: none;
+      user-select: none;
+    }
+    details summary::-webkit-details-marker { display: none; }
+    details summary::before {
+      content: '▶';
+      margin-right: 6px;
+      font-size: .7rem;
+      transition: transform .15s;
+    }
+    details[open] summary::before { transform: rotate(90deg); }
+    .detail-content { padding: 8px 16px 14px; }
+
+    /* Request / response */
+    .request-line, .response-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-family: monospace;
+      font-size: .9rem;
+    }
+    .method {
+      background: #1e3a5f;
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: .8rem;
+    }
+    .url { color: #1e3a5f; word-break: break-all; }
+    .status-code {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+    .response-time { color: #555; font-size: .85rem; }
+
+    /* Headers grid */
+    .headers-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 2px 12px;
+      margin-bottom: 8px;
+      font-family: monospace;
+      font-size: .82rem;
+    }
+    .header-name { color: #1e3a5f; font-weight: 600; white-space: nowrap; }
+    .header-value { color: #444; word-break: break-all; }
+
+    pre {
+      background: #f0f2f5;
+      border-radius: 4px;
+      padding: 10px 12px;
+      overflow-x: auto;
+      margin-top: 6px;
+    }
+    pre code {
+      font-family: monospace;
+      font-size: .82rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Failures */
+    .failures {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .failures li {
+      background: #fff5f5;
+      border-left: 3px solid #c62828;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: .88rem;
+    }
+    .failures li strong { color: #c62828; }
+    .failures li code {
+      background: #f0f2f5;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: .85em;
+    }
+    .error-msg { margin-top: 4px; color: #666; font-style: italic; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1 th:text="${suiteName}">Suite Name</h1>
+    <p class="description" th:if="${suiteDescription}" th:text="${suiteDescription}">Description</p>
+    <p class="generated">Generated: <span th:text="${generatedAt}">2026-01-01 00:00</span></p>
+  </header>
+
+  <div class="stats">
+    <div class="stat passed">
+      <span class="count" th:text="${passedCount}">0</span>
+      <span class="label">Passed</span>
+    </div>
+    <div class="stat failed">
+      <span class="count" th:text="${failedCount}">0</span>
+      <span class="label">Failed</span>
+    </div>
+    <div class="stat skipped">
+      <span class="count" th:text="${skippedCount}">0</span>
+      <span class="label">Skipped</span>
+    </div>
+    <div class="stat error">
+      <span class="count" th:text="${errorCount}">0</span>
+      <span class="label">Error</span>
+    </div>
+    <div class="stat">
+      <span class="count" th:text="${totalCount}">0</span>
+      <span class="label">Total</span>
+    </div>
+  </div>
+
+  <section class="tests">
+    <article th:each="t : ${tests}" th:classappend="${t.statusClass}">
+
+      <div class="test-header">
+        <span class="badge" th:classappend="${t.statusClass}" th:text="${t.result}">STATUS</span>
+        <span class="test-name" th:text="${t.name}">Test Name</span>
+        <span class="assertion-counts">
+          Assertions: <span th:text="${t.passedAssertions}">0</span> passed
+          <span th:if="${t.failedAssertions > 0}">,
+            <span th:text="${t.failedAssertions}">0</span> failed
+          </span>
+        </span>
+      </div>
+
+      <div class="skip-reason" th:if="${t.result == 'SKIPPED'}">
+        Reason: <span th:text="${t.skipReason}">reason</span>
+      </div>
+
+      <details th:if="${t.hasRequest}">
+        <summary>Request</summary>
+        <div class="detail-content">
+          <div class="request-line">
+            <span class="method" th:text="${t.requestMethod}">GET</span>
+            <span class="url" th:text="${t.requestUrl}">/api</span>
+          </div>
+          <div class="headers-grid" th:if="${#lists.size(t.requestHeaders) > 0}">
+            <th:block th:each="h : ${t.requestHeaders}">
+              <span class="header-name" th:text="${h.name}">Name</span>
+              <span class="header-value" th:text="${h.value}">Value</span>
+            </th:block>
+          </div>
+          <pre th:if="${t.requestBody != null}"><code th:text="${t.requestBody}"></code></pre>
+        </div>
+      </details>
+
+      <details th:if="${t.hasResponse}">
+        <summary>Response</summary>
+        <div class="detail-content">
+          <div class="response-line">
+            <span class="status-code" th:text="${t.responseStatus}">200</span>
+            <span class="response-time" th:if="${t.responseTimeMs != null}"
+                  th:text="${t.responseTimeMs} + ' ms'">0 ms</span>
+          </div>
+          <div class="headers-grid" th:if="${#lists.size(t.responseHeaders) > 0}">
+            <th:block th:each="h : ${t.responseHeaders}">
+              <span class="header-name" th:text="${h.name}">Name</span>
+              <span class="header-value" th:text="${h.value}">Value</span>
+            </th:block>
+          </div>
+          <pre th:if="${t.formattedResponseBody != null}"><code
+              th:text="${t.formattedResponseBody}"></code></pre>
+        </div>
+      </details>
+
+      <details th:if="${t.failedAssertions > 0}" open="open">
+        <summary>Failed Assertions</summary>
+        <div class="detail-content">
+          <ul class="failures">
+            <li th:each="f : ${t.failures}">
+              <strong th:text="${f.description}">description</strong>
+              <span th:if="${f.expected != null}">
+                &mdash; expected: <code th:text="${f.expected}">expected</code>
+              </span>
+              <span th:if="${f.actual != null}">
+                &mdash; actual: <code th:text="${f.actual}">actual</code>
+              </span>
+              <div class="error-msg" th:if="${f.error != null}" th:text="${f.error}">error</div>
+            </li>
+          </ul>
+        </div>
+      </details>
+
+    </article>
+  </section>
+
+</div>
+</body>
+</html>

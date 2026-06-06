@@ -93,4 +93,13 @@ class StartsWithAssertionEvaluatorTest {
 
         assertThatCode(collector::assertAll).doesNotThrowAnyException();
     }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        FailureCollector collector = new FailureCollector();
+        new StartsWithAssertionEvaluator(new StartsWithAssertion("invalid.path", "ERR"))
+                .evaluate(new ApiResponse(200, Map.of(), null), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

@@ -103,4 +103,17 @@ class NotNullAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void nullValueAtFoundPathFails() {
+        // body is present but json is null → Found(null) → assertThat(null).isNotNull() fails
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new NotNullAssertionEvaluator(new NotNullAssertion("response.body.json")).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
 }

@@ -104,4 +104,41 @@ class GreaterThanAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void nullValueFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json", 0))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void nonNumericNonStringTypeFails() {
+        // A boolean value is neither Number nor String → the "else" branch
+        ApiResponse response = responseWithJson(Map.of("flag", true));
+
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("response.body.json.$.flag", 0))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Boolean");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of("score", 100));
+
+        FailureCollector collector = new FailureCollector();
+        new GreaterThanAssertionEvaluator(new GreaterThanAssertion("invalid.path", 0)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

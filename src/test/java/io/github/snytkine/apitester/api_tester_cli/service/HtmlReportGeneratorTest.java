@@ -1,0 +1,218 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.apitester.api_tester_cli.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
+import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+/** Unit tests for {@link HtmlReportGenerator}. */
+class HtmlReportGeneratorTest {
+
+    @TempDir
+    Path tempDir;
+
+    private final HtmlReportGenerator generator = new HtmlReportGenerator();
+
+    @Test
+    void generateWritesSelfContainedHtmlFile() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        assertThat(outputPath).exists();
+        String html = Files.readString(outputPath);
+        assertThat(html).startsWith("<!DOCTYPE html>");
+        assertThat(html).contains("<style>");
+        assertThat(html).doesNotContain("<script");
+    }
+
+    @Test
+    void generateIncludesSuiteName() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Pet Store API");
+    }
+
+    @Test
+    void generateIncludesSuiteDescription() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Integration tests for the pet store");
+    }
+
+    @Test
+    void generateIncludesCounts() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        // passed=1, failed=1, skipped=1, error=0, total=3
+        assertThat(html).contains(">1<").contains(">0<").contains(">3<");
+    }
+
+    @Test
+    void generateIncludesAllTestNames() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Get all pets").contains("Create pet").contains("Skip this test");
+    }
+
+    @Test
+    void generateIncludesStatusWords() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("PASSED").contains("FAILED").contains("SKIPPED");
+    }
+
+    @Test
+    void generateIncludesDetailsAndSummaryElements() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("<details").contains("<summary");
+    }
+
+    @Test
+    void generateIncludesSkipReason() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("not needed in this env");
+    }
+
+    @Test
+    void generateIncludesFailureDescriptionExpectedAndActual() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("status_code equals 201");
+        assertThat(html).contains("201");
+        assertThat(html).contains("400");
+    }
+
+    @Test
+    void generatePrettyPrintsJsonResponseBody() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        String html = Files.readString(outputPath);
+        // th:text HTML-escapes quotes; "id" appears as &quot;id&quot; in the HTML source
+        assertThat(html).contains("&quot;id&quot;");
+    }
+
+    @Test
+    void generateCreatesParentDirectoryWhenMissing() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("subdir/nested/report.html");
+
+        generator.generate(result, suite, outputPath);
+
+        assertThat(outputPath).exists();
+    }
+
+    private static TestSuite buildTestSuite() {
+        return new TestSuite("Pet Store API", "Integration tests for the pet store", null, null, List.of(), null, null);
+    }
+
+    private static TestRunResult buildTestRunResult() {
+        TestCaseResult passed = new TestCaseResult(
+                "Get all pets",
+                TestResult.PASSED,
+                3,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null),
+                new ApiResponse(
+                        200,
+                        Map.of("Content-Type", "application/json"),
+                        new ApiResponse.Body("[{\"id\":1}]", List.of(Map.of("id", 1))),
+                        45L));
+
+        TestCaseResult failed = new TestCaseResult(
+                "Create pet",
+                TestResult.FAILED,
+                1,
+                List.of(new AssertionFailure("status_code equals 201", "201", "400", "Expected 201 but was 400")),
+                null,
+                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}"),
+                new ApiResponse(
+                        400,
+                        Map.of("Content-Type", "application/json"),
+                        new ApiResponse.Body("{\"error\":\"bad request\"}", Map.of("error", "bad request")),
+                        120L));
+
+        TestCaseResult skipped = new TestCaseResult(
+                "Skip this test", TestResult.SKIPPED, 0, List.of(), "not needed in this env", null, null);
+
+        return new TestRunResult(1L, 1L, 1L, 0L, List.of(passed, failed, skipped), Map.of());
+    }
+}

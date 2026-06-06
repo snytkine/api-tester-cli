@@ -82,4 +82,63 @@ class LessThanOrEqualAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void numericStringPasses() {
+        ApiResponse response = responseWithJson(Map.of("count", "3"));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void nonNumericStringFails() {
+        ApiResponse response = responseWithJson(Map.of("count", "few"));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void nullValueFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void nonNumericNonStringTypeFails() {
+        ApiResponse response = responseWithJson(Map.of("active", true));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.active", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Boolean");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of("count", 3));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("invalid.path", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

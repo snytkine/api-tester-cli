@@ -25,6 +25,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.service.HtmlReportGenerator;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.ui.ErrorBox;
@@ -35,6 +36,8 @@ import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +64,7 @@ public class RunSuiteCommand {
     private final ObjectMapper jsonMapper;
     private final TestEngine testEngine;
     private final DotEnvLoader dotEnvLoader;
+    private final HtmlReportGenerator htmlReportGenerator;
 
     @Nullable private final ViewComponentBuilder viewComponentBuilder;
 
@@ -77,6 +81,7 @@ public class RunSuiteCommand {
      *     test names
      * @param testEngine executes the loaded test cases
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
+     * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      */
     public RunSuiteCommand(
@@ -84,11 +89,13 @@ public class RunSuiteCommand {
             TestSuiteValidator testSuiteValidator,
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
+            HtmlReportGenerator htmlReportGenerator,
             @Nullable ViewComponentBuilder viewComponentBuilder) {
         this.testSuiteLoader = testSuiteLoader;
         this.testSuiteValidator = testSuiteValidator;
         this.testEngine = testEngine;
         this.dotEnvLoader = dotEnvLoader;
+        this.htmlReportGenerator = htmlReportGenerator;
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         this.viewComponentBuilder = viewComponentBuilder;
     }
@@ -129,6 +136,9 @@ public class RunSuiteCommand {
      *     this value is executed; a no-match condition surfaces an {@link ErrorBox} and aborts the
      *     run; mutually exclusive with {@code tag}; use double quotes if the name contains spaces:
      *     {@code --test="My Test Name"}
+     * @param reportDir when non-null, the directory path where the HTML execution report will be
+     *     written; the filename is auto-generated as
+     *     {@code test-suite_<name>_yyyyMMddHHmmss.html}
      * @param context Spring Shell command context; positional arguments are extracted from it as CLI
      *     variables forwarded to the Thymeleaf template engine
      * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
@@ -160,6 +170,12 @@ public class RunSuiteCommand {
                                     + " Use double quotes if the name contains spaces:"
                                     + " --test=\"My Test Name\". Mutually exclusive with --tag.")
                     @Nullable String testName,
+            @Option(
+                            longName = "report",
+                            description = "Directory where the HTML execution report will be written."
+                                    + " The filename is auto-generated as"
+                                    + " test-suite_<name>_yyyyMMddHHmmss.html.")
+                    @Nullable String reportDir,
             CommandContext context)
             throws Exception {
 
@@ -209,6 +225,7 @@ public class RunSuiteCommand {
         if (tagFilterActive) appliedOptions.put("tag", tag);
         if (testNameFilterActive) appliedOptions.put("test", testName);
 
+        TestRunResult result = null;
         if (useUi) {
             LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
             TerminalUiListener uiListener = new TerminalUiListener(queue);
@@ -227,7 +244,7 @@ public class RunSuiteCommand {
                 uiListener.onProgress(
                         new TestProgressEvent.ValidationFailed(List.of("No tests found with tag: \"" + tag + "\"")));
             } else {
-                testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, uiListener);
+                result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, uiListener);
             }
             controller.await();
         } else {
@@ -252,9 +269,18 @@ public class RunSuiteCommand {
                 context.outputWriter().flush();
                 return;
             }
-            TestRunResult result =
-                    testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
+            result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
             context.outputWriter().println(toJson(result.withAppliedOptions(appliedOptions)));
+            context.outputWriter().flush();
+        }
+
+        if (reportDir != null && result != null) {
+            String safeName = suiteToRun.name().replaceAll("[^a-zA-Z0-9_-]", "_");
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            String fileName = "test-suite_" + safeName + "_" + timestamp + ".html";
+            Path out = Path.of(reportDir).resolve(fileName);
+            htmlReportGenerator.generate(result, suiteToRun, out);
+            context.outputWriter().println("Report written to " + out.toAbsolutePath());
             context.outputWriter().flush();
         }
     }

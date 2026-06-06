@@ -94,4 +94,26 @@ class ArraySizeAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void nullValueNotArrayFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("response.body.json", 0)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(List.of("a", "b"));
+
+        FailureCollector collector = new FailureCollector();
+        new ArraySizeAssertionEvaluator(new ArraySizeAssertion("invalid.path", 2)).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

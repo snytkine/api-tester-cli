@@ -164,4 +164,41 @@ class JsonMatchAssertionEvaluatorTest {
 
         assertThatCode(collector::assertAll).doesNotThrowAnyException();
     }
+
+    @Test
+    void nullIgnoreListIsHandledGracefully() {
+        ObjectExpectedValue expected = new ObjectExpectedValue("inline", "{\"name\":\"Alice\"}", null);
+        JsonMatchAssertion assertion = new JsonMatchAssertion("response.body.json", expected);
+        JsonMatchAssertionEvaluator ev = new JsonMatchAssertionEvaluator(assertion, null, OBJECT_MAPPER, Map.of());
+
+        FailureCollector collector = new FailureCollector();
+        ev.evaluate(responseWithJson("{\"name\":\"Alice\"}", Map.of("name", "Alice")), collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void nonObjectArrayElementsAreIgnoredDuringFieldRemoval() {
+        // Array of primitives — removeIgnoredFields must not throw when element is not ObjectNode
+        String actualText = "[1, 2, 3]";
+        Object actualJson = List.of(1, 2, 3);
+        String expectedContent = "[1, 2, 3]";
+
+        FailureCollector collector = new FailureCollector();
+        evaluator(expectedContent, List.of("someField")).evaluate(responseWithJson(actualText, actualJson), collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void nullSuiteDirWithFileReferenceThrowsIllegalState() {
+        ObjectExpectedValue expected = new ObjectExpectedValue("file", "expected.json", List.of());
+        JsonMatchAssertion assertion = new JsonMatchAssertion("response.body.json", expected);
+        JsonMatchAssertionEvaluator ev = new JsonMatchAssertionEvaluator(assertion, null, OBJECT_MAPPER, Map.of());
+
+        FailureCollector collector = new FailureCollector();
+        assertThatThrownBy(() -> ev.evaluate(responseWithJson("{\"a\":1}", Map.of("a", 1)), collector))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Suite directory is required");
+    }
 }

@@ -102,4 +102,27 @@ class NotEmptyAssertionEvaluatorTest {
 
         assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
     }
+
+    @Test
+    void nullValueAtFoundPathFails() {
+        // body.json is present (body != null) but json is null → Found(null)
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("response.body.json")).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
+
+        FailureCollector collector = new FailureCollector();
+        new NotEmptyAssertionEvaluator(new NotEmptyAssertion("invalid.path")).evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }

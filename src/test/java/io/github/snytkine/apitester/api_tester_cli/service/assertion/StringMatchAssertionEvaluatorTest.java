@@ -154,4 +154,106 @@ class StringMatchAssertionEvaluatorTest {
                 .isInstanceOf(MultipleFailuresError.class)
                 .hasMessageContaining("response.");
     }
+
+    @Test
+    void nullHeadersRecordsFailure() {
+        var evaluator =
+                new StringMatchAssertionEvaluator(new StringMatchAssertion("response.headers.x-id", "123", null));
+        ApiResponse response = new ApiResponse(200, null, null);
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("No headers present");
+    }
+
+    @Test
+    void bodyJsonPathMatchesStringRepresentation() {
+        var evaluator =
+                new StringMatchAssertionEvaluator(new StringMatchAssertion("response.body.json", "{name=Alice}", null));
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        // String.valueOf(Map.of("name","Alice")) == "{name=Alice}"
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void bodyTextNullBodyReturnsNullAndNoFailure() {
+        var evaluator = new StringMatchAssertionEvaluator(new StringMatchAssertion("response.body.text", "x", null));
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        // null body → resolved == null → no failure recorded
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void bodyJsonNullBodyReturnsNullAndNoFailure() {
+        var evaluator = new StringMatchAssertionEvaluator(new StringMatchAssertion("response.body.json", "null", null));
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void unsupportedPathSegmentRecordsFailure() {
+        var evaluator = new StringMatchAssertionEvaluator(
+                new StringMatchAssertion("response.unsupported.field", "value", null));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(responseWithStatus(200), collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Unsupported path segment");
+    }
+
+    @Test
+    void jsonpathNotFoundRecordsFailure() {
+        var evaluator =
+                new StringMatchAssertionEvaluator(new StringMatchAssertion("response.body.json.$.missing", "x", null));
+        ApiResponse response =
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{\"name\":\"Alice\"}", Map.of("name", "Alice")));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void bodyJsonSubpathNullBodyRecordsFailure() {
+        var evaluator =
+                new StringMatchAssertionEvaluator(new StringMatchAssertion("response.body.json.$.name", "x", null));
+        ApiResponse response = new ApiResponse(200, Map.of(), null);
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("absent");
+    }
+
+    @Test
+    void caseInsensitiveMatchFails() {
+        var evaluator = new StringMatchAssertionEvaluator(
+                new StringMatchAssertion("response.headers.content-type", "TEXT/PLAIN", false));
+
+        FailureCollector collector = new FailureCollector();
+        evaluator.evaluate(responseWithHeader("content-type", "application/json"), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
 }
