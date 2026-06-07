@@ -44,8 +44,29 @@ DISABLE_INTERACTIVE_MODE=true ./target/api-tester-cli help
   variable at that moment — the same binary can run interactively or non-interactively on different
   invocations.
 
+### Output format
+
+In non-interactive mode, output is concise and suitable for CI logs:
+
+- **Summary counts:** `Passed: X, Failed: Y, Errors: Z, Skipped: W`
+- **Failed test details** (if any failures): test name, then "Failed assertions:" label, then each assertion error message indented
+- **Report path** (if `--report` was used): `Test report generated at <path>`
+
+Example:
+
+```
+Passed: 1, Failed: 1, Errors: 0, Skipped: 0
+
+Objects Test
+Failed assertions:
+  - string_match response.headers.content-type failed
+  - json_match response.body.json failed
+
+Test report generated at /tmp/test-suite_MyApp_20260607185044.html
+```
+
 For building the native binary, see [native-build-support.md](native-build-support.md)
-(`./mvnw -Pnative clean package -DskipTests`; the binary is written to `target/api-tester-cli`).
+(`./mvnw clean -Pnative native:compile`; the binary is written to `target/api-tester-cli`).
 
 ---
 

@@ -28,6 +28,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
 import org.springframework.shell.core.command.CommandRegistry;
@@ -73,14 +75,16 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
-                null);
+                null,
+                new MockEnvironment());
         commandWithUi = new RunSuiteCommand(
                 new TestSuiteLoader(),
                 new TestSuiteValidator(),
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
-                mock(ViewComponentBuilder.class));
+                mock(ViewComponentBuilder.class),
+                new MockEnvironment());
     }
 
     @Test
@@ -308,7 +312,7 @@ class RunSuiteCommandTest {
         verify(mockReportGenerator).generate(any(), any(), pathCaptor.capture());
         String generatedFileName = pathCaptor.getValue().getFileName().toString();
         assertThat(generatedFileName).matches("test-suite_.+_\\d{14}\\.html");
-        assertThat(output.toString()).contains("Report written to");
+        assertThat(output.toString()).contains("Test report generated at");
     }
 
     @Test
@@ -467,6 +471,121 @@ class RunSuiteCommandTest {
         commandWithUi.runSuite(suite, true, false, null, null, null, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
+    }
+
+    // ---- Non-interactive mode: exit-code and failure-summary helpers ----
+
+    private RunSuiteCommand commandWithEnv(MockEnvironment env) {
+        return new RunSuiteCommand(
+                new TestSuiteLoader(),
+                new TestSuiteValidator(),
+                mockEngine,
+                new DotEnvLoader(),
+                mockReportGenerator,
+                null,
+                env);
+    }
+
+    @Test
+    void isNonInteractiveTrueWhenEnvVarTrue() {
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("DISABLE_INTERACTIVE_MODE", "true");
+        assertThat(commandWithEnv(env).isNonInteractive()).isTrue();
+    }
+
+    @Test
+    void isNonInteractiveCaseInsensitive() {
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("DISABLE_INTERACTIVE_MODE", "TRUE");
+        assertThat(commandWithEnv(env).isNonInteractive()).isTrue();
+    }
+
+    @Test
+    void isNonInteractiveFalseWhenAbsentOrFalse() {
+        assertThat(command.isNonInteractive()).isFalse();
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("DISABLE_INTERACTIVE_MODE", "false");
+        assertThat(commandWithEnv(env).isNonInteractive()).isFalse();
+    }
+
+    @Test
+    void computeExitCodeZeroWhenAllPassed() {
+        TestRunResult result = new TestRunResult(2, 0, 1, 0, List.of(), Map.of());
+        assertThat(command.computeExitCode(result)).isZero();
+    }
+
+    @Test
+    void computeExitCodeOneWhenAnyFailed() {
+        TestRunResult result = new TestRunResult(1, 1, 0, 0, List.of(), Map.of());
+        assertThat(command.computeExitCode(result)).isEqualTo(1);
+    }
+
+    @Test
+    void computeExitCodeOneWhenAnyError() {
+        TestRunResult result = new TestRunResult(1, 0, 0, 1, List.of(), Map.of());
+        assertThat(command.computeExitCode(result)).isEqualTo(1);
+    }
+
+    @Test
+    void buildConciseSummaryShowsCounts() {
+        TestRunResult result = new TestRunResult(2, 1, 1, 0, List.of(), Map.of());
+        String summary = command.buildConciseSummary(result, null);
+        assertThat(summary).startsWith("Passed: 2, Failed: 1, Errors: 0, Skipped: 1");
+    }
+
+    @Test
+    void buildConciseSummaryListsFailedTestsWithAssertionMessages() {
+        TestCaseResult failed = new TestCaseResult(
+                "Create Item",
+                TestResult.FAILED,
+                0,
+                List.of(
+                        new AssertionFailure("status_code equals 201", "201", "400", "msg"),
+                        new AssertionFailure("not_null response.body.json.id", null, null, "msg")),
+                null,
+                null,
+                null);
+        TestCaseResult passed = new TestCaseResult("Health", TestResult.PASSED, 1, List.of(), null, null, null);
+        TestRunResult result = new TestRunResult(1, 1, 0, 0, List.of(passed, failed), Map.of());
+
+        String summary = command.buildConciseSummary(result, null);
+
+        assertThat(summary).contains("Passed: 1, Failed: 1, Errors: 0, Skipped: 0");
+        assertThat(summary).contains("Create Item");
+        assertThat(summary).contains("Failed assertions:");
+        assertThat(summary).contains("- status_code equals 201");
+        assertThat(summary).contains("- not_null response.body.json.id");
+        assertThat(summary).doesNotContain("Health");
+    }
+
+    @Test
+    void buildConciseSummaryAppendsReportPathWhenPresent() {
+        TestCaseResult failed = new TestCaseResult(
+                "T1", TestResult.FAILED, 0, List.of(new AssertionFailure("a", null, null, null)), null, null, null);
+        TestRunResult result = new TestRunResult(0, 1, 0, 0, List.of(failed), Map.of());
+
+        String summary = command.buildConciseSummary(result, Path.of("/tmp/report.html"));
+
+        assertThat(summary).contains("Test report generated at");
+        assertThat(summary).contains("report.html");
+    }
+
+    @Test
+    void buildConciseSummaryIncludesErroredTests() {
+        TestCaseResult errored = new TestCaseResult(
+                "E1",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure("Connection refused", null, null, null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0, 0, 0, 1, List.of(errored), Map.of());
+
+        String summary = command.buildConciseSummary(result, null);
+        assertThat(summary).contains("E1");
+        assertThat(summary).contains("Failed assertions:");
+        assertThat(summary).contains("- Connection refused");
     }
 
     private CommandContext buildContext(String... argValues) {

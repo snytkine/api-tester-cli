@@ -19,11 +19,15 @@ package io.github.snytkine.apitester.api_tester_cli.commands;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import io.github.snytkine.apitester.api_tester_cli.config.InteractiveModeRunnerConfiguration;
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
+import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.HtmlReportGenerator;
@@ -34,7 +38,6 @@ import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
 import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -46,6 +49,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.env.Environment;
 import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
 import org.springframework.shell.core.command.annotation.Command;
@@ -64,6 +68,12 @@ public class RunSuiteCommand {
 
     private static final Logger log = LoggerFactory.getLogger(RunSuiteCommand.class);
 
+    /** Process exit code when one or more test cases fail or error. */
+    static final int EXIT_TEST_FAILURE = 1;
+
+    /** Process exit code for a command-options / pre-execution validation error. */
+    static final int EXIT_OPTIONS_ERROR = 2;
+
     private final TestSuiteLoader testSuiteLoader;
     private final TestSuiteValidator testSuiteValidator;
     private final ObjectMapper jsonMapper;
@@ -72,6 +82,8 @@ public class RunSuiteCommand {
     private final HtmlReportGenerator htmlReportGenerator;
 
     @Nullable private final ViewComponentBuilder viewComponentBuilder;
+
+    private final Environment environment;
 
     /**
      * Constructs the command with its required collaborators. A dedicated JSON {@link ObjectMapper}
@@ -88,6 +100,8 @@ public class RunSuiteCommand {
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
+     * @param environment the application environment, read at runtime to detect non-interactive mode
+     *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
      */
     public RunSuiteCommand(
             TestSuiteLoader testSuiteLoader,
@@ -95,7 +109,8 @@ public class RunSuiteCommand {
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
             HtmlReportGenerator htmlReportGenerator,
-            @Nullable ViewComponentBuilder viewComponentBuilder) {
+            @Nullable ViewComponentBuilder viewComponentBuilder,
+            Environment environment) {
         this.testSuiteLoader = testSuiteLoader;
         this.testSuiteValidator = testSuiteValidator;
         this.testEngine = testEngine;
@@ -103,6 +118,21 @@ public class RunSuiteCommand {
         this.htmlReportGenerator = htmlReportGenerator;
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         this.viewComponentBuilder = viewComponentBuilder;
+        this.environment = environment;
+    }
+
+    /**
+     * Returns whether the application is running in non-interactive mode, i.e. the {@code
+     * DISABLE_INTERACTIVE_MODE} environment variable / property equals {@code "true"}
+     * (case-insensitive). In this mode the command suppresses all terminal output (no interactive UI,
+     * no JSON dump, no status messages), writing only an optional report file and — on failure — a
+     * short summary to stderr, and signals the outcome through the process exit code.
+     *
+     * @return {@code true} when non-interactive (silent) mode is active
+     */
+    boolean isNonInteractive() {
+        return "true"
+                .equalsIgnoreCase(environment.getProperty(InteractiveModeRunnerConfiguration.DISABLE_INTERACTIVE_MODE));
     }
 
     /**
@@ -184,12 +214,19 @@ public class RunSuiteCommand {
             CommandContext context)
             throws Exception {
 
+        boolean nonInteractive = isNonInteractive();
+
         Path suitePath = Path.of(suite);
         if (!Files.exists(suitePath)) {
+            if (nonInteractive) {
+                log.debug("Options error (exit {}): test suite file not found: {}", EXIT_OPTIONS_ERROR, suite);
+                System.exit(EXIT_OPTIONS_ERROR);
+            }
             throw new IllegalArgumentException("Test suite file not found: " + suite);
         }
 
-        boolean useUi = viewComponentBuilder != null && TtyDetector.shouldUseUi(forceUi, noUi);
+        // In non-interactive mode the interactive UI is always suppressed, regardless of TTY.
+        boolean useUi = !nonInteractive && viewComponentBuilder != null && TtyDetector.shouldUseUi(forceUi, noUi);
 
         Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
         Map<String, String> envVars = dotEnvLoader.loadDotEnv(suitePath.getParent());
@@ -201,7 +238,10 @@ public class RunSuiteCommand {
 
         // Reject the combination of --tag and --test up front, before touching the suite.
         if (tagFilterActive && testNameFilterActive) {
-            renderErrors(List.of("Options --tag and --test cannot be used together. Use one or the other."), context);
+            reportOptionsError(
+                    List.of("Options --tag and --test cannot be used together. Use one or the other."),
+                    nonInteractive,
+                    context);
             return;
         }
 
@@ -219,7 +259,7 @@ public class RunSuiteCommand {
                     .filter(tc -> testName.equals(tc.name()))
                     .toList();
             if (matched.isEmpty()) {
-                renderErrors(List.of("No test found with name: \"" + testName + "\""), context);
+                reportOptionsError(List.of("No test found with name: \"" + testName + "\""), nonInteractive, context);
                 return;
             }
             suiteToRun = testSuite.withFilteredTests(matched);
@@ -262,23 +302,11 @@ public class RunSuiteCommand {
         } else {
             List<String> validationErrors = testSuiteValidator.validate(suiteToRun);
             if (!validationErrors.isEmpty()) {
-                new ErrorBox()
-                        .render(
-                                validationErrors,
-                                TtyDetector.supportsColor(),
-                                TtyDetector.getTerminalWidth(),
-                                context.outputWriter());
-                context.outputWriter().flush();
+                reportOptionsError(validationErrors, nonInteractive, context);
                 return;
             }
             if (tagFilterActive && suiteToRun.tests().isEmpty()) {
-                new ErrorBox()
-                        .render(
-                                List.of("No tests found with tag: \"" + tag + "\""),
-                                TtyDetector.supportsColor(),
-                                TtyDetector.getTerminalWidth(),
-                                context.outputWriter());
-                context.outputWriter().flush();
+                reportOptionsError(List.of("No tests found with tag: \"" + tag + "\""), nonInteractive, context);
                 return;
             }
             result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
@@ -288,31 +316,119 @@ public class RunSuiteCommand {
             result = result.withAppliedOptions(appliedOptions);
         }
 
-        if (!useUi && result != null) {
-            context.outputWriter().println(toJson(result));
-            context.outputWriter().flush();
-        }
-
+        Path reportPath = null;
         if (reportDir != null && result != null) {
             String safeName = suiteToRun.name().replaceAll("[^a-zA-Z0-9_-]", "_");
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             String fileName = "test-suite_" + safeName + "_" + timestamp + ".html";
-            Path out = Path.of(reportDir).resolve(fileName);
-            htmlReportGenerator.generate(result, suiteToRun, out);
-            context.outputWriter().println("Report written to " + out.toAbsolutePath());
+            reportPath = Path.of(reportDir).resolve(fileName);
+            htmlReportGenerator.generate(result, suiteToRun, reportPath);
+        }
+
+        // Output mode: concise human-readable summary to stdout when --no-ui is passed or in
+        // non-interactive mode.
+        if (!useUi && result != null) {
+            context.outputWriter().println(buildConciseSummary(result, reportPath));
             context.outputWriter().flush();
+        }
+
+        // Non-interactive mode: signal the outcome via process exit code. On failure, return exit code
+        // 1; on success return 0 (which causes normal exit). Options errors already exited with code 2.
+        if (nonInteractive && result != null) {
+            int exitCode = computeExitCode(result);
+            if (exitCode != 0) {
+                System.exit(exitCode);
+            }
         }
     }
 
     /**
-     * Serializes {@code value} to an indented JSON string.
+     * Handles a pre-execution options/validation error.
      *
-     * @param value the object to serialize
-     * @return pretty-printed JSON
-     * @throws IOException if Jackson serialization fails
+     * <p>In non-interactive (silent) mode the process is terminated immediately with {@link
+     * #EXIT_OPTIONS_ERROR} and the messages are written only to the debug log (no terminal output).
+     * Otherwise the messages are rendered as an {@link ErrorBox} to the command output writer.
+     *
+     * @param messages the non-empty list of error messages describing the problem
+     * @param nonInteractive whether non-interactive (silent) mode is active
+     * @param context the command context whose output writer receives rendered output
      */
-    private String toJson(Object value) throws IOException {
-        return jsonMapper.writeValueAsString(value);
+    private void reportOptionsError(List<String> messages, boolean nonInteractive, CommandContext context) {
+        if (nonInteractive) {
+            log.debug("Options error (exit {}): {}", EXIT_OPTIONS_ERROR, messages);
+            System.exit(EXIT_OPTIONS_ERROR);
+        }
+        renderErrors(messages, context);
+    }
+
+    /**
+     * Computes the process exit code for a completed run: {@link #EXIT_TEST_FAILURE} when any test
+     * case failed or errored, otherwise {@code 0}. Skipped tests do not affect the exit code.
+     *
+     * @param result the aggregated run result
+     * @return {@code 1} if there were failures or errors, {@code 0} otherwise
+     */
+    int computeExitCode(TestRunResult result) {
+        return (result.failedCount() > 0 || result.errorCount() > 0) ? EXIT_TEST_FAILURE : 0;
+    }
+
+    /**
+     * Builds a concise, human-readable summary of test results for stdout.
+     *
+     * <p>Format:
+     * <ul>
+     *   <li>First line: summary counts (passed, failed, errors, skipped)
+     *   <li>Failed/errored tests (one per test): test name, then "Failed assertions:" label, then
+     *       each assertion error message indented
+     *   <li>Report path (if generated): "Test report generated at <path>"
+     * </ul>
+     *
+     * <p>Example:
+     * <pre>
+     * Passed: 1, Failed: 1, Errors: 0, Skipped: 0
+     *
+     * Objects Test
+     * Failed assertions:
+     *   - string_match response.headers.content-type failed
+     *   - json_match response.body.json failed
+     *
+     * Test report generated at /tmp/report.html
+     * </pre>
+     *
+     * @param result the aggregated run result
+     * @param reportPath the path to the generated HTML report, or {@code null} if none was written
+     * @return the formatted summary for stdout
+     */
+    String buildConciseSummary(TestRunResult result, @Nullable Path reportPath) {
+        StringBuilder sb = new StringBuilder();
+
+        // Summary counts line
+        sb.append(String.format(
+                "Passed: %d, Failed: %d, Errors: %d, Skipped: %d",
+                result.passedCount(), result.failedCount(), result.errorCount(), result.skippedCount()));
+
+        // Failed/errored test details
+        List<TestCaseResult> failures = result.results().stream()
+                .filter(r -> r.result() == TestResult.FAILED || r.result() == TestResult.ERROR)
+                .toList();
+
+        if (!failures.isEmpty()) {
+            sb.append("\n");
+            for (TestCaseResult failure : failures) {
+                sb.append("\n").append(failure.name()).append("\n");
+                sb.append("Failed assertions:\n");
+                for (AssertionFailure af : failure.failures()) {
+                    sb.append("  - ").append(af.description()).append("\n");
+                }
+            }
+        }
+
+        // Report path
+        if (reportPath != null) {
+            sb.append("\nTest report generated at ").append(reportPath.toAbsolutePath());
+        }
+
+        return sb.toString();
     }
 
     /**

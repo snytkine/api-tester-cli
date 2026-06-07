@@ -71,7 +71,7 @@ public class InteractiveModeRunnerConfiguration {
      * Environment variable (or property) that, when equal to {@code "true"} (case-insensitive),
      * forces the shell into non-interactive mode.
      */
-    static final String DISABLE_INTERACTIVE_MODE = "DISABLE_INTERACTIVE_MODE";
+    public static final String DISABLE_INTERACTIVE_MODE = "DISABLE_INTERACTIVE_MODE";
 
     /**
      * Bean name that must match Spring Shell's {@code @ConditionalOnMissingBean(name = ...)} so that
