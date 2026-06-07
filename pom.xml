@@ -40,6 +40,7 @@
   </scm>
   <properties>
     <dotenv-java.version>3.2.0</dotenv-java.version>
+    <jacoco.version>0.8.15</jacoco.version>
     <java.version>25</java.version>
     <java.target.version>21</java.target.version>
     <json-schema-validator.version>1.5.4</json-schema-validator.version>
@@ -182,7 +183,7 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-        <version>0.8.12</version>
+        <version>${jacoco.version}</version>
         <executions>
           <execution>
             <goals>
@@ -208,12 +209,16 @@
             </goals>
             <phase>test</phase>
             <configuration>
-              <!-- Exclude Spring Boot entry point and Spring Shell TUI integration
-                   classes that require a real terminal to test meaningfully. -->
+              <!-- Exclude Spring Boot entry point, Spring Shell TUI integration
+                   classes that require a real terminal to test meaningfully,
+                   and Spring Boot AOT-generated __BeanDefinitions classes that
+                   the build emits into target/classes under Spring Shell package
+                   names — these are generated infrastructure, not project code. -->
               <excludes>
                 <exclude>io/github/snytkine/apitester/api_tester_cli/ApiTesterCliApplication*</exclude>
                 <exclude>io/github/snytkine/apitester/api_tester_cli/commands/*</exclude>
                 <exclude>io/github/snytkine/apitester/api_tester_cli/ui/*</exclude>
+                <exclude>org/springframework/shell/core/autoconfigure/*</exclude>
               </excludes>
               <rules>
                 <rule>

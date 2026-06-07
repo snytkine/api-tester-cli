@@ -329,7 +329,7 @@
             <span class="method" th:text="${t.requestMethod}">GET</span>
             <span class="url" th:text="${t.requestUrl}">/api</span>
           </div>
-          <div th:if="${#lists.size(t.requestHeaders) > 0}">
+          <div th:if="${!t.requestHeaders.empty}">
             <p class="section-label">Headers</p>
             <div class="headers-grid">
               <div class="header-row" th:each="h : ${t.requestHeaders}">
@@ -355,7 +355,7 @@
             <span class="response-time" th:if="${t.responseTimeMs != null}"
                   th:text="${t.responseTimeMs} + ' ms'">0 ms</span>
           </div>
-          <div th:if="${#lists.size(t.responseHeaders) > 0}">
+          <div th:if="${!t.responseHeaders.empty}">
             <p class="section-label">Headers</p>
             <div class="headers-grid">
               <div class="header-row" th:each="h : ${t.responseHeaders}">

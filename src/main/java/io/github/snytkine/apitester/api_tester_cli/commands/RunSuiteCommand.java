@@ -16,6 +16,7 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.commands;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
@@ -43,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
 import org.springframework.shell.core.command.annotation.Command;
@@ -58,6 +61,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class RunSuiteCommand {
+
+    private static final Logger log = LoggerFactory.getLogger(RunSuiteCommand.class);
 
     private final TestSuiteLoader testSuiteLoader;
     private final TestSuiteValidator testSuiteValidator;
@@ -224,6 +229,13 @@ public class RunSuiteCommand {
         Map<String, String> appliedOptions = new LinkedHashMap<>();
         if (tagFilterActive) appliedOptions.put("tag", tag);
         if (testNameFilterActive) appliedOptions.put("test", testName);
+        if (log.isDebugEnabled()) {
+            try {
+                log.debug("appliedOptions: {}", jsonMapper.writeValueAsString(appliedOptions));
+            } catch (JsonProcessingException e) {
+                log.debug("appliedOptions: {}", appliedOptions);
+            }
+        }
 
         TestRunResult result = null;
         if (useUi) {
@@ -270,7 +282,14 @@ public class RunSuiteCommand {
                 return;
             }
             result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
-            context.outputWriter().println(toJson(result.withAppliedOptions(appliedOptions)));
+        }
+
+        if (result != null) {
+            result = result.withAppliedOptions(appliedOptions);
+        }
+
+        if (!useUi && result != null) {
+            context.outputWriter().println(toJson(result));
             context.outputWriter().flush();
         }
 
