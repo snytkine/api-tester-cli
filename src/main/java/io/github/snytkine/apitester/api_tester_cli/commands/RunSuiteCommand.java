@@ -332,6 +332,13 @@ public class RunSuiteCommand {
             context.outputWriter().flush();
         }
 
+        // In UI mode the concise summary is suppressed, but the user still needs to know where
+        // the report landed — print just that line after the TUI table completes.
+        if (useUi && reportPath != null) {
+            context.outputWriter().println("Report written to " + reportPath.toAbsolutePath());
+            context.outputWriter().flush();
+        }
+
         // Non-interactive mode: signal the outcome via process exit code. On failure, return exit code
         // 1; on success return 0 (which causes normal exit). Options errors already exited with code 2.
         if (nonInteractive && result != null) {

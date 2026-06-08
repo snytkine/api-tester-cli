@@ -8,6 +8,8 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 
 **Full documentation:** [https://snytkine.github.io/api-tester-cli/test-suite-configuration/](https://snytkine.github.io/api-tester-cli/test-suite-configuration/)
 
+![TUI test run results](docs/tui-test-run-results.png)
+
 ## What It Does
 
 - Executes HTTP test suites described in YAML

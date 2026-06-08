@@ -17,11 +17,16 @@
 package io.github.snytkine.apitester.api_tester_cli.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.shell.core.NonInteractiveShellRunner;
 import org.springframework.shell.core.ShellRunner;
@@ -96,5 +101,19 @@ class InteractiveModeRunnerConfigurationTest {
         ApplicationRunner runner =
                 config.springShellApplicationRunner(jlineInputProvider, commandParser, commandRegistry, environment);
         assertThat(runner).isNotNull();
+    }
+
+    @Test
+    void springShellApplicationRunner_invokesResolvedRunner() throws Exception {
+        // Spy on config so resolveRunner can be stubbed without starting a real shell.
+        InteractiveModeRunnerConfiguration configSpy = spy(config);
+        ShellRunner mockRunner = mock(ShellRunner.class);
+        doReturn(mockRunner).when(configSpy).resolveRunner(any(), any(), any(), any());
+
+        ApplicationRunner appRunner =
+                configSpy.springShellApplicationRunner(jlineInputProvider, commandParser, commandRegistry, environment);
+        appRunner.run(new DefaultApplicationArguments());
+
+        verify(mockRunner).run(new String[0]);
     }
 }

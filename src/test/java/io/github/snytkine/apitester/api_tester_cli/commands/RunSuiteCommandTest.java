@@ -316,6 +316,42 @@ class RunSuiteCommandTest {
     }
 
     @Test
+    void uiModeReportOptionPrintsReportPath() throws Exception {
+        // In UI mode (forceUi=true) the concise summary is suppressed, but "Report written to
+        // <path>" must still appear on the terminal after the TUI table completes.
+        String suite =
+                Path.of(getClass().getResource("/test-suite-1.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(
+                1,
+                0,
+                0L,
+                0L,
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null, null)),
+                Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenAnswer(invocation -> {
+            TestProgressListener listener = invocation.getArgument(2);
+            listener.onProgress(
+                    new TestProgressEvent.SuiteStarted("Test Suite for My Application v1.0", 1, Instant.now()));
+            listener.onProgress(new TestProgressEvent.TestStarted("uid-0", 0, "Objects Test"));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    "uid-0", 0, "Objects Test", TestStatus.PASS, 100L, 1, List.of()));
+            listener.onProgress(new TestProgressEvent.SuiteCompleted(1L, 0L, 0L, 0L, 100L));
+            return fakeResult;
+        });
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), ctx);
+
+        verify(mockReportGenerator).generate(any(), any(), any());
+        assertThat(output.toString()).contains("Report written to");
+    }
+
+    @Test
     void noReportOptionDoesNotCallGenerate() throws Exception {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
