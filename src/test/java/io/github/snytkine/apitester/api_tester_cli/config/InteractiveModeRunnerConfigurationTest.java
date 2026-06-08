@@ -23,12 +23,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.mock.env.MockEnvironment;
-import org.springframework.shell.core.ConsoleInputProvider;
 import org.springframework.shell.core.NonInteractiveShellRunner;
 import org.springframework.shell.core.ShellRunner;
-import org.springframework.shell.core.SystemShellRunner;
 import org.springframework.shell.core.command.CommandParser;
 import org.springframework.shell.core.command.CommandRegistry;
+import org.springframework.shell.jline.JLineInputProvider;
+import org.springframework.shell.jline.JLineShellRunner;
 
 /**
  * Unit tests for {@link InteractiveModeRunnerConfiguration}.
@@ -38,14 +38,14 @@ import org.springframework.shell.core.command.CommandRegistry;
  * DISABLE_INTERACTIVE_MODE} values, without ever invoking {@link ShellRunner#run(String[])} (which
  * would start the shell). A {@link MockEnvironment} is used so the tests are isolated from the real
  * OS environment, and the collaborating Spring Shell beans are Mockito mocks. The interactive
- * {@link SystemShellRunner} is safe to construct here because its constructor merely stores the
- * (mocked) console.
+ * {@link JLineShellRunner} is safe to construct with a mocked {@link JLineInputProvider} because
+ * {@code run()} is never called; only the runner type is asserted.
  */
 class InteractiveModeRunnerConfigurationTest {
 
     private InteractiveModeRunnerConfiguration config;
     private MockEnvironment environment;
-    private ConsoleInputProvider consoleInputProvider;
+    private JLineInputProvider jlineInputProvider;
     private CommandParser commandParser;
     private CommandRegistry commandRegistry;
 
@@ -53,13 +53,13 @@ class InteractiveModeRunnerConfigurationTest {
     void setUp() {
         config = new InteractiveModeRunnerConfiguration();
         environment = new MockEnvironment();
-        consoleInputProvider = mock(ConsoleInputProvider.class);
+        jlineInputProvider = mock(JLineInputProvider.class);
         commandParser = mock(CommandParser.class);
         commandRegistry = mock(CommandRegistry.class);
     }
 
     private ShellRunner resolve() {
-        return config.resolveRunner(consoleInputProvider, commandParser, commandRegistry, environment);
+        return config.resolveRunner(jlineInputProvider, commandParser, commandRegistry, environment);
     }
 
     @Test
@@ -76,25 +76,25 @@ class InteractiveModeRunnerConfigurationTest {
 
     @Test
     void resolveRunner_whenFlagAbsent_returnsInteractive() {
-        assertThat(resolve()).isInstanceOf(SystemShellRunner.class);
+        assertThat(resolve()).isInstanceOf(JLineShellRunner.class);
     }
 
     @Test
     void resolveRunner_whenFlagFalse_returnsInteractive() {
         environment.setProperty(InteractiveModeRunnerConfiguration.DISABLE_INTERACTIVE_MODE, "false");
-        assertThat(resolve()).isInstanceOf(SystemShellRunner.class);
+        assertThat(resolve()).isInstanceOf(JLineShellRunner.class);
     }
 
     @Test
     void resolveRunner_whenDebugEnabled_returnsInteractive() {
         environment.setProperty(InteractiveModeRunnerConfiguration.DEBUG_ENABLED_PROP, "true");
-        assertThat(resolve()).isInstanceOf(SystemShellRunner.class);
+        assertThat(resolve()).isInstanceOf(JLineShellRunner.class);
     }
 
     @Test
     void springShellApplicationRunner_returnsNonNull() {
         ApplicationRunner runner =
-                config.springShellApplicationRunner(consoleInputProvider, commandParser, commandRegistry, environment);
+                config.springShellApplicationRunner(jlineInputProvider, commandParser, commandRegistry, environment);
         assertThat(runner).isNotNull();
     }
 }
