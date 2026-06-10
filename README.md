@@ -326,7 +326,19 @@ The `--out` option accepts any absolute or relative path. Parent directories are
 
 Once you have a local copy of the schema you can wire it to your test-suite YAML files so that your IDE validates the document as you type and provides field-level completions and inline documentation.
 
-Many modern IDEs support YAML schema validation out of the box or through a plugin:
+The simplest approach — supported by virtually all editors that have
+[yaml-language-server](https://github.com/redhat-developer/yaml-language-server) active — is to
+add a single comment at the very top of each test-suite YAML file:
+
+```yaml
+# yaml-language-server: $schema=./schemas/test-suite-configuration-schema.json
+```
+
+Use the real path (absolute or relative) to the schema file you exported. No IDE-level
+configuration is needed; the language server picks up the directive automatically when the file is
+opened.
+
+For IDE-wide mappings that apply without modifying individual files:
 
 - **VS Code** — install the [YAML extension by Red Hat](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add a mapping in `.vscode/settings.json`:
   ```json

@@ -32,6 +32,32 @@ Keep the exported schema alongside your test-suite YAML files or in a shared loc
 
 ## Wiring the schema to your editor
 
+### Inline file header (universal)
+
+The simplest approach — and the one that works across virtually all editors that support
+[yaml-language-server](https://github.com/redhat-developer/yaml-language-server) — is to add a
+single comment line at the very top of each test-suite YAML file:
+
+```yaml
+# yaml-language-server: $schema=/path/to/schemas/test-suite-configuration-schema.json
+```
+
+Replace `/path/to/schemas/test-suite-configuration-schema.json` with the real path where you saved
+the exported schema file. Relative paths are resolved from the location of the YAML file:
+
+```yaml
+# yaml-language-server: $schema=./schemas/test-suite-configuration-schema.json
+```
+
+This approach requires no IDE-level configuration: any editor (VS Code, IntelliJ, Neovim, Emacs,
+Helix, …) that has yaml-language-server active will pick up the schema automatically when it opens
+the file. It also makes the schema binding self-documenting and portable — cloning the repository
+on a different machine or in a different editor "just works" as long as the schema file is present
+at the referenced path.
+
+> **Note:** The `yaml-language-server` comment is read by the language server itself, not by the
+> YAML parser, so it has no effect on how the file is loaded or executed by the CLI.
+
 ### VS Code
 
 Install the [YAML extension by Red Hat](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) (it is not bundled with VS Code by default).
