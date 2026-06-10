@@ -511,9 +511,23 @@ public final class TerminalUiController {
      *     io.github.snytkine.apitester.api_tester_cli.model.TestSuite#name()}
      */
     private void drawBanner(String suiteName) {
+        drawCenteredBox("Starting Test Suite " + suiteName, ANSI_YELLOW);
+    }
+
+    /**
+     * Draws a centred three-line box to {@link #output}.
+     *
+     * <p>The box is approximately {@code 0.8 × terminalWidth} wide. The text is centred within the
+     * inner width; if it is longer than the available space it is truncated with "…". Both the
+     * border characters and the text are rendered with {@code ansiColor} when {@link #useColors} is
+     * {@code true}.
+     *
+     * @param text the label to centre inside the box
+     * @param ansiColor the ANSI SGR colour code (e.g. {@link #ANSI_YELLOW}, {@link #ANSI_RED})
+     */
+    private void drawCenteredBox(String text, int ansiColor) {
         int bannerWidth = Math.max(10, Math.min((int) (terminalWidth * 0.8), terminalWidth - 2));
         int innerWidth = bannerWidth - 2;
-        String text = "Starting Test Suite " + suiteName;
         if (text.length() > innerWidth) {
             text = text.substring(0, Math.max(1, innerWidth - 1)) + "…";
         }
@@ -521,9 +535,9 @@ public final class TerminalUiController {
         int rightPad = Math.max(0, innerWidth - text.length() - leftPad);
         String indent = " ".repeat(Math.max(0, (terminalWidth - bannerWidth) / 2));
 
-        output.println(colorize(indent + "┌" + "─".repeat(innerWidth) + "┐", ANSI_YELLOW));
-        output.println(colorize(indent + "│" + " ".repeat(leftPad) + text + " ".repeat(rightPad) + "│", ANSI_YELLOW));
-        output.println(colorize(indent + "└" + "─".repeat(innerWidth) + "┘", ANSI_YELLOW));
+        output.println(colorize(indent + "┌" + "─".repeat(innerWidth) + "┐", ansiColor));
+        output.println(colorize(indent + "│" + " ".repeat(leftPad) + text + " ".repeat(rightPad) + "│", ansiColor));
+        output.println(colorize(indent + "└" + "─".repeat(innerWidth) + "┘", ansiColor));
     }
 
     /**
@@ -667,9 +681,9 @@ public final class TerminalUiController {
     }
 
     /**
-     * Prints the failure-detail block to {@link #output} after the run loop exits. Each failing test
-     * is rendered as a bordered two-column table (via {@link FailureTableRenderer}) with one row per
-     * assertion failure and distinct colour coding per group when colours are enabled. Nothing is
+     * Prints the failure-detail block to {@link #output} after the run loop exits. A red centred
+     * "Failed Tests" box (drawn via {@link #drawCenteredBox}) is printed first, followed by one
+     * bordered two-column table per failing test (via {@link FailureTableRenderer}). Nothing is
      * printed when {@code failures} is empty.
      *
      * @param failures {@link TestProgressEvent.TestCompleted} events for non-passing tests that carry
@@ -678,7 +692,7 @@ public final class TerminalUiController {
     private void printFailures(List<TestProgressEvent.TestCompleted> failures) {
         if (failures.isEmpty()) return;
         output.println();
-        output.println("Failures:");
+        drawCenteredBox("Failed Tests", ANSI_RED);
         FailureTableRenderer renderer = new FailureTableRenderer();
         for (TestProgressEvent.TestCompleted tc : failures) {
             renderer.render(tc.testName(), tc.failures(), useColors, terminalWidth, output);

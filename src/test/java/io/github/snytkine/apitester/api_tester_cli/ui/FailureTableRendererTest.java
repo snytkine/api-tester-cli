@@ -139,14 +139,23 @@ class FailureTableRendererTest {
     }
 
     @Test
-    void assertionRowsAreColoredBlue() {
+    void testNameRowIsInvertedWhenColorsEnabled() {
         String out = render("my-test", List.of(new AssertionFailure("first failure", null, null, null)), true, 80);
 
-        assertThat(out).contains(FailureTableRenderer.ASSERTION_COLOR);
+        String testNameLine = java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("Test Name"))
+                .findFirst()
+                .orElse("");
+        // Inverse-video wraps the inner content only; the outer ┃ borders must remain outside the
+        // escape sequence to avoid rendering artefacts at the border characters.
+        assertThat(testNameLine).contains(FailureTableRenderer.INVERSE_VIDEO);
+        assertThat(testNameLine).startsWith("┃");
+        assertThat(testNameLine).doesNotStartWith(FailureTableRenderer.INVERSE_VIDEO);
+        assertThat(testNameLine).endsWith("┃");
     }
 
     @Test
-    void multipleAssertionGroupsUseSameColor() {
+    void assertionRowsHaveAssertionColorWhenColorsEnabled() {
         String out = render(
                 "my-test",
                 List.of(
@@ -155,8 +164,31 @@ class FailureTableRendererTest {
                 true,
                 80);
 
-        assertThat(out).contains(FailureTableRenderer.ASSERTION_COLOR);
-        assertThat(out).doesNotContain("\033[32m"); // no green — single consistent color
+        java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("┃ Assertion"))
+                .forEach(line -> assertThat(line).contains(FailureTableRenderer.ASSERTION_COLOR));
+    }
+
+    @Test
+    void expectedRowHasExpectedColorWhenColorsEnabled() {
+        String out =
+                render("my-test", List.of(new AssertionFailure("failed", "exp-value", "act-value", null)), true, 80);
+
+        // After colorization the Expected line is: ┃<EXPECTED_COLOR> Expected ...<RESET>┃
+        // Filter on the label text which is inside the escape sequence.
+        java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("Expected"))
+                .forEach(line -> assertThat(line).contains(FailureTableRenderer.EXPECTED_COLOR));
+    }
+
+    @Test
+    void actualRowHasNoColorWhenColorsEnabled() {
+        String out =
+                render("my-test", List.of(new AssertionFailure("failed", "exp-value", "act-value", null)), true, 80);
+
+        java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("Actual"))
+                .forEach(line -> assertThat(line).doesNotContain("\033["));
     }
 
     @Test
@@ -167,11 +199,94 @@ class FailureTableRendererTest {
     }
 
     @Test
-    void expectedAndActualRowsColoredWhenNonNull() {
+    void expectedAndActualRowsAppearWhenNonNull() {
         String out = render("my-test", List.of(new AssertionFailure("failed", "expect", "actual", null)), true, 80);
 
-        assertThat(out).contains(FailureTableRenderer.ASSERTION_COLOR);
         assertThat(out).contains("Expected");
         assertThat(out).contains("Actual");
+    }
+
+    // ---------------------------------------------------------------------------
+    // Error row (issue 24)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    void errorRowAppearsAfterActualWhenBothPresent() {
+        String out = render(
+                "my-test",
+                List.of(new AssertionFailure(
+                        "status_code equals 201", "201", "400", "Expected status code 201 but was 400")),
+                false,
+                80);
+
+        assertThat(out).contains("Expected");
+        assertThat(out).contains("Actual");
+        assertThat(out).contains("Error");
+        assertThat(out).contains("Expected status code 201 but was 400");
+        int actualPos = out.indexOf("Actual");
+        int errorPos = out.indexOf("Error");
+        assertThat(actualPos).isLessThan(errorPos);
+    }
+
+    @Test
+    void errorOnlyRowWhenActualIsNull() {
+        String out = render(
+                "my-test",
+                List.of(new AssertionFailure("json_schema response.body", null, null, "Schema validation failed: …")),
+                false,
+                80);
+
+        assertThat(out).contains("Error");
+        assertThat(out).contains("Schema validation failed");
+        assertThat(out).doesNotContain("Expected");
+        assertThat(out).doesNotContain("Actual");
+    }
+
+    @Test
+    void noErrorRowWhenErrorFieldIsNull() {
+        String out = render("my-test", List.of(new AssertionFailure("check something", null, null, null)), false, 80);
+
+        assertThat(out).doesNotContain("Error");
+    }
+
+    @Test
+    void errorRowHasErrorColorWhenColorsEnabled() {
+        String out = render(
+                "my-test",
+                List.of(new AssertionFailure("json_schema response.body", null, null, "Schema validation failed")),
+                true,
+                80);
+
+        // After colorization the line is: ┃<ERROR_COLOR> ✗ Error ...<RESET>┃
+        // so "┃ ✗" is split by the escape; filter on the ballot-X character instead.
+        String errorLine = java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("✗"))
+                .findFirst()
+                .orElse("");
+        assertThat(errorLine).isNotEmpty();
+        assertThat(errorLine).contains(FailureTableRenderer.ERROR_COLOR);
+    }
+
+    @Test
+    void errorLabelContainsUnicodeIndicator() {
+        assertThat(FailureTableRenderer.ERROR_LABEL).contains("✗");
+    }
+
+    @Test
+    void multiLineErrorAllContinuationLinesHaveErrorColor() {
+        // Render at a narrow width so the error text is forced to wrap
+        String longError = "Schema validation failed: property 'id' is required but missing in the response body";
+        String out = render(
+                "my-test", List.of(new AssertionFailure("json_schema response.body", null, null, longError)), true, 60);
+
+        long coloredLines = java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains(FailureTableRenderer.ERROR_COLOR))
+                .count();
+        // There must be at least two lines carrying the error colour (label + ≥1 continuation)
+        assertThat(coloredLines).isGreaterThanOrEqualTo(2);
+        // Every content line that carries the error text fragment must be red
+        java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("Schema") || l.contains("missing"))
+                .forEach(line -> assertThat(line).contains(FailureTableRenderer.ERROR_COLOR));
     }
 }

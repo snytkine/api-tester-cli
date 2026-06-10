@@ -18,32 +18,40 @@ package io.github.snytkine.apitester.api_tester_cli.ui;
 
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
-import org.springframework.shell.jline.tui.table.AbsoluteWidthSizeConstraints;
-import org.springframework.shell.jline.tui.table.ArrayTableModel;
-import org.springframework.shell.jline.tui.table.BorderStyle;
-import org.springframework.shell.jline.tui.table.CellMatchers;
-import org.springframework.shell.jline.tui.table.TableBuilder;
-import org.springframework.shell.jline.tui.table.TableModel;
 
 /**
- * Renders a structured failure-detail table for a single failed test case using Spring Shell's
- * {@link TableBuilder} API.
+ * Renders a structured failure-detail table for a single failed test case using manually
+ * constructed box-drawing characters.
  *
  * <p>Each {@link AssertionFailure} in the list contributes an {@code Assertion} row containing the
- * failure message, plus optional {@code Expected} and {@code Actual} rows — those two rows are
- * omitted when both fields are {@code null}, keeping the table compact for the common case where
- * AssertJ does not extract structured expected/actual values. The test name occupies the first row.
+ * failure message, plus optional {@code Expected}, {@code Actual}, and {@code Error} rows. When
+ * both {@code expected} and {@code actual} are {@code null}, those two rows are suppressed and only
+ * an {@code Error} row is emitted if {@code error} is non-{@code null}. When there are multiple
+ * failures, a light horizontal separator ({@code ┠─┼─┨}) is drawn between each failure group.
  *
- * <p>All cell boundaries use {@code fancy_light} box-drawing borders; the header row (test name) is
- * separated from the assertion rows by a heavier {@code fancy_heavy} border produced by {@link
- * TableBuilder#addHeaderBorder}.
+ * <p>The label column is fixed at {@link #LABEL_COL_WIDTH} total characters (including one leading
+ * and one trailing space); the value column expands to fill the remaining terminal {@code width}.
+ * Long values are word-wrapped into continuation lines whose label cell is left blank.
  *
- * <p>When {@code useColors} is {@code true}, all {@code Assertion}, {@code Expected}, and {@code
- * Actual} label rows are coloured with a single consistent ANSI foreground colour applied
- * post-render (after {@link org.springframework.shell.jline.tui.table.Table#render}), so that
- * column-width calculations are not affected by escape-byte injection into cell content. Border
- * separator lines are left uncoloured, providing natural visual breaks between assertion entries.
+ * <p>Border rows use heavy box-drawing characters for the outer frame:
+ *
+ * <pre>
+ *   ┏━━━━━━━━━━━━━━┯━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+ *   ┃ Test Name    │ POST /users returns 201                                    ┃
+ *   ┣━━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫
+ *   ┃ Assertion    │ status_code equals 201                                     ┃
+ *   ┃ Expected     │ 201                                                        ┃
+ *   ┃ Actual       │ 400                                                        ┃
+ *   ┃ Error        │ Expected status code 201 but was 400                      ┃
+ *   ┗━━━━━━━━━━━━━━┷━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ * </pre>
+ *
+ * <p>When {@code useColors} is {@code true}, the {@code Test Name} row is rendered with ANSI
+ * reverse-video (inverted foreground/background) applied post-render via {@link
+ * #applyRowColors(String)}, so that column-width calculations are not affected by escape-byte
+ * injection into cell content. All other rows use the terminal's default colour.
  *
  * <p>This class is package-private and stateless; it holds no mutable state and is safe to call
  * from any thread. It is intentionally not a Spring bean so that it can be instantiated directly
@@ -53,11 +61,29 @@ import org.springframework.shell.jline.tui.table.TableModel;
  */
 final class FailureTableRenderer {
 
-    /** Visible character width of the label column (left column containing row labels). */
+    /** Total character width of the label column, including one leading and one trailing space. */
     static final int LABEL_COL_WIDTH = 14;
 
-    /** ANSI blue foreground applied to all assertion content rows when colours are enabled. */
-    static final String ASSERTION_COLOR = "\033[34m";
+    /** ANSI reverse-video escape applied to the {@code Test Name} row when colours are enabled. */
+    static final String INVERSE_VIDEO = "\033[7m";
+
+    /** ANSI bright-green foreground applied to {@code Assertion} rows when colours are enabled. */
+    static final String ASSERTION_COLOR = "\033[92m";
+
+    /** ANSI bright-red foreground applied to {@code Error} rows when colours are enabled. */
+    static final String ERROR_COLOR = "\033[91m";
+
+    /**
+     * ANSI bright-yellow (SGR 93) foreground applied to {@code Expected} rows when colours are
+     * enabled. This is lighter than the standard yellow (SGR 33) used for the suite-start banner.
+     */
+    static final String EXPECTED_COLOR = "\033[93m";
+
+    /**
+     * Label text for error rows. A ballot-X (U+2717) prefix followed by a space signals an error
+     * condition at a glance without relying on colour alone.
+     */
+    static final String ERROR_LABEL = "✗ Error";
 
     private static final String ANSI_RESET = "\033[0m";
 
@@ -69,74 +95,134 @@ final class FailureTableRenderer {
      *
      * <ol>
      *   <li>Row 0 — {@code Test Name} / {@code testName} (always present)
-     *   <li>For each failure: an {@code Assertion} row (always), followed by {@code Expected} and
-     *       {@code Actual} rows only when at least one of those fields is non-{@code null}
+     *   <li>For each failure: an {@code Assertion} row (always); if {@code expected} or {@code
+     *       actual} is non-{@code null}: {@code Expected}, {@code Actual}, and optionally {@code
+     *       Error} rows; otherwise only an {@code Error} row if {@code error} is non-{@code null}
+     *   <li>A light separator ({@code ┠─┼─┨}) is inserted between successive failure groups
      * </ol>
      *
-     * <p>When {@code useColors} is {@code true}, assertion content rows are coloured post-render via
-     * {@link #colorizeAssertionRows(String)}.
+     * <p>When {@code useColors} is {@code true}, row colours are applied post-render via {@link
+     * #applyRowColors(String)}: the {@code Test Name} row receives reverse-video, {@code Assertion}
+     * rows receive bright-green, and {@code Error} rows receive bright-red.
      *
      * @param testName the name of the failed test case
      * @param failures the list of assertion failures; must not be empty
-     * @param useColors {@code true} to apply ANSI colour codes to assertion rows
-     * @param width terminal column count used for table rendering
+     * @param useColors {@code true} to apply ANSI colours to the {@code Test Name}, {@code
+     *     Assertion}, and {@code Error} rows
+     * @param width terminal column count used to size the value column
      * @param output the writer to which rendered output is appended
      */
     void render(String testName, List<AssertionFailure> failures, boolean useColors, int width, PrintWriter output) {
-        int rowCount = 1;
-        for (AssertionFailure f : failures) {
-            rowCount++;
+        int valueCellWidth = Math.max(4, width - 2 - LABEL_COL_WIDTH - 1);
+        StringBuilder sb = new StringBuilder();
+
+        appendBorderRow(sb, '┏', '━', '┯', '┓', valueCellWidth);
+        appendContentRow(sb, "Test Name", testName, valueCellWidth);
+        appendBorderRow(sb, '┣', '━', '┿', '┫', valueCellWidth);
+
+        for (int i = 0; i < failures.size(); i++) {
+            if (i > 0) {
+                appendBorderRow(sb, '┠', '─', '┼', '┨', valueCellWidth);
+            }
+            AssertionFailure f = failures.get(i);
+            appendContentRow(sb, "Assertion", f.description(), valueCellWidth);
             if (f.expected() != null || f.actual() != null) {
-                rowCount += 2;
+                appendContentRow(sb, "Expected", nullToDisplay(f.expected()), valueCellWidth);
+                appendContentRow(sb, "Actual", nullToDisplay(f.actual()), valueCellWidth);
+                if (f.error() != null) {
+                    appendContentRow(sb, ERROR_LABEL, f.error(), valueCellWidth);
+                }
+            } else if (f.error() != null) {
+                appendContentRow(sb, ERROR_LABEL, f.error(), valueCellWidth);
             }
         }
 
-        Object[][] data = new Object[rowCount][2];
-        data[0] = new Object[] {"Test Name", testName};
-        int row = 1;
-        for (AssertionFailure f : failures) {
-            data[row++] = new Object[] {"Assertion", f.description()};
-            if (f.expected() != null || f.actual() != null) {
-                data[row++] = new Object[] {"Expected", nullToDisplay(f.expected())};
-                data[row++] = new Object[] {"Actual", nullToDisplay(f.actual())};
-            }
-        }
+        appendBorderRow(sb, '┗', '━', '┷', '┛', valueCellWidth);
 
-        TableModel model = new ArrayTableModel(data);
-        TableBuilder builder = new TableBuilder(model);
-        builder.addFullBorder(BorderStyle.fancy_light);
-        builder.addHeaderBorder(BorderStyle.fancy_heavy);
-        builder.on(CellMatchers.column(0)).addSizer(new AbsoluteWidthSizeConstraints(LABEL_COL_WIDTH));
-        String rendered = builder.build().render(width);
-
+        String rendered = sb.toString();
         if (useColors) {
-            rendered = colorizeAssertionRows(rendered);
+            rendered = applyRowColors(rendered);
         }
         output.println(rendered);
     }
 
     /**
-     * Applies a single ANSI colour to all assertion content rows in an already-rendered table string.
+     * Applies per-row ANSI colour escapes to an already-rendered table string, including
+     * word-wrapped continuation lines.
      *
-     * <p>Only lines whose label column starts with {@code ┃Assertion}, {@code ┃Expected}, or {@code
-     * ┃Actual} are coloured. The {@code ┃} (U+2503 BOX DRAWINGS HEAVY VERTICAL) prefix ensures the
-     * match targets only the label column boundary, not values that happen to contain these words.
-     * Border separator lines ({@code ┠─…─┨}) are intentionally left uncoloured; they serve as
-     * natural visual breaks between assertion entries.
+     * <p>Named label rows determine which colour is "active":
      *
-     * @param rendered the raw rendered table string from {@link
-     *     org.springframework.shell.jline.tui.table.Table#render}
-     * @return the same table with ANSI colour escape codes on assertion content lines
+     * <ul>
+     *   <li>{@code ┃ Test Name} — reverse-video ({@link #INVERSE_VIDEO}); not carried to
+     *       continuation lines
+     *   <li>{@code ┃ Assertion} — bright green ({@link #ASSERTION_COLOR}); carried to continuations
+     *   <li>{@code ┃ Expected} — bright yellow ({@link #EXPECTED_COLOR}); carried to continuations
+     *   <li>{@code ┃ Actual} — uncoloured; clears the active colour
+     *   <li>{@code ┃ ✗} (error row) — bright red ({@link #ERROR_COLOR}); carried to continuations
+     * </ul>
+     *
+     * <p>A <em>continuation line</em> is a content row whose label cell is blank (emitted by {@link
+     * #appendContentRow} for wrapped values). It inherits the active colour from the most recent
+     * named label row. Border rows (containing {@code ━} or {@code ─}) clear the active colour.
+     *
+     * <p>In every case the colour escape is applied only between the outer {@code ┃} borders via
+     * {@link #colorizeInnerContent(String, String)}, leaving those border characters in the
+     * terminal's default colour to avoid rendering artefacts.
+     *
+     * @param rendered the raw rendered table string
+     * @return the table with per-row colour escapes applied
      */
-    private String colorizeAssertionRows(String rendered) {
+    private String applyRowColors(String rendered) {
         String[] lines = rendered.split("\n", -1);
+        String currentColor = null;
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i];
-            if (line.contains("┃Assertion") || line.contains("┃Expected") || line.contains("┃Actual")) {
-                lines[i] = ASSERTION_COLOR + line + ANSI_RESET;
+            if (line.contains("━") || line.contains("─")) {
+                currentColor = null;
+            } else if (line.contains("┃ Test Name")) {
+                currentColor = null;
+                lines[i] = colorizeInnerContent(line, INVERSE_VIDEO);
+            } else if (line.contains("┃ Assertion")) {
+                currentColor = ASSERTION_COLOR;
+                lines[i] = colorizeInnerContent(line, currentColor);
+            } else if (line.contains("┃ Expected")) {
+                currentColor = EXPECTED_COLOR;
+                lines[i] = colorizeInnerContent(line, currentColor);
+            } else if (line.contains("┃ Actual")) {
+                currentColor = null;
+            } else if (line.contains("┃ ✗")) {
+                currentColor = ERROR_COLOR;
+                lines[i] = colorizeInnerContent(line, currentColor);
+            } else if (currentColor != null && line.contains("┃")) {
+                lines[i] = colorizeInnerContent(line, currentColor);
             }
         }
         return String.join("\n", lines);
+    }
+
+    /**
+     * Applies {@code colorCode} to the characters between the outer {@code ┃} borders of {@code
+     * line}, appending {@code ANSI_RESET} after the inner content and leaving the border characters
+     * in the default colour.
+     *
+     * <p>If fewer than two {@code ┃} characters are found the escape is applied to the whole line
+     * as a fallback.
+     *
+     * @param line a single rendered table row
+     * @param colorCode the opening ANSI escape sequence (e.g. {@link #ASSERTION_COLOR})
+     * @return the colourised line
+     */
+    private static String colorizeInnerContent(String line, String colorCode) {
+        int leftBorder = line.indexOf('┃');
+        int rightBorder = line.lastIndexOf('┃');
+        if (leftBorder >= 0 && rightBorder > leftBorder) {
+            return line.substring(0, leftBorder + 1)
+                    + colorCode
+                    + line.substring(leftBorder + 1, rightBorder)
+                    + ANSI_RESET
+                    + line.substring(rightBorder);
+        }
+        return colorCode + line + ANSI_RESET;
     }
 
     /**
@@ -146,7 +232,101 @@ final class FailureTableRenderer {
      * @param value the object to convert; may be {@code null}
      * @return a non-null display string
      */
-    private String nullToDisplay(Object value) {
+    private static String nullToDisplay(Object value) {
         return value == null ? "-" : String.valueOf(value);
+    }
+
+    /**
+     * Appends one horizontal border row to {@code sb} and a trailing newline.
+     *
+     * <p>The row is constructed as: {@code left} + {@code fill} × {@link #LABEL_COL_WIDTH} +
+     * {@code junction} + {@code fill} × {@code valueCellWidth} + {@code right} + {@code \n}.
+     *
+     * @param sb the target string builder
+     * @param left the leftmost corner/T character (e.g. {@code ┏}, {@code ┣}, {@code ┗})
+     * @param fill the horizontal fill character (e.g. {@code ━}, {@code ─})
+     * @param junction the column-intersection character (e.g. {@code ┯}, {@code ┿}, {@code ┷})
+     * @param right the rightmost corner/T character (e.g. {@code ┓}, {@code ┫}, {@code ┛})
+     * @param valueCellWidth total character width of the value column cell
+     */
+    private static void appendBorderRow(
+            StringBuilder sb, char left, char fill, char junction, char right, int valueCellWidth) {
+        sb.append(left);
+        sb.append(String.valueOf(fill).repeat(LABEL_COL_WIDTH));
+        sb.append(junction);
+        sb.append(String.valueOf(fill).repeat(valueCellWidth));
+        sb.append(right);
+        sb.append('\n');
+    }
+
+    /**
+     * Appends one or more content rows to {@code sb} for the given label/value pair.
+     *
+     * <p>The value is word-wrapped to fit the value column's text area (see {@link #wrapText}). The
+     * first wrapped line is preceded by the label in the label column; continuation lines leave the
+     * label column blank.
+     *
+     * @param sb the target string builder
+     * @param label the row label (e.g. {@code "Assertion"}, {@code "Expected"})
+     * @param value the cell value; long values are wrapped across multiple lines
+     * @param valueCellWidth total character width of the value column cell (including padding spaces)
+     */
+    private static void appendContentRow(StringBuilder sb, String label, String value, int valueCellWidth) {
+        List<String> valueLines = wrapText(value, valueCellWidth - 2);
+        for (int i = 0; i < valueLines.size(); i++) {
+            sb.append('┃')
+                    .append(cellContent(i == 0 ? label : "", LABEL_COL_WIDTH))
+                    .append('│')
+                    .append(cellContent(valueLines.get(i), valueCellWidth))
+                    .append('┃')
+                    .append('\n');
+        }
+    }
+
+    /**
+     * Returns a string of exactly {@code cellWidth} characters for use as table cell content.
+     *
+     * <p>The string is formatted as one leading space, the (possibly truncated) {@code text} padded
+     * with trailing spaces to fill the available text area, and one trailing space. If {@code
+     * cellWidth} is too small to accommodate any padding, two spaces are returned.
+     *
+     * @param text the cell text; must not be {@code null}
+     * @param cellWidth the total width of the cell in characters, including the two padding spaces
+     * @return a {@code cellWidth}-character cell content string
+     */
+    private static String cellContent(String text, int cellWidth) {
+        int textAreaWidth = cellWidth - 2;
+        if (textAreaWidth <= 0) return "  ";
+        String content = text.length() > textAreaWidth ? text.substring(0, textAreaWidth) : text;
+        return " " + String.format("%-" + textAreaWidth + "s", content) + " ";
+    }
+
+    /**
+     * Splits {@code text} into a list of lines each no longer than {@code maxWidth} characters,
+     * breaking at whitespace where possible.
+     *
+     * <p>If a segment contains no whitespace within {@code maxWidth}, a hard break is applied at
+     * {@code maxWidth}. If {@code maxWidth} is non-positive or the text already fits, a single-
+     * element list is returned.
+     *
+     * @param text the text to wrap; must not be {@code null}
+     * @param maxWidth the maximum line length in characters
+     * @return a non-empty list of line segments
+     */
+    private static List<String> wrapText(String text, int maxWidth) {
+        if (maxWidth <= 0 || text.length() <= maxWidth) return List.of(text);
+        List<String> lines = new ArrayList<>();
+        String remaining = text;
+        while (!remaining.isEmpty()) {
+            if (remaining.length() <= maxWidth) {
+                lines.add(remaining);
+                break;
+            }
+            int breakAt = remaining.lastIndexOf(' ', maxWidth);
+            if (breakAt <= 0) breakAt = maxWidth;
+            lines.add(remaining.substring(0, breakAt));
+            remaining = remaining.substring(breakAt).stripLeading();
+        }
+        return lines;
     }
 }

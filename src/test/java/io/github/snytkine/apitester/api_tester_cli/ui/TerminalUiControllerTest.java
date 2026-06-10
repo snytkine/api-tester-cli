@@ -358,7 +358,7 @@ class TerminalUiControllerTest {
         ctrl.await();
 
         String out = capture.toString();
-        assertThat(out).contains("Failures:");
+        assertThat(out).contains("Failed Tests");
         assertThat(out).contains("failing-test");
         assertThat(out).contains("expected 200 but was 500");
     }
@@ -379,7 +379,7 @@ class TerminalUiControllerTest {
 
         ctrl.await();
 
-        assertThat(capture.toString()).doesNotContain("Failures:");
+        assertThat(capture.toString()).doesNotContain("Failed Tests");
     }
 
     @Test
@@ -404,7 +404,7 @@ class TerminalUiControllerTest {
         ctrl.await();
 
         String out = capture.toString();
-        assertThat(out).contains("Failures:");
+        assertThat(out).contains("Failed Tests");
         assertThat(out).contains("network-error-test");
         assertThat(out).contains("Connection refused");
     }
@@ -447,7 +447,7 @@ class TerminalUiControllerTest {
         assertThat(out).contains("fail-c");
         assertThat(out).contains("reason-c");
         // "pass-b" appears in the grid cell but must NOT appear in the Failures section
-        int failuresStart = out.indexOf("Failures:");
+        int failuresStart = out.indexOf("Failed Tests");
         assertThat(failuresStart).isGreaterThan(0);
         assertThat(out.substring(failuresStart)).doesNotContain("pass-b");
     }
