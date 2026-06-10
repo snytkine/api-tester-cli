@@ -92,3 +92,4 @@ rs --suite=example.yml --ui
 - Check [Test Suite Configuration](test-suite-configuration.md) to understand YAML structure
 - Learn [Templating](templating.md) to inject dynamic values into your tests
 - Explore [Assertions](assertions.md) to see all 25+ assertion types available
+- Set up [Schema Support](schema-support.md) for IDE validation and autocompletion while writing test suites

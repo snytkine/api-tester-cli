@@ -15,6 +15,7 @@ The tool runs as a regular JVM application (fast builds, simplest development) o
 - **JSONPath and JSON Schema validation** — validate complex JSON responses with powerful path queries and schema definitions
 - **File-based bodies and schemas** — reference request bodies and expected responses as separate files alongside your suite YAML
 - **HTML execution report** — generate a self-contained, single-page HTML report after a run with `--report=/path/to/dir`; includes per-test request/response details and assertion failure breakdowns
+- **IDE schema validation** — export the bundled JSON Schema with `export-schema --out <path>` and wire it to your YAML editor for inline validation and field-level autocompletion while writing test suites
 
 ## Quick example
 

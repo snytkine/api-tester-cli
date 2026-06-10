@@ -1,5 +1,16 @@
 # CLI Reference
 
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| [`run-suite`](#run-suite) | Load and execute a test-suite YAML file |
+| [`export-schema`](#export-schema) | Export the bundled JSON Schema to a local file |
+
+---
+
+## `run-suite`
+
 The command is `run-suite` with alias `rs`.
 
 ## Syntax
@@ -88,3 +99,39 @@ rs --suite=/path/to/suite.yml --report=/path/to/reports
 
 The file is written to `/path/to/reports/test-suite_<suiteName>_<timestamp>.html`. See
 [HTML Execution Report](html-report.md) for the full description of report contents.
+
+---
+
+## `export-schema`
+
+Exports the bundled `test-suite-configuration-schema.json` to a local file so you can wire it to your test-suite YAML files for IDE validation and autocompletion.
+
+### Syntax
+
+```
+export-schema --out <path>
+```
+
+### Options
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--out=<path>` | **Yes** | Absolute or relative path where the schema file should be written. Parent directories are created automatically. An existing file is overwritten. |
+
+### Examples
+
+```bash
+# Write to a local schemas/ directory
+export-schema --out ./schemas/test-suite-configuration-schema.json
+
+# Write to an absolute path
+export-schema --out /home/user/schemas/test-suite-configuration-schema.json
+```
+
+On success the command prints the absolute path of the written file:
+
+```
+Schema written to: /home/user/schemas/test-suite-configuration-schema.json
+```
+
+For instructions on wiring the schema to your IDE see [Schema Support](schema-support.md).

@@ -308,19 +308,40 @@ Common response paths used by assertions include:
 
 ## Exporting The JSON Schema
 
-Schema export is planned but is not available in the current `main` branch yet.
-
-Tracked work:
-
-- [Issue #3: Add shell command to export test-suite JSON schema to a file](https://github.com/snytkine/api-tester-cli/issues/3)
-
-The intended command shape is:
+The CLI bundles a JSON Schema for the test-suite YAML format. Export a local copy with:
 
 ```bash
-export-schema --out ./schemas/test-suite-configuration-schema.json
+# JVM jar
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar export-schema \
+  --out ./schemas/test-suite-configuration-schema.json
+
+# Native binary
+./target/api-tester-cli export-schema \
+  --out ./schemas/test-suite-configuration-schema.json
 ```
 
-Until that command lands, use the repository sources directly when working on schema-related changes.
+The `--out` option accepts any absolute or relative path. Parent directories are created automatically if they do not exist. An existing file at the destination is overwritten.
+
+### Using the schema for IDE validation
+
+Once you have a local copy of the schema you can wire it to your test-suite YAML files so that your IDE validates the document as you type and provides field-level completions and inline documentation.
+
+Many modern IDEs support YAML schema validation out of the box or through a plugin:
+
+- **VS Code** — install the [YAML extension by Red Hat](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml) and add a mapping in `.vscode/settings.json`:
+  ```json
+  {
+    "yaml.schemas": {
+      "./schemas/test-suite-configuration-schema.json": "**/*-suite*.yml"
+    }
+  }
+  ```
+- **IntelliJ IDEA / WebStorm** — go to *Preferences → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings* and add the exported file mapped to your YAML glob pattern.
+- **Other editors** — most editors that support the [Language Server Protocol](https://microsoft.github.io/language-server-protocol/) can be configured with [yaml-language-server](https://github.com/redhat-developer/yaml-language-server); consult your editor's documentation.
+
+> **Note:** Some IDEs require a third-party YAML plugin to enable schema-based validation and autocompletion. If hints do not appear after wiring the schema, check whether a YAML or JSON Schema plugin is installed and enabled.
+
+For a full walkthrough see [Schema Support](https://snytkine.github.io/api-tester-cli/schema-support/).
 
 ## Generating an HTML Report
 
