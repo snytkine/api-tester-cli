@@ -10,22 +10,27 @@ This makes writing and maintaining test suites significantly faster and less err
 
 ## Exporting the schema
 
-The schema is bundled inside the JAR and GraalVM native binary. Use the `export-schema` command to write a local copy to disk:
+The schema is bundled inside the JAR and GraalVM native binary. Use the `export-schema` command
+(alias `es`) to write a local copy to disk:
 
 ```bash
 # JVM jar
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar export-schema \
-  --out ./schemas/test-suite-configuration-schema.json
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar export-schema --out ./schemas
 
-# Native binary
-./target/api-tester-cli export-schema \
-  --out ./schemas/test-suite-configuration-schema.json
+# Native binary (full command name)
+./target/api-tester-cli export-schema --out ./schemas
+
+# Native binary (short alias)
+./target/api-tester-cli es --out ./schemas
 ```
 
-The `--out` option accepts any absolute or relative path. Parent directories are created automatically if they do not exist. An existing file at the destination is overwritten. On success the command prints the absolute path of the written file:
+The `--out` option accepts an absolute or relative path to an **output directory**. The file is
+always written as `test-suite-schema.json` inside that directory. The directory is created
+automatically if it does not exist. An existing file is overwritten. On success the command prints
+the absolute path of the written file:
 
 ```
-Schema written to: /path/to/schemas/test-suite-configuration-schema.json
+Schema written to: /path/to/schemas/test-suite-schema.json
 ```
 
 Keep the exported schema alongside your test-suite YAML files or in a shared location that your IDE project can reference.
@@ -39,14 +44,14 @@ The simplest approach — and the one that works across virtually all editors th
 single comment line at the very top of each test-suite YAML file:
 
 ```yaml
-# yaml-language-server: $schema=/path/to/schemas/test-suite-configuration-schema.json
+# yaml-language-server: $schema=/path/to/schemas/test-suite-schema.json
 ```
 
-Replace `/path/to/schemas/test-suite-configuration-schema.json` with the real path where you saved
+Replace `/path/to/schemas/test-suite-schema.json` with the real path where you saved
 the exported schema file. Relative paths are resolved from the location of the YAML file:
 
 ```yaml
-# yaml-language-server: $schema=./schemas/test-suite-configuration-schema.json
+# yaml-language-server: $schema=./schemas/test-suite-schema.json
 ```
 
 This approach requires no IDE-level configuration: any editor (VS Code, IntelliJ, Neovim, Emacs,
@@ -67,7 +72,7 @@ Add a schema mapping to your workspace settings in `.vscode/settings.json`:
 ```json
 {
   "yaml.schemas": {
-    "./schemas/test-suite-configuration-schema.json": "**/*suite*.yml"
+    "./schemas/test-suite-schema.json": "**/*suite*.yml"
   }
 }
 ```
@@ -77,7 +82,7 @@ The glob pattern on the right controls which files the schema applies to. Adjust
 ```json
 {
   "yaml.schemas": {
-    "./schemas/test-suite-configuration-schema.json": [
+    "./schemas/test-suite-schema.json": [
       "**/*-suite.yml",
       "**/*-suite-*.yml",
       "**/test-suite*.yml"
@@ -110,7 +115,7 @@ require('lspconfig').yamlls.setup({
   settings = {
     yaml = {
       schemas = {
-        ["/path/to/schemas/test-suite-configuration-schema.json"] = "*-suite.yml"
+        ["/path/to/schemas/test-suite-schema.json"] = "*-suite.yml"
       }
     }
   }
@@ -123,7 +128,7 @@ After installing `lsp-mode` and `yaml-language-server`, add to your config:
 
 ```elisp
 (setq lsp-yaml-schemas
-      '((local . ("/path/to/schemas/test-suite-configuration-schema.json"
+      '((local . ("/path/to/schemas/test-suite-schema.json"
                   . "*-suite.yml"))))
 ```
 
@@ -147,4 +152,6 @@ When you type `- type: ` inside an `assertions` list, a compliant editor will of
 
 ## Keeping the schema up to date
 
-The schema is versioned with the tool. When you upgrade `api-tester-cli`, re-run `export-schema` to overwrite the local copy with the version matching the new binary. The command always overwrites the destination file, so no manual cleanup is required.
+The schema is versioned with the tool. When you upgrade `api-tester-cli`, re-run `export-schema`
+(or `es`) to overwrite the local copy with the version matching the new binary. The command always
+overwrites the destination file, so no manual cleanup is required.

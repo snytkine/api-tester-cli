@@ -52,62 +52,59 @@ class ExportSchemaCommandTest {
     }
 
     @Test
-    void writesSchemaFileToSpecifiedPath() {
-        Path dest = tempDir.resolve("schema.json");
+    void writesSchemaFileNamedTestSuiteSchemaToOutputDirectory() {
+        command.exportSchema(tempDir.toString(), ctx);
 
-        command.exportSchema(dest.toString(), ctx);
-
-        assertThat(dest).exists().isNotEmptyFile();
+        assertThat(tempDir.resolve(ExportSchemaCommand.SCHEMA_FILENAME))
+                .exists()
+                .isNotEmptyFile();
     }
 
     @Test
     void writtenFileContainsValidJson() throws IOException {
-        Path dest = tempDir.resolve("schema.json");
+        command.exportSchema(tempDir.toString(), ctx);
 
-        command.exportSchema(dest.toString(), ctx);
-
-        assertThat(Files.readString(dest).trim()).startsWith("{");
+        assertThat(Files.readString(tempDir.resolve(ExportSchemaCommand.SCHEMA_FILENAME))
+                        .trim())
+                .startsWith("{");
     }
 
     @Test
     void printsSuccessMessageWithAbsolutePath() {
-        Path dest = tempDir.resolve("schema.json");
+        command.exportSchema(tempDir.toString(), ctx);
 
-        command.exportSchema(dest.toString(), ctx);
-
-        assertThat(output.toString())
-                .contains("Schema written to:")
-                .contains(dest.toAbsolutePath().toString());
+        Path expected = tempDir.resolve(ExportSchemaCommand.SCHEMA_FILENAME).toAbsolutePath();
+        assertThat(output.toString()).contains("Schema written to:").contains(expected.toString());
     }
 
     @Test
-    void createsParentDirectoriesIfAbsent() {
-        Path dest = tempDir.resolve("nested/subdir/schema.json");
+    void createsOutputDirectoryIfAbsent() {
+        Path subDir = tempDir.resolve("nested/subdir");
 
-        command.exportSchema(dest.toString(), ctx);
+        command.exportSchema(subDir.toString(), ctx);
 
-        assertThat(dest).exists().isNotEmptyFile();
+        assertThat(subDir.resolve(ExportSchemaCommand.SCHEMA_FILENAME)).exists().isNotEmptyFile();
     }
 
     @Test
-    void overwritesExistingFileAtDestination() throws IOException {
-        Path dest = tempDir.resolve("schema.json");
-        Files.writeString(dest, "old content");
+    void overwritesExistingSchemaFileInDirectory() throws IOException {
+        Path existing = tempDir.resolve(ExportSchemaCommand.SCHEMA_FILENAME);
+        Files.writeString(existing, "old content");
 
-        command.exportSchema(dest.toString(), ctx);
+        command.exportSchema(tempDir.toString(), ctx);
 
-        assertThat(Files.readString(dest)).doesNotContain("old content");
-        assertThat(Files.readString(dest).trim()).startsWith("{");
+        assertThat(Files.readString(existing)).doesNotContain("old content");
+        assertThat(Files.readString(existing).trim()).startsWith("{");
     }
 
     @Test
-    void printsErrorMessageWhenPathIsUnwritable() throws IOException {
-        // Create a regular file where the parent directory is expected, making createDirectories fail.
+    void printsErrorMessageWhenDirectoryCannotBeCreated() throws IOException {
+        // Place a regular file where the directory path is expected so createDirectories fails.
         Path blocker = tempDir.resolve("not-a-dir");
         Files.writeString(blocker, "I am a file");
-        Path dest = blocker.resolve("schema.json");
+        Path impossibleDir = blocker.resolve("subdir");
 
-        command.exportSchema(dest.toString(), ctx);
+        command.exportSchema(impossibleDir.toString(), ctx);
 
         assertThat(output.toString()).contains("Error:");
     }

@@ -312,15 +312,25 @@ The CLI bundles a JSON Schema for the test-suite YAML format. Export a local cop
 
 ```bash
 # JVM jar
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar export-schema \
-  --out ./schemas/test-suite-configuration-schema.json
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar export-schema --out ./schemas
 
 # Native binary
-./target/api-tester-cli export-schema \
-  --out ./schemas/test-suite-configuration-schema.json
+./target/api-tester-cli export-schema --out ./schemas
+
+# Using the alias
+./target/api-tester-cli es --out ./schemas
 ```
 
-The `--out` option accepts any absolute or relative path. Parent directories are created automatically if they do not exist. An existing file at the destination is overwritten.
+The `--out` option accepts an absolute or relative path to an **output directory**. The file is
+always written as `test-suite-schema.json` inside that directory. The directory is created
+automatically if it does not exist. An existing file is overwritten. On success the command prints
+the absolute path of the written file:
+
+```
+Schema written to: /path/to/schemas/test-suite-schema.json
+```
+
+> **Tip:** `es` is a short alias for `export-schema` — both invoke the same command.
 
 ### Using the schema for IDE validation
 
@@ -331,7 +341,7 @@ The simplest approach — supported by virtually all editors that have
 add a single comment at the very top of each test-suite YAML file:
 
 ```yaml
-# yaml-language-server: $schema=./schemas/test-suite-configuration-schema.json
+# yaml-language-server: $schema=./schemas/test-suite-schema.json
 ```
 
 Use the real path (absolute or relative) to the schema file you exported. No IDE-level
@@ -344,7 +354,7 @@ For IDE-wide mappings that apply without modifying individual files:
   ```json
   {
     "yaml.schemas": {
-      "./schemas/test-suite-configuration-schema.json": "**/*-suite*.yml"
+      "./schemas/test-suite-schema.json": "**/*-suite*.yml"
     }
   }
   ```

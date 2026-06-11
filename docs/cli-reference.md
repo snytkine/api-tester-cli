@@ -104,34 +104,41 @@ The file is written to `/path/to/reports/test-suite_<suiteName>_<timestamp>.html
 
 ## `export-schema`
 
-Exports the bundled `test-suite-configuration-schema.json` to a local file so you can wire it to your test-suite YAML files for IDE validation and autocompletion.
+Exports the bundled `test-suite-schema.json` to a local directory so you can wire it to your
+test-suite YAML files for IDE validation and autocompletion.
+
+The command is `export-schema` with alias `es`.
 
 ### Syntax
 
 ```
-export-schema --out <path>
+export-schema --out <dir>
+es --out <dir>
 ```
 
 ### Options
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--out=<path>` | **Yes** | Absolute or relative path where the schema file should be written. Parent directories are created automatically. An existing file is overwritten. |
+| `--out=<dir>` | **Yes** | Absolute or relative path to the **output directory**. The file is always written as `test-suite-schema.json` inside this directory. The directory is created automatically if it does not exist. An existing file is overwritten. |
 
 ### Examples
 
 ```bash
-# Write to a local schemas/ directory
-export-schema --out ./schemas/test-suite-configuration-schema.json
+# Write to a local schemas/ directory (using the full command name)
+export-schema --out ./schemas
 
-# Write to an absolute path
-export-schema --out /home/user/schemas/test-suite-configuration-schema.json
+# Same using the alias
+es --out ./schemas
+
+# Write to an absolute directory path
+es --out /home/user/schemas
 ```
 
 On success the command prints the absolute path of the written file:
 
 ```
-Schema written to: /home/user/schemas/test-suite-configuration-schema.json
+Schema written to: /home/user/schemas/test-suite-schema.json
 ```
 
 For instructions on wiring the schema to your IDE see [Schema Support](schema-support.md).
