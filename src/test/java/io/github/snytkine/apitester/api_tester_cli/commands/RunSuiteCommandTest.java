@@ -39,6 +39,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -187,6 +188,50 @@ class RunSuiteCommandTest {
                         command.runSuite("/nonexistent/path/suite.yml", false, false, null, null, null, buildContext()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Test suite file not found");
+    }
+
+    @Test
+    void runSuiteWithoutSuiteArgSucceedsWhenDefaultFileExists() throws Exception {
+        Path suiteSource = Path.of(getClass().getResource("/test-suite-2.yml").toURI());
+        Files.copy(suiteSource, tempDir.resolve("test-suite.yml"));
+        TestRunResult fakeResult = new TestRunResult(
+                1,
+                0,
+                0L,
+                0L,
+                List.of(new TestCaseResult("test", TestResult.PASSED, 1, List.of(), null, null, null)),
+                Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", tempDir.toString());
+        try {
+            command.runSuite(null, false, false, null, null, null, buildContext());
+            verify(mockEngine).runConfigurationSuite(any(), any(), any());
+        } finally {
+            System.setProperty("user.dir", originalUserDir);
+        }
+    }
+
+    @Test
+    void runSuiteWithoutSuiteArgShowsErrorWhenDefaultFileMissing() throws Exception {
+        // tempDir has no test-suite.yml
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", tempDir.toString());
+        try {
+            command.runSuite(null, false, false, null, null, null, ctx);
+            verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+            assertThat(output.toString()).contains("test-suite.yml is not found in current directory");
+        } finally {
+            System.setProperty("user.dir", originalUserDir);
+        }
     }
 
     @Test

@@ -162,7 +162,9 @@ public class RunSuiteCommand {
      * <p>In UI mode (Phase 4+) the aggregated JSON is not written to stdout; use {@code --output} to
      * obtain the structured report as a file. In non-UI mode the JSON is always written to stdout.
      *
-     * @param suite absolute path to the test-suite YAML file to load
+     * @param suite path to the test-suite YAML file to load; when {@code null} the command looks for
+     *     {@code test-suite.yml} in the current working directory ({@code user.dir}) and reports an
+     *     error if that file is not found
      * @param noUi when {@code true}, forces JSON output even on a TTY
      * @param forceUi when {@code true}, forces the interactive UI even when not on a TTY
      * @param tag when non-blank, only test cases whose {@code tags} list contains this value are
@@ -186,8 +188,12 @@ public class RunSuiteCommand {
             description = "Loads a test-suite YAML file and executes its test cases."
                     + " Pass variables as key=value positional arguments after --suite.")
     public void runSuite(
-            @Option(longName = "suite", required = true, description = "Absolute path to the test-suite.yml file.")
-                    String suite,
+            @Option(
+                            longName = "suite",
+                            required = false,
+                            description = "Path to the test-suite.yml file."
+                                    + " When omitted, test-suite.yml in the current working directory is used.")
+                    @Nullable String suite,
             @Option(longName = "no-ui", description = "Disable the interactive terminal UI and write JSON to stdout.")
                     boolean noUi,
             @Option(
@@ -216,6 +222,21 @@ public class RunSuiteCommand {
             throws Exception {
 
         boolean nonInteractive = isNonInteractive();
+
+        if (suite == null) {
+            Path defaultSuite = Path.of(System.getProperty("user.dir"), "test-suite.yml");
+            if (Files.exists(defaultSuite)) {
+                suite = defaultSuite.toString();
+            } else {
+                reportOptionsError(
+                        List.of("test-suite.yml is not found in current directory"
+                                + " and path to alternate configuration file not passed in --suite"
+                                + " command line argument. Type help to display available options"),
+                        nonInteractive,
+                        context);
+                return;
+            }
+        }
 
         Path suitePath = Path.of(suite);
         if (!Files.exists(suitePath)) {

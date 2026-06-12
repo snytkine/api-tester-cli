@@ -28,9 +28,10 @@ The JVM build produces a JAR in `target/` that runs with `java -jar`. The native
 
 ## Running your first test suite
 
-Create a simple test suite file, `example.yml`:
+The simplest workflow is to name your file `test-suite.yml` and run the CLI from the same directory — no arguments needed:
 
 ```yaml
+# test-suite.yml
 name: "My First Test Suite"
 tests:
 - name: "Verify API is responding"
@@ -42,15 +43,21 @@ tests:
     expected: 200
 ```
 
-Run it:
-
 ```bash
-# Using the JAR
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite --suite=$(pwd)/example.yml
+# Run from the directory that contains test-suite.yml — no --suite flag needed
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite
 
 # Or use the alias
-rs --suite=$(pwd)/example.yml
+rs
 ```
+
+To point to a suite file in another location use `--suite`:
+
+```bash
+rs --suite=/path/to/example.yml
+```
+
+If `--suite` is omitted and no `test-suite.yml` exists in the current directory, the CLI shows an error and exits cleanly.
 
 You'll see the interactive terminal UI with real-time progress. Tests are shown with pass/fail indicators.
 

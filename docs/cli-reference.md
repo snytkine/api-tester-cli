@@ -16,14 +16,14 @@ The command is `run-suite` with alias `rs`.
 ## Syntax
 
 ```
-rs --suite=<path> [--tag=<value>] [--test=<name>] [--ui|--no-ui] [--report=<dir>] [key=value ...]
+rs [--suite=<path>] [--tag=<value>] [--test=<name>] [--ui|--no-ui] [--report=<dir>] [key=value ...]
 ```
 
 ## Options
 
 | Option | Required | Description |
 |--------|----------|-------------|
-| `--suite=<path>` | **Yes** | Absolute path to the test-suite YAML file. |
+| `--suite=<path>` | No | Path to the test-suite YAML file. When omitted, the CLI looks for `test-suite.yml` in the current working directory. An error is shown if neither is found. |
 | `--tag=<value>` | No | Run only test cases whose `tag` field contains this value. Cannot be used together with `--test`. |
 | `--test=<name>` | No | Run only the single test case whose `name` field exactly matches this value. Use double quotes if the name contains spaces: `--test="My Test Name"`. Cannot be used together with `--tag`. |
 | `--no-ui` | No | Force JSON output even when stdout looks like a TTY. |
@@ -62,7 +62,12 @@ Options --tag and --test cannot be used together. Use one or the other.
 
 ## Examples
 
-### Run all tests
+### Run test-suite.yml in the current directory (no arguments required)
+```bash
+rs
+```
+
+### Run all tests in an explicit suite file
 ```bash
 rs --suite=/path/to/suite.yml
 ```

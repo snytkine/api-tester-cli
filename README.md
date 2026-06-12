@@ -47,7 +47,10 @@ The native executable starts significantly faster than the JVM jar and does not 
 The main command is `run-suite` with the alias `rs`.
 
 ```bash
-# JVM jar
+# Simplest form — run test-suite.yml in the current directory
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite
+
+# Explicit suite path (JVM jar)
 java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
   --suite ./src/test/resources/test-suite-1.yml \
   api_base_url=https://api.restful-api.dev
@@ -57,13 +60,11 @@ java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar rs \
   --suite ./src/test/resources/test-suite-1.yml \
   api_base_url=https://api.restful-api.dev
 
-# Native binary
-./target/api-tester-cli run-suite \
-  --suite ./src/test/resources/test-suite-1.yml \
-  api_base_url=https://api.restful-api.dev
+# Native binary (no --suite — uses test-suite.yml in current directory)
+./target/api-tester-cli run-suite
 ```
 
-CLI variables are passed as positional `key=value` arguments after `--suite`. They become available in Thymeleaf expressions as `[[${cli.key}]]`.
+CLI variables are passed as positional `key=value` arguments after all named options. They become available in Thymeleaf expressions as `[[${cli.key}]]`.
 
 Example:
 
@@ -74,7 +75,7 @@ variables:
 
 Important behavior:
 
-- `--suite` is required and must point to an existing YAML file.
+- `--suite` is optional. When omitted, the CLI looks for `test-suite.yml` in the current working directory and uses it automatically. If that file is not found either, the command exits with an error.
 - `--ui` forces the interactive terminal UI.
 - `--no-ui` disables the UI and writes JSON results to stdout.
 - Relative file references inside the suite, such as body files or JSON schema files, are resolved relative to the suite file's directory.
