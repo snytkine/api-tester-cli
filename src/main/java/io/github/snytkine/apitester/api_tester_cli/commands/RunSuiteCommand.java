@@ -258,6 +258,12 @@ public class RunSuiteCommand {
         boolean tagFilterActive = tag != null && !tag.isBlank();
         boolean testNameFilterActive = testName != null && !testName.isBlank();
 
+        // Detect negated tag: --tag="!slow" excludes tests tagged "slow" instead of including them.
+        boolean negatedTagFilter = tagFilterActive && tag.startsWith("!");
+        String effectiveTag = negatedTagFilter ? tag.substring(1) : tag;
+        log.debug(
+                "Tag filter: active={}, negated={}, effectiveTag={}", tagFilterActive, negatedTagFilter, effectiveTag);
+
         // Reject the combination of --tag and --test up front, before touching the suite.
         if (tagFilterActive && testNameFilterActive) {
             reportOptionsError(
@@ -268,9 +274,14 @@ public class RunSuiteCommand {
         }
 
         // Apply tag filter when --tag is supplied.
+        // Positive filter (--tag=smoke): include only tests whose tags contain the value.
+        // Negated filter (--tag=!slow): include tests whose tags do NOT contain the value,
+        // plus tests with no tags at all.
         TestSuite suiteToRun = tagFilterActive
                 ? testSuite.withFilteredTests(testSuite.tests().stream()
-                        .filter(tc -> tc.tags() != null && tc.tags().contains(tag))
+                        .filter(tc -> negatedTagFilter
+                                ? tc.tags() == null || !tc.tags().contains(effectiveTag)
+                                : tc.tags() != null && tc.tags().contains(effectiveTag))
                         .toList())
                 : testSuite;
 
@@ -315,8 +326,10 @@ public class RunSuiteCommand {
             if (!validationErrors.isEmpty()) {
                 uiListener.onProgress(new TestProgressEvent.ValidationFailed(validationErrors));
             } else if (tagFilterActive && suiteToRun.tests().isEmpty()) {
-                uiListener.onProgress(
-                        new TestProgressEvent.ValidationFailed(List.of("No tests found with tag: \"" + tag + "\"")));
+                String emptyMsg = negatedTagFilter
+                        ? "All tests excluded by negated tag filter: \"" + tag + "\""
+                        : "No tests found with tag: \"" + tag + "\"";
+                uiListener.onProgress(new TestProgressEvent.ValidationFailed(List.of(emptyMsg)));
             } else {
                 result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, uiListener);
             }
@@ -328,7 +341,10 @@ public class RunSuiteCommand {
                 return;
             }
             if (tagFilterActive && suiteToRun.tests().isEmpty()) {
-                reportOptionsError(List.of("No tests found with tag: \"" + tag + "\""), nonInteractive, context);
+                String emptyMsg = negatedTagFilter
+                        ? "All tests excluded by negated tag filter: \"" + tag + "\""
+                        : "No tests found with tag: \"" + tag + "\"";
+                reportOptionsError(List.of(emptyMsg), nonInteractive, context);
                 return;
             }
             result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);

@@ -1,0 +1,19 @@
+---
+name: "All Slow Suite"
+tests:
+- name: "slow test one"
+  tag: "slow"
+  request:
+    method: "GET"
+    url: "http://example.com"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "slow test two"
+  tag: "slow"
+  request:
+    method: "GET"
+    url: "http://example.com"
+  assertions:
+  - type: "status_code"
+    expected: 200

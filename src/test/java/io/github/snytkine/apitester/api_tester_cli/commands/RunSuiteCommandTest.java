@@ -333,6 +333,61 @@ class RunSuiteCommandTest {
     }
 
     @Test
+    void negatedTagFilterExcludesMatchingTestsAndIncludesUntagged() throws Exception {
+        // test-suite-tagged.yml: 4 tests — smoke test one (smoke), smoke test two (smoke,regression),
+        // regression test (regression), untagged test (no tags).
+        // --tag="!smoke" should exclude the two smoke tests, keeping regression test + untagged test.
+        String suite = Path.of(getClass().getResource("/test-suite-tagged.yml").toURI())
+                .toString();
+        TestRunResult fakeResult = new TestRunResult(2, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, "!smoke", null, null, buildContext());
+
+        ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
+        verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
+        assertThat(suiteCaptor.getValue().tests()).hasSize(2);
+        assertThat(suiteCaptor.getValue().tests())
+                .noneMatch(tc -> tc.tags() != null && tc.tags().contains("smoke"));
+    }
+
+    @Test
+    void negatedTagFilterWithAllExcludedDoesNotCallEngine() throws Exception {
+        // test-suite-all-slow.yml: all tests tagged "slow" — negated filter excludes all of them.
+        String suite = Path.of(
+                        getClass().getResource("/test-suite-all-slow.yml").toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        command.runSuite(suite, false, false, "!slow", null, null, ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+        assertThat(output.toString()).contains("All tests excluded by negated tag filter");
+    }
+
+    @Test
+    void uiModeNegatedTagFilterWithAllExcludedSkipsEngine() throws Exception {
+        String suite = Path.of(
+                        getClass().getResource("/test-suite-all-slow.yml").toURI())
+                .toString();
+        StringWriter output = new StringWriter();
+        CommandContext ctx = new CommandContext(
+                new ParsedInput("run-suite", List.of(), List.of(), List.of()),
+                new CommandRegistry(),
+                new PrintWriter(output),
+                null);
+
+        commandWithUi.runSuite(suite, false, true, "!slow", null, null, ctx);
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
     void reportOptionCallsGenerateAndPrintsPath() throws Exception {
         String suite =
                 Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();

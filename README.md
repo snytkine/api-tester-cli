@@ -76,6 +76,7 @@ variables:
 Important behavior:
 
 - `--suite` is optional. When omitted, the CLI looks for `test-suite.yml` in the current working directory and uses it automatically. If that file is not found either, the command exits with an error.
+- `--tag=smoke` runs only tests tagged `smoke`. Prefix with `!` to invert: `--tag="!slow"` runs all tests except those tagged `slow` (tests with no tags are always included under a negated filter).
 - `--ui` forces the interactive terminal UI.
 - `--no-ui` disables the UI and writes JSON results to stdout.
 - Relative file references inside the suite, such as body files or JSON schema files, are resolved relative to the suite file's directory.

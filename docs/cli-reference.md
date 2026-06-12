@@ -24,7 +24,7 @@ rs [--suite=<path>] [--tag=<value>] [--test=<name>] [--ui|--no-ui] [--report=<di
 | Option | Required | Description |
 |--------|----------|-------------|
 | `--suite=<path>` | No | Path to the test-suite YAML file. When omitted, the CLI looks for `test-suite.yml` in the current working directory. An error is shown if neither is found. |
-| `--tag=<value>` | No | Run only test cases whose `tag` field contains this value. Cannot be used together with `--test`. |
+| `--tag=<value>` | No | Run only test cases whose `tag` field contains this value. Prefix with `!` to invert: `--tag="!slow"` runs all tests **except** those tagged `slow`; tests with no tags are always included under a negated filter. Cannot be used together with `--test`. |
 | `--test=<name>` | No | Run only the single test case whose `name` field exactly matches this value. Use double quotes if the name contains spaces: `--test="My Test Name"`. Cannot be used together with `--tag`. |
 | `--no-ui` | No | Force JSON output even when stdout looks like a TTY. |
 | `--ui` | No | Force the interactive terminal UI even when stdout does not look like a TTY. |
@@ -75,6 +75,11 @@ rs --suite=/path/to/suite.yml
 ### Run only tests tagged "smoke"
 ```bash
 rs --suite=/path/to/suite.yml --tag=smoke
+```
+
+### Run all tests except those tagged "slow" (negated filter)
+```bash
+rs --suite=/path/to/suite.yml --tag="!slow"
 ```
 
 ### Run a single test by name
