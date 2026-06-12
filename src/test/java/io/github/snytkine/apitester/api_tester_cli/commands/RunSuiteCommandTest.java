@@ -570,14 +570,14 @@ class RunSuiteCommandTest {
     }
 
     @Test
-    void buildConciseSummaryListsFailedTestsWithAssertionMessages() {
+    void buildConciseSummaryListsFailedTestsWithAssertionErrors() {
         TestCaseResult failed = new TestCaseResult(
                 "Create Item",
                 TestResult.FAILED,
                 0,
                 List.of(
-                        new AssertionFailure("status_code equals 201", "201", "400", "msg"),
-                        new AssertionFailure("not_null response.body.json.id", null, null, "msg")),
+                        new AssertionFailure("status_code equals 201", "201", "400", "Expected 201 but was 400"),
+                        new AssertionFailure("not_null response.body.json.id", null, null, "Value must not be null")),
                 null,
                 null,
                 null);
@@ -587,11 +587,32 @@ class RunSuiteCommandTest {
         String summary = command.buildConciseSummary(result, null);
 
         assertThat(summary).contains("Passed: 1, Failed: 1, Errors: 0, Skipped: 0");
+        assertThat(summary).contains("Failed Tests: 1");
         assertThat(summary).contains("Create Item");
         assertThat(summary).contains("Failed assertions:");
-        assertThat(summary).contains("- status_code equals 201");
-        assertThat(summary).contains("- not_null response.body.json.id");
+        assertThat(summary).contains("- Expected 201 but was 400");
+        assertThat(summary).contains("- Value must not be null");
+        assertThat(summary).doesNotContain("status_code equals 201");
+        assertThat(summary).doesNotContain("not_null response.body.json.id");
         assertThat(summary).doesNotContain("Health");
+    }
+
+    @Test
+    void buildConciseSummaryFallsBackToDescriptionWhenErrorIsNull() {
+        TestCaseResult failed = new TestCaseResult(
+                "Net Fail",
+                TestResult.FAILED,
+                0,
+                List.of(new AssertionFailure("Connection refused", null, null, null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0, 1, 0, 0, List.of(failed), Map.of());
+
+        String summary = command.buildConciseSummary(result, null);
+
+        assertThat(summary).contains("Failed Tests: 1");
+        assertThat(summary).contains("- Connection refused");
     }
 
     @Test
@@ -619,6 +640,7 @@ class RunSuiteCommandTest {
         TestRunResult result = new TestRunResult(0, 0, 0, 1, List.of(errored), Map.of());
 
         String summary = command.buildConciseSummary(result, null);
+        assertThat(summary).contains("Failed Tests: 1");
         assertThat(summary).contains("E1");
         assertThat(summary).contains("Failed assertions:");
         assertThat(summary).contains("- Connection refused");

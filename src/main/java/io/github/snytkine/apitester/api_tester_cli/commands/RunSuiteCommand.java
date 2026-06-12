@@ -383,21 +383,26 @@ public class RunSuiteCommand {
      * Builds a concise, human-readable summary of test results for stdout.
      *
      * <p>Format:
+     *
      * <ul>
      *   <li>First line: summary counts (passed, failed, errors, skipped)
-     *   <li>Failed/errored tests (one per test): test name, then "Failed assertions:" label, then
-     *       each assertion error message indented
-     *   <li>Report path (if generated): "Test report generated at <path>"
+     *   <li>When any tests failed or errored: "Failed Tests: N" on the next line, followed by one
+     *       block per failing test containing the test name, a "Failed assertions:" label, and each
+     *       assertion's error message indented (falls back to the assertion description when the error
+     *       message is absent, e.g. for network-level failures)
+     *   <li>Report path (if generated): "Test report generated at &lt;path&gt;"
      * </ul>
      *
      * <p>Example:
+     *
      * <pre>
      * Passed: 1, Failed: 1, Errors: 0, Skipped: 0
+     * Failed Tests: 1
      *
      * Objects Test
      * Failed assertions:
-     *   - string_match response.headers.content-type failed
-     *   - json_match response.body.json failed
+     *   - Expected status 201 but was 400
+     *   - Field response.body.json.id must not be null
      *
      * Test report generated at /tmp/report.html
      * </pre>
@@ -420,12 +425,13 @@ public class RunSuiteCommand {
                 .toList();
 
         if (!failures.isEmpty()) {
-            sb.append("\n");
+            sb.append("\nFailed Tests: ").append(failures.size());
             for (TestCaseResult failure : failures) {
-                sb.append("\n").append(failure.name()).append("\n");
+                sb.append("\n\n").append(failure.name()).append("\n");
                 sb.append("Failed assertions:\n");
                 for (AssertionFailure af : failure.failures()) {
-                    sb.append("  - ").append(af.description()).append("\n");
+                    String message = af.error() != null ? af.error() : af.description();
+                    sb.append("  - ").append(message).append("\n");
                 }
             }
         }
