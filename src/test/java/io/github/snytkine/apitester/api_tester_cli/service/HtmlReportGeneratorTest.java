@@ -179,6 +179,34 @@ class HtmlReportGeneratorTest {
         assertThat(outputPath).exists();
     }
 
+    @Test
+    void minifiedOutputHasNoLeadingWhitespaceOnLines() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath);
+        // Strip <pre> blocks first — their content legitimately has leading whitespace (e.g.
+        // indented pretty-printed JSON). Only check the structural HTML outside <pre>.
+        String htmlOutsidePre = Files.readString(outputPath).replaceAll("(?s)<pre[^>]*>.*?</pre>", "<pre></pre>");
+        assertThat(htmlOutsidePre.lines())
+                .noneMatch(line -> !line.isEmpty() && (line.charAt(0) == ' ' || line.charAt(0) == '\t'));
+    }
+
+    @Test
+    void minifiedOutputHasNoInterTagWhitespace() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath);
+        String htmlOutsidePre = Files.readString(outputPath).replaceAll("(?s)<pre[^>]*>.*?</pre>", "<pre></pre>");
+        assertThat(htmlOutsidePre).doesNotContainPattern(java.util.regex.Pattern.compile(">\\s+<"));
+    }
+
+    @Test
+    void minifiedOutputPreservesPreBlockWhitespace() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath);
+        String html = Files.readString(outputPath);
+        // Pretty-printed JSON lives inside a <pre> block; newlines must be retained
+        assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
+    }
+
     private static TestSuite buildTestSuite() {
         return new TestSuite("Pet Store API", "Integration tests for the pet store", null, null, List.of(), null, null);
     }

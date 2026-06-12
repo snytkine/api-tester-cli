@@ -27,9 +27,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
@@ -55,6 +58,12 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 public class HtmlReportGenerator {
 
     private static final TemplateEngine HTML_ENGINE;
+
+    /** Matches a complete {@code <pre>…</pre>} block including its content. */
+    private static final Pattern PRE_PATTERN = Pattern.compile("(?s)<pre[^>]*>.*?</pre>");
+
+    /** Matches a complete {@code <style>…</style>} block, capturing the inner content. */
+    private static final Pattern STYLE_PATTERN = Pattern.compile("(?s)(<style[^>]*>)(.*?)(</style>)");
 
     static {
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
@@ -96,7 +105,7 @@ public class HtmlReportGenerator {
                 result.passedCount() + result.failedCount() + result.skippedCount() + result.errorCount());
         ctx.setVariable("tests", result.results().stream().map(this::toTestMap).toList());
 
-        String html = HTML_ENGINE.process("suite-report", ctx);
+        String html = minify(HTML_ENGINE.process("suite-report", ctx));
         Files.createDirectories(outputPath.toAbsolutePath().getParent());
         Files.writeString(outputPath, html);
     }
@@ -199,5 +208,67 @@ public class HtmlReportGenerator {
             }
         }
         return resp.body().text();
+    }
+
+    /**
+     * Minifies an HTML string produced by the Thymeleaf template engine.
+     *
+     * <p>Steps applied in order:
+     *
+     * <ol>
+     *   <li>Extract {@code <pre>…</pre>} blocks and replace them with sentinels so their whitespace
+     *       is never touched.
+     *   <li>Strip HTML comments ({@code <!-- … -->}).
+     *   <li>Collapse all whitespace inside {@code <style>} blocks to single spaces.
+     *   <li>Remove whitespace-only text nodes between tags ({@code >\s+<} → {@code ><}).
+     *   <li>Remove leading horizontal whitespace from every line.
+     *   <li>Restore {@code <pre>} blocks from sentinels.
+     *   <li>Run a second inter-tag whitespace pass to clean up boundaries around {@code <pre>}
+     *       blocks exposed by restoration.
+     * </ol>
+     *
+     * <p>Thread-safety: stateless static method; safe for concurrent use.
+     *
+     * @param html the raw HTML produced by Thymeleaf
+     * @return minified HTML string
+     */
+    private static String minify(String html) {
+        // Step 1: stash <pre> blocks using non-whitespace sentinels so steps 4-5 cannot corrupt
+        // them. The sentinel format PRE_n_RESTORE contains only word chars — safe for
+        // appendReplacement (no $ or \) and cannot appear in Thymeleaf-rendered HTML.
+        List<String> preBlocks = new ArrayList<>();
+        Matcher preMatcher = PRE_PATTERN.matcher(html);
+        StringBuffer sb = new StringBuffer();
+        while (preMatcher.find()) {
+            preBlocks.add(preMatcher.group());
+            preMatcher.appendReplacement(sb, " PRE" + (preBlocks.size() - 1) + " ");
+        }
+        preMatcher.appendTail(sb);
+        html = sb.toString();
+
+        // Step 2: strip HTML comments
+        html = html.replaceAll("(?s)<!--.*?-->", "");
+
+        // Step 3: collapse whitespace inside <style> blocks
+        html = STYLE_PATTERN
+                .matcher(html)
+                .replaceAll(mr -> Matcher.quoteReplacement(
+                        mr.group(1) + mr.group(2).replaceAll("\\s+", " ").strip() + mr.group(3)));
+
+        // Step 4: remove whitespace-only text nodes between tags
+        html = html.replaceAll(">\\s+<", "><");
+
+        // Step 5: drop leading whitespace on every line
+        html = html.replaceAll("(?m)^[ \\t]+", "");
+
+        // Step 6: restore <pre> blocks
+        for (int i = 0; i < preBlocks.size(); i++) {
+            html = html.replace(" PRE" + i + " ", preBlocks.get(i));
+        }
+
+        // Step 7: clean up inter-tag whitespace exposed at <pre> block boundaries after restoration
+        html = html.replaceAll(">\\s+<", "><");
+
+        return html.strip();
     }
 }
