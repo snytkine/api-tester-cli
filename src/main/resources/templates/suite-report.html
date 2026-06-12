@@ -404,5 +404,12 @@
   </section>
 
 </div>
+<script th:if="${jsEnabled}">
+(function(){
+  document.querySelectorAll('pre code, .failure-expected, .failure-actual').forEach(function(el){
+    try { el.textContent = JSON.stringify(JSON.parse(el.textContent), null, 2); } catch(e){}
+  });
+})();
+</script>
 </body>
 </html>

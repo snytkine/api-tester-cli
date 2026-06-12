@@ -24,6 +24,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
@@ -322,7 +323,8 @@ public class RunSuiteCommand {
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             String fileName = "test-suite_" + safeName + "_" + timestamp + ".html";
             reportPath = Path.of(reportDir).resolve(fileName);
-            htmlReportGenerator.generate(result, suiteToRun, reportPath);
+            ReportOptions reportOptions = ReportOptions.fromEnv(envVars);
+            htmlReportGenerator.generate(result, suiteToRun, reportPath, reportOptions);
         }
 
         // Output mode: concise human-readable summary to stdout when --no-ui is passed or in

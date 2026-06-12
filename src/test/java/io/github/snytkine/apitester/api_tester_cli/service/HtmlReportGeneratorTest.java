@@ -22,6 +22,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
@@ -47,12 +48,27 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         assertThat(outputPath).exists();
         String html = Files.readString(outputPath);
         assertThat(html).startsWith("<!DOCTYPE html>");
         assertThat(html).contains("<style>");
+    }
+
+    @Test
+    void defaultOptionsEmbedScriptTag() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("<script");
+    }
+
+    @Test
+    void noJsOptionOmitsScriptTag() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
         assertThat(html).doesNotContain("<script");
     }
 
@@ -62,7 +78,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("Pet Store API");
@@ -74,7 +90,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("Integration tests for the pet store");
@@ -86,7 +102,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         // passed=1, failed=1, skipped=1, error=0, total=3
@@ -99,7 +115,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("Get all pets").contains("Create pet").contains("Skip this test");
@@ -111,7 +127,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("PASSED").contains("FAILED").contains("SKIPPED");
@@ -123,7 +139,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("<details").contains("<summary");
@@ -135,7 +151,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("not needed in this env");
@@ -147,7 +163,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         String html = Files.readString(outputPath);
         assertThat(html).contains("status_code equals 201");
@@ -156,16 +172,42 @@ class HtmlReportGeneratorTest {
     }
 
     @Test
-    void generatePrettyPrintsJsonResponseBody() throws Exception {
-        TestRunResult result = buildTestRunResult();
-        TestSuite suite = buildTestSuite();
+    void defaultOptionsStoreCompactJsonInPreBlock() throws Exception {
         Path outputPath = tempDir.resolve("report.html");
-
-        generator.generate(result, suite, outputPath);
-
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
         String html = Files.readString(outputPath);
-        // th:text HTML-escapes quotes; "id" appears as &quot;id&quot; in the HTML source
+        // With jsEnabled=true JSON is compact — no newlines inside the pre block
+        assertThat(html).contains("[{&quot;id&quot;:1}]");
+    }
+
+    @Test
+    void noJsOptionPrettyPrintsJsonInPreBlock() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
+        // With jsEnabled=false JSON is pretty-printed — &quot;id&quot; appears indented
         assertThat(html).contains("&quot;id&quot;");
+        // Pretty-printed JSON has newlines inside the <pre> block
+        assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
+    }
+
+    @Test
+    void defaultOptionsStoreCompactRequestBodyJson() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        // The "Create pet" test has request body {"name":"Fido"} — compact with jsEnabled=true
+        assertThat(html).contains("{&quot;name&quot;:&quot;Fido&quot;}");
+    }
+
+    @Test
+    void noJsOptionPrettyPrintsRequestBodyJson() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
+        // With jsEnabled=false request body JSON is pretty-printed server-side
+        assertThat(html).contains("&quot;name&quot;");
+        assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
     }
 
     @Test
@@ -174,7 +216,7 @@ class HtmlReportGeneratorTest {
         TestSuite suite = buildTestSuite();
         Path outputPath = tempDir.resolve("subdir/nested/report.html");
 
-        generator.generate(result, suite, outputPath);
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
 
         assertThat(outputPath).exists();
     }
@@ -182,9 +224,9 @@ class HtmlReportGeneratorTest {
     @Test
     void minifiedOutputHasNoLeadingWhitespaceOnLines() throws Exception {
         Path outputPath = tempDir.resolve("report.html");
-        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath);
-        // Strip <pre> blocks first — their content legitimately has leading whitespace (e.g.
-        // indented pretty-printed JSON). Only check the structural HTML outside <pre>.
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        // Strip <pre> blocks first — their content legitimately has leading whitespace.
+        // Only check the structural HTML outside <pre>.
         String htmlOutsidePre = Files.readString(outputPath).replaceAll("(?s)<pre[^>]*>.*?</pre>", "<pre></pre>");
         assertThat(htmlOutsidePre.lines())
                 .noneMatch(line -> !line.isEmpty() && (line.charAt(0) == ' ' || line.charAt(0) == '\t'));
@@ -193,17 +235,27 @@ class HtmlReportGeneratorTest {
     @Test
     void minifiedOutputHasNoInterTagWhitespace() throws Exception {
         Path outputPath = tempDir.resolve("report.html");
-        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath);
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
         String htmlOutsidePre = Files.readString(outputPath).replaceAll("(?s)<pre[^>]*>.*?</pre>", "<pre></pre>");
         assertThat(htmlOutsidePre).doesNotContainPattern(java.util.regex.Pattern.compile(">\\s+<"));
     }
 
     @Test
+    void noMinifyOptionProducesUnminifiedOutput() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(true, false));
+        String html = Files.readString(outputPath);
+        // Unminified output retains the leading indentation on at least some lines
+        assertThat(html).startsWith("<!DOCTYPE html>");
+        assertThat(html.lines().anyMatch(l -> l.startsWith("  "))).isTrue();
+    }
+
+    @Test
     void minifiedOutputPreservesPreBlockWhitespace() throws Exception {
         Path outputPath = tempDir.resolve("report.html");
-        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath);
+        // Use no-JS so JSON is pretty-printed server-side and has embedded newlines in the <pre>
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
         String html = Files.readString(outputPath);
-        // Pretty-printed JSON lives inside a <pre> block; newlines must be retained
         assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
     }
 
