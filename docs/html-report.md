@@ -75,10 +75,54 @@ rs --suite=/path/to/suite.yml --no-ui --report=/tmp/reports
 
 ---
 
+## Report Options
+
+Report rendering can be customised through environment variables. Both variables can be set in
+the OS environment **or** in the suite's `.env` file (see
+[Environment Variables](environment-variables.md)):
+
+### `REPORT_NO_JS`
+
+By default, the report embeds a small inline JavaScript formatter. JSON response bodies and
+assertion values are stored as compact JSON in the HTML source and expanded by the script when
+the page loads in a browser. Set `REPORT_NO_JS=true` to disable this behaviour: JSON is then
+pretty-printed on the server side and no `<script>` tag is emitted. Use this when the report
+must render correctly without JavaScript (e.g. in restricted security environments or when
+archiving reports in a system that strips scripts).
+
+```bash
+# Via OS environment
+REPORT_NO_JS=true rs --suite=suite.yml --report=/tmp/reports
+
+# Via .env file (place in the same directory as suite.yml)
+echo "REPORT_NO_JS=true" >> .env
+```
+
+### `REPORT_NO_MINIFY`
+
+By default, the rendered HTML is post-processed to remove insignificant whitespace, reducing
+file size by 15–25 %. Set `REPORT_NO_MINIFY=true` to skip this step and write the raw
+Thymeleaf output instead. This is mainly useful when debugging the report template.
+
+```bash
+REPORT_NO_MINIFY=true rs --suite=suite.yml --report=/tmp/reports
+```
+
+### Behaviour matrix
+
+| `REPORT_NO_JS` | `REPORT_NO_MINIFY` | JSON bodies | JS formatter | HTML size |
+|---|---|---|---|---|
+| unset | unset | compact (formatted by JS) | yes | smallest |
+| `true` | unset | pretty-printed server-side | no | medium |
+| unset | `true` | compact (formatted by JS) | yes | larger |
+| `true` | `true` | pretty-printed server-side | no | largest |
+
+---
+
 ## Report Structure
 
-The report is a fully self-contained HTML file — all CSS is embedded inline and no JavaScript
-is required. Open it in any browser with no internet connection needed.
+The report is a fully self-contained HTML file — all CSS is embedded inline. Open it in any
+browser with no internet connection needed.
 
 ### Header
 
@@ -110,7 +154,7 @@ Each test case appears as a card. The card's left border color matches the resul
 - Assertion counts: how many assertions passed and how many failed
 
 Below the header, three expandable sections may appear (using the native HTML `<details>` /
-`<summary>` elements — no JavaScript):
+`<summary>` elements):
 
 #### Request
 

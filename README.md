@@ -19,7 +19,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
 - Emits JSON results in non-interactive mode
 - Can show an interactive terminal UI when running in a compatible TTY
-- Can generate a self-contained single-page HTML execution report with `--report`
+- Can generate a self-contained single-page HTML execution report with `--report` (browser-side JSON formatting via optional inline JS)
 - Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
 
 ## Build And Run
@@ -403,10 +403,14 @@ by underscores.
   - Expandable **Response** section (status code, response time, headers, pretty-printed body)
   - Expandable **Failed Assertions** section (description, expected vs actual, error message)
 
-The report is fully self-contained (CSS embedded, no JavaScript, no CDN dependencies) and opens
-in any browser without an internet connection.
+The report is fully self-contained (all CSS embedded, no CDN dependencies) and opens in any
+browser without an internet connection. By default a small inline JavaScript formatter is
+included to pretty-print JSON bodies in the browser; set `REPORT_NO_JS=true` to disable it.
+Set `REPORT_NO_MINIFY=true` to skip HTML minification. Both flags can be set in the OS
+environment or in the suite's `.env` file.
 
-For full documentation see [HTML Execution Report](https://snytkine.github.io/api-tester-cli/html-report/).
+For full documentation, including a behaviour matrix for these options, see
+[HTML Execution Report](https://snytkine.github.io/api-tester-cli/html-report/).
 
 ## Debug Logging
 

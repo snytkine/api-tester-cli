@@ -28,6 +28,21 @@ Log line format:
 2026-06-05 14:30:45.123 [main] DEBUG io.github.snytkine.apitester... - Message here
 ```
 
+## Report generation
+
+These variables control how the HTML report is rendered. They can be set in the OS environment
+or in the suite's `.env` file (OS environment takes precedence).
+
+| Variable | Default | Scope | Description |
+|----------|---------|-------|-------------|
+| `REPORT_NO_JS` | unset (JS enabled) | HTML report only | Set to `true` to disable the inline JavaScript JSON formatter. JSON bodies are pretty-printed server-side and no `<script>` tag is emitted. Use when the report must render without JavaScript. |
+| `REPORT_NO_MINIFY` | unset (minification enabled) | HTML report only | Set to `true` to skip the HTML minification step. The raw Thymeleaf output is written as-is. Useful for debugging the report template. |
+
+See [HTML Report → Report Options](html-report.md#report-options) for a full behaviour matrix
+and usage examples.
+
+---
+
 ## Terminal UI behavior
 
 The tool automatically detects your environment and chooses an output mode (interactive UI or JSON). These environment variables influence that detection:
