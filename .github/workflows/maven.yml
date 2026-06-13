@@ -40,7 +40,7 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v5
       with:
-        token: ${{ secrets.CODECOV_ORG_TOKEN }}
+        token: ${{ secrets.CODECOV_TOKEN }}
         files: target/site/jacoco/jacoco.xml
         fail_ci_if_error: true
 
