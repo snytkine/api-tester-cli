@@ -14,9 +14,6 @@ on:
   pull_request:
     branches: [ "main" ]
 
-permissions:
-  contents: write
-
 jobs:
   build:
 
@@ -24,8 +21,10 @@ jobs:
 
     # The "Update dependency graph" step POSTs the dependency tree to GitHub's
     # Dependency Submission API, which requires contents: write on GITHUB_TOKEN.
+    # id-token: write is required by codecov/codecov-action for OIDC authentication.
     permissions:
       contents: write
+      id-token: write
 
     steps:
     - uses: actions/checkout@v4
@@ -37,6 +36,13 @@ jobs:
         cache: maven
     - name: Build with Maven
       run: mvn -B package --file pom.xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_ORG_TOKEN }}
+        files: target/site/jacoco/jacoco.xml
+        fail_ci_if_error: true
 
     # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive.
     # Only runs on push (incl. PR merges to main); skipped on pull_request, where fork PRs get a read-only token that cannot submit.
