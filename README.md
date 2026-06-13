@@ -4,6 +4,9 @@
 
 [![codecov](https://codecov.io/github/snytkine/api-tester-cli/graph/badge.svg?token=GNN9UATDU8)](https://codecov.io/github/snytkine/api-tester-cli)
 
+[![Known Vulnerabilities](https://snyk.io/test/github/snytkine/api-tester-cli/badge.svg?targetFile=package.json)](https://snyk.io/test/github/{username}/{repo}?targetFile=package.json)
+
+
 `api-tester-cli` is a Spring Boot + Spring Shell command-line tool for running HTTP API test suites defined in YAML. Test suites can use Thymeleaf expressions to inject command-line values, values from a local `.env` file, suite-level variables, and per-test variables into requests and assertions.
 
 The project can run as a regular JVM application or as a GraalVM native binary. The JVM build is easiest for development; the native build starts faster and runs without a JVM at runtime.
