@@ -372,6 +372,27 @@ For IDE-wide mappings that apply without modifying individual files:
 
 For a full walkthrough see [Schema Support](https://snytkine.github.io/api-tester-cli/schema-support/).
 
+## Checking The Version
+
+Print the application version with the `version` command:
+
+```bash
+# JVM jar
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar version
+
+# Native binary
+./target/api-tester-cli version
+```
+
+Output:
+
+```
+Api Tester CLI version 0.2.1
+```
+
+The version is embedded at build time from `pom.xml`, so it is accurate for both the JVM jar and
+the GraalVM native binary. The same version appears in the footer of generated HTML reports.
+
 ## Generating an HTML Report
 
 Add `--report=<directory>` to any `run-suite` invocation to write a self-contained HTML report
