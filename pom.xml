@@ -209,15 +209,16 @@
             </goals>
             <phase>test</phase>
             <configuration>
-              <!-- Exclude Spring Boot entry point, Spring Shell TUI integration
-                   classes that require a real terminal to test meaningfully,
-                   and Spring Boot AOT-generated __BeanDefinitions classes that
-                   the build emits into target/classes under Spring Shell package
-                   names — these are generated infrastructure, not project code. -->
+              <!-- Coverage is enforced everywhere except code that cannot be
+                   meaningfully unit tested:
+                   - commands/TuiSmokeCommand drives the interactive TUI and needs a
+                     real terminal; it is the only command excluded. The rest of the
+                     commands package is enforced.
+                   - org/springframework/shell/core/autoconfigure/* is not project
+                     code: Spring Boot AOT emits __BeanDefinitions classes into
+                     target/classes under this Spring Shell package name. -->
               <excludes>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/ApiTesterCliApplication*</exclude>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/commands/*</exclude>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/ui/*</exclude>
+                <exclude>io/github/snytkine/apitester/api_tester_cli/commands/TuiSmokeCommand*</exclude>
                 <exclude>org/springframework/shell/core/autoconfigure/*</exclude>
               </excludes>
               <rules>
@@ -254,6 +255,14 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>build-info</id>
+            <goals>
+              <goal>build-info</goal>
+            </goals>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

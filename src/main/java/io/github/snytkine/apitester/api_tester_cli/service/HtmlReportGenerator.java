@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.stereotype.Service;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
@@ -82,6 +83,16 @@ public class HtmlReportGenerator {
     }
 
     private final ObjectMapper jsonMapper = new ObjectMapper();
+    private final String appVersion;
+
+    /**
+     * Constructs the generator with the application build properties.
+     *
+     * @param buildProperties Spring Boot build properties providing the application version
+     */
+    public HtmlReportGenerator(BuildProperties buildProperties) {
+        this.appVersion = buildProperties.getVersion();
+    }
 
     /**
      * Renders the supplied test-run result and suite metadata into an HTML report and writes it to
@@ -115,6 +126,7 @@ public class HtmlReportGenerator {
                         .map(tc -> toTestMap(tc, options.jsEnabled()))
                         .toList());
         ctx.setVariable("jsEnabled", options.jsEnabled());
+        ctx.setVariable("appVersion", appVersion);
 
         String html = HTML_ENGINE.process("suite-report", ctx);
         if (options.minifyEnabled()) {

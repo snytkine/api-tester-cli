@@ -256,6 +256,16 @@
     .failure-actual   { background: #fff5f5; }
     .error-msg { margin-top: 6px; color: #666; font-style: italic; font-size: .85rem; }
 
+    /* Footer */
+    footer {
+      margin-top: 28px;
+      padding: 12px 0 4px;
+      border-top: 1px solid #dde1e7;
+      text-align: center;
+      font-size: .78rem;
+      color: #888;
+    }
+
     /* No-body notice */
     .notice-block {
       display: flex;
@@ -402,6 +412,10 @@
 
     </article>
   </section>
+
+  <footer>
+    <p>Powered by Api Tester CLI version <span th:text="${appVersion}">dev</span></p>
+  </footer>
 
 </div>
 <script th:if="${jsEnabled}">

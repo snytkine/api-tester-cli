@@ -47,9 +47,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.function.IntConsumer;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
 import org.springframework.shell.core.command.CommandArgument;
 import org.springframework.shell.core.command.CommandContext;
@@ -87,9 +89,20 @@ public class RunSuiteCommand {
     private final Environment environment;
 
     /**
-     * Constructs the command with its required collaborators. A dedicated JSON {@link ObjectMapper}
-     * is created here rather than injected; Jackson is not auto-configured as a bean in this CLI
-     * project and the mapper is an internally-owned, thread-safe singleton.
+     * Process-exit handler invoked with the exit code in non-interactive mode. Defaults to {@link
+     * System#exit(int)} in production; tests inject a non-terminating handler to verify exit-code
+     * signalling without killing the test JVM. It is an immutable function reference, so the bean
+     * remains stateless and thread-safe.
+     */
+    private final IntConsumer exitHandler;
+
+    /**
+     * Constructs the command with its required collaborators, using {@link System#exit(int)} as the
+     * process-exit handler. This is the constructor Spring uses to create the singleton bean.
+     *
+     * <p>A dedicated JSON {@link ObjectMapper} is created internally rather than injected; Jackson is
+     * not auto-configured as a bean in this CLI project and the mapper is an internally-owned,
+     * thread-safe singleton.
      *
      * <p>When {@code viewComponentBuilder} is {@code null} (e.g. in unit tests that do not have the
      * full Spring Shell TUI stack on the classpath), UI mode is disabled regardless of TTY detection.
@@ -104,6 +117,7 @@ public class RunSuiteCommand {
      * @param environment the application environment, read at runtime to detect non-interactive mode
      *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
      */
+    @Autowired
     public RunSuiteCommand(
             TestSuiteLoader testSuiteLoader,
             TestSuiteValidator testSuiteValidator,
@@ -112,6 +126,43 @@ public class RunSuiteCommand {
             HtmlReportGenerator htmlReportGenerator,
             @Nullable ViewComponentBuilder viewComponentBuilder,
             Environment environment) {
+        this(
+                testSuiteLoader,
+                testSuiteValidator,
+                testEngine,
+                dotEnvLoader,
+                htmlReportGenerator,
+                viewComponentBuilder,
+                environment,
+                System::exit);
+    }
+
+    /**
+     * Test-friendly constructor that additionally accepts the process-exit handler, allowing tests to
+     * intercept exit-code signalling without terminating the JVM. Production code uses the public
+     * constructor, which supplies {@link System#exit(int)}.
+     *
+     * @param testSuiteLoader loads and template-processes test-suite YAML files
+     * @param testSuiteValidator validates the loaded suite for structural errors such as duplicate
+     *     test names
+     * @param testEngine executes the loaded test cases
+     * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
+     * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
+     * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
+     * @param environment the application environment, read at runtime to detect non-interactive mode
+     *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
+     * @param exitHandler invoked with the process exit code in non-interactive mode; {@code
+     *     System::exit} in production
+     */
+    RunSuiteCommand(
+            TestSuiteLoader testSuiteLoader,
+            TestSuiteValidator testSuiteValidator,
+            TestEngine testEngine,
+            DotEnvLoader dotEnvLoader,
+            HtmlReportGenerator htmlReportGenerator,
+            @Nullable ViewComponentBuilder viewComponentBuilder,
+            Environment environment,
+            IntConsumer exitHandler) {
         this.testSuiteLoader = testSuiteLoader;
         this.testSuiteValidator = testSuiteValidator;
         this.testEngine = testEngine;
@@ -120,6 +171,7 @@ public class RunSuiteCommand {
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         this.viewComponentBuilder = viewComponentBuilder;
         this.environment = environment;
+        this.exitHandler = exitHandler;
     }
 
     /**
@@ -242,7 +294,8 @@ public class RunSuiteCommand {
         if (!Files.exists(suitePath)) {
             if (nonInteractive) {
                 log.debug("Options error (exit {}): test suite file not found: {}", EXIT_OPTIONS_ERROR, suite);
-                System.exit(EXIT_OPTIONS_ERROR);
+                exitHandler.accept(EXIT_OPTIONS_ERROR);
+                return;
             }
             throw new IllegalArgumentException("Test suite file not found: " + suite);
         }
@@ -383,7 +436,7 @@ public class RunSuiteCommand {
         if (nonInteractive && result != null) {
             int exitCode = computeExitCode(result);
             if (exitCode != 0) {
-                System.exit(exitCode);
+                exitHandler.accept(exitCode);
             }
         }
     }
@@ -402,7 +455,8 @@ public class RunSuiteCommand {
     private void reportOptionsError(List<String> messages, boolean nonInteractive, CommandContext context) {
         if (nonInteractive) {
             log.debug("Options error (exit {}): {}", EXIT_OPTIONS_ERROR, messages);
-            System.exit(EXIT_OPTIONS_ERROR);
+            exitHandler.accept(EXIT_OPTIONS_ERROR);
+            return;
         }
         renderErrors(messages, context);
     }

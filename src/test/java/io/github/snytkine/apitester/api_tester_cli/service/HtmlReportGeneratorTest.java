@@ -31,8 +31,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.info.BuildProperties;
 
 /** Unit tests for {@link HtmlReportGenerator}. */
 class HtmlReportGeneratorTest {
@@ -40,7 +42,13 @@ class HtmlReportGeneratorTest {
     @TempDir
     Path tempDir;
 
-    private final HtmlReportGenerator generator = new HtmlReportGenerator();
+    private static BuildProperties buildProperties() {
+        Properties props = new Properties();
+        props.setProperty("version", "1.0.0-TEST");
+        return new BuildProperties(props);
+    }
+
+    private final HtmlReportGenerator generator = new HtmlReportGenerator(buildProperties());
 
     @Test
     void generateWritesSelfContainedHtmlFile() throws Exception {
@@ -248,6 +256,15 @@ class HtmlReportGeneratorTest {
         // Unminified output retains the leading indentation on at least some lines
         assertThat(html).startsWith("<!DOCTYPE html>");
         assertThat(html.lines().anyMatch(l -> l.startsWith("  "))).isTrue();
+    }
+
+    @Test
+    void generateIncludesPoweredByFooterWithVersion() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Powered by Api Tester CLI version");
+        assertThat(html).contains("1.0.0-TEST");
     }
 
     @Test

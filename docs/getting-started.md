@@ -26,6 +26,22 @@ cd api-tester-cli
 
 The JVM build produces a JAR in `target/` that runs with `java -jar`. The native build produces a standalone executable in `target/`.
 
+Verify the build by printing the version:
+
+```bash
+# JVM jar
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar version
+
+# Native binary
+./target/api-tester-cli version
+```
+
+```
+Api Tester CLI version 0.2.1
+```
+
+See the [CLI Reference](cli-reference.md) for the full list of commands.
+
 ## Running your first test suite
 
 The simplest workflow is to name your file `test-suite.yml` and run the CLI from the same directory — no arguments needed:

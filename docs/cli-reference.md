@@ -6,6 +6,7 @@
 |---------|-------------|
 | [`run-suite`](#run-suite) | Load and execute a test-suite YAML file |
 | [`export-schema`](#export-schema) | Export the bundled JSON Schema to a local file |
+| [`version`](#version) | Display the application version |
 
 ---
 
@@ -152,3 +153,32 @@ Schema written to: /home/user/schemas/test-suite-schema.json
 ```
 
 For instructions on wiring the schema to your IDE see [Schema Support](schema-support.md).
+
+---
+
+## `version`
+
+Prints the application version. The version is read from build metadata embedded at build time by
+the `spring-boot-maven-plugin` `build-info` goal, so it always reflects the version declared in
+`pom.xml` — for both the JAR and the GraalVM native binary. The same version appears in the footer
+of generated [HTML reports](html-report.md).
+
+The command is `version` (no alias) and takes no options.
+
+### Syntax
+
+```
+version
+```
+
+### Example
+
+```bash
+version
+```
+
+Output:
+
+```
+Api Tester CLI version 0.2.1
+```
