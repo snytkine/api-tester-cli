@@ -209,15 +209,18 @@
             </goals>
             <phase>test</phase>
             <configuration>
-              <!-- Exclude Spring Boot entry point, Spring Shell TUI integration
-                   classes that require a real terminal to test meaningfully,
-                   and Spring Boot AOT-generated __BeanDefinitions classes that
-                   the build emits into target/classes under Spring Shell package
-                   names — these are generated infrastructure, not project code. -->
+              <!-- Coverage is enforced everywhere except code that cannot be
+                   meaningfully unit tested:
+                   - commands/* holds TuiSmokeCommand, which drives the interactive
+                     TUI and needs a real terminal; it pulls the package below the
+                     instruction/line thresholds.
+                   - org/springframework/shell/core/autoconfigure/* is not project
+                     code: Spring Boot AOT emits __BeanDefinitions classes into
+                     target/classes under this Spring Shell package name.
+                   ApiTesterCliApplication and the ui/* package are intentionally
+                   NOT excluded — both are covered by tests and enforced here. -->
               <excludes>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/ApiTesterCliApplication*</exclude>
                 <exclude>io/github/snytkine/apitester/api_tester_cli/commands/*</exclude>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/ui/*</exclude>
                 <exclude>org/springframework/shell/core/autoconfigure/*</exclude>
               </excludes>
               <rules>
