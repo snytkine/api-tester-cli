@@ -211,16 +211,14 @@
             <configuration>
               <!-- Coverage is enforced everywhere except code that cannot be
                    meaningfully unit tested:
-                   - commands/* holds TuiSmokeCommand, which drives the interactive
-                     TUI and needs a real terminal; it pulls the package below the
-                     instruction/line thresholds.
+                   - commands/TuiSmokeCommand drives the interactive TUI and needs a
+                     real terminal; it is the only command excluded. The rest of the
+                     commands package is enforced.
                    - org/springframework/shell/core/autoconfigure/* is not project
                      code: Spring Boot AOT emits __BeanDefinitions classes into
-                     target/classes under this Spring Shell package name.
-                   ApiTesterCliApplication and the ui/* package are intentionally
-                   NOT excluded — both are covered by tests and enforced here. -->
+                     target/classes under this Spring Shell package name. -->
               <excludes>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/commands/*</exclude>
+                <exclude>io/github/snytkine/apitester/api_tester_cli/commands/TuiSmokeCommand*</exclude>
                 <exclude>org/springframework/shell/core/autoconfigure/*</exclude>
               </excludes>
               <rules>

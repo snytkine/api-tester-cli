@@ -45,6 +45,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -744,6 +746,65 @@ class RunSuiteCommandTest {
         assertThat(summary).contains("E1");
         assertThat(summary).contains("Failed assertions:");
         assertThat(summary).contains("- Connection refused");
+    }
+
+    // ---- Non-interactive mode: process exit-code signalling ----
+
+    /**
+     * Builds a non-interactive command whose process-exit handler records the requested code into
+     * {@code exitCode} instead of terminating the test JVM.
+     */
+    private RunSuiteCommand nonInteractiveCommand(AtomicInteger exitCode) {
+        MockEnvironment env = new MockEnvironment();
+        env.setProperty("DISABLE_INTERACTIVE_MODE", "true");
+        IntConsumer recorder = exitCode::set;
+        return new RunSuiteCommand(
+                new TestSuiteLoader(),
+                new TestSuiteValidator(),
+                mockEngine,
+                new DotEnvLoader(),
+                mockReportGenerator,
+                null,
+                env,
+                recorder);
+    }
+
+    @Test
+    void runSuiteNonInteractiveSignalsOptionsErrorWhenSuiteFileMissing() throws Exception {
+        AtomicInteger exitCode = new AtomicInteger(0);
+        RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
+
+        cmd.runSuite(tempDir.resolve("missing.yml").toString(), true, false, null, null, null, buildContext());
+
+        assertThat(exitCode.get()).isEqualTo(2); // EXIT_OPTIONS_ERROR
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void runSuiteNonInteractiveSignalsOptionsErrorWhenTagAndTestCombined() throws Exception {
+        AtomicInteger exitCode = new AtomicInteger(0);
+        RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
+        String suite =
+                Path.of(getClass().getResource("/test-suite-1.yml").toURI()).toString();
+
+        cmd.runSuite(suite, true, false, "smoke", "Some Test", null, buildContext());
+
+        assertThat(exitCode.get()).isEqualTo(2); // EXIT_OPTIONS_ERROR
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void runSuiteNonInteractiveSignalsFailureCodeWhenTestsFail() throws Exception {
+        AtomicInteger exitCode = new AtomicInteger(0);
+        RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
+        String suite =
+                Path.of(getClass().getResource("/test-suite-1.yml").toURI()).toString();
+        TestRunResult failing = new TestRunResult(0, 1, 0, 0, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(failing);
+
+        cmd.runSuite(suite, true, false, null, null, null, buildContext());
+
+        assertThat(exitCode.get()).isEqualTo(1); // EXIT_TEST_FAILURE
     }
 
     private CommandContext buildContext(String... argValues) {
