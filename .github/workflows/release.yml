@@ -1,0 +1,55 @@
+name: Release — GraalVM Native Binaries
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+# Needs write access to attach assets to the GitHub Release created by release-please.
+permissions:
+  contents: write
+
+jobs:
+  build-native:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset-name: api-tester-cli-linux-amd64
+          - os: macos-latest
+            asset-name: api-tester-cli-macos-aarch64
+          - os: macos-13
+            asset-name: api-tester-cli-macos-amd64
+          - os: windows-latest
+            asset-name: api-tester-cli-windows-amd64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GraalVM for JDK 25
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+          cache: 'maven'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build native image
+        shell: bash
+        run: ./mvnw clean -Pnative native:compile -B
+
+      - name: Rename binary
+        shell: bash
+        run: |
+          src=$([ "${{ runner.os }}" = "Windows" ] \
+            && echo "target/api-tester-cli.exe" \
+            || echo "target/api-tester-cli")
+          mv "$src" "target/${{ matrix.asset-name }}"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: target/${{ matrix.asset-name }}
