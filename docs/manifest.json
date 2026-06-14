@@ -1,6 +1,6 @@
 {
     "latestVersion": {
-        "version": "0.4.1",
+        "version": "0.4.2-SNAPSHOT",
         "date": "2024-06-30",
         "releaseUrl": "https://github.com/api-tester/api-tester-cli/releases/tag/0.1.0",
         "message": "Download latest release from GitHub"
