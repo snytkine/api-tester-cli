@@ -1,0 +1,19 @@
+{
+    "latestVersion": {
+        "version": "0.1.0",
+        "date": "2024-06-30",
+        "releaseUrl": "https://github.com/api-tester/api-tester-cli/releases/tag/0.1.0",
+        "message": "Download latest release from GitHub"
+    },
+    "messages": [
+        {
+            "type": "info",
+            "text": "Welcome to API Tester CLI documentation!",
+            "url": "https://api-tester.github.io/api-tester-cli/"
+        },
+        {
+            "type": "warning",
+            "text": "This project is in early development. Expect breaking changes and missing features."
+        }
+    ]
+}
