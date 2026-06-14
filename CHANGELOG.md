@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/snytkine/api-tester-cli/compare/v0.4.0...v0.4.1) (2026-06-14)
+
+
+### Bug Fixes
+
+* fixing GraalVM build issue on Windows. Fixes Issue [#49](https://github.com/snytkine/api-tester-cli/issues/49) https://github.com/snytkine/api-tester-cli/issues/49 ([cb08fac](https://github.com/snytkine/api-tester-cli/commit/cb08fac984c850201369acd944d8b7e5ea266ef0))
+
 ## [0.4.0](https://github.com/snytkine/api-tester-cli/compare/v0.3.0...v0.4.0) (2026-06-14)
 
 
