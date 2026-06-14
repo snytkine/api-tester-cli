@@ -85,9 +85,9 @@ class PureJavaTestEngineBodyTest {
     }
 
     @Test
-    void fileTypeResolvesExistingTestFixture() throws IOException {
-        Path suiteDir = Path.of(getClass().getResource("/request-body-1.json").getPath())
-                .getParent();
+    void fileTypeResolvesExistingTestFixture() throws Exception {
+        Path suiteDir =
+                Path.of(getClass().getResource("/request-body-1.json").toURI()).getParent();
         RequestBody body = new RequestBody(BodyType.FILE, "request-body-1.json");
 
         String result = PureJavaTestEngine.loadBodyContent(
