@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/snytkine/api-tester-cli/compare/v0.3.0...v0.4.0) (2026-06-14)
+
+
+### Features
+
+* added support for version command to display application version ([5aa624e](https://github.com/snytkine/api-tester-cli/commit/5aa624e539ba70b7fa1d004c586156971eb0dbfd))
+* added support for version command to display application version ([8008452](https://github.com/snytkine/api-tester-cli/commit/80084524dcdadeb74fe2a6a25c6fe8b31f1dd9f1))
+
 ## [0.3.0](https://github.com/snytkine/api-tester-cli/compare/v0.2.0...v0.3.0) (2026-06-14)
 
 

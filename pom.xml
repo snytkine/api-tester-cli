@@ -10,7 +10,7 @@
   </parent>
   <groupId>io.github.snytkine.apitester</groupId>
   <artifactId>api-tester-cli</artifactId>
-  <version>0.3.1-SNAPSHOT</version>
+  <version>0.4.0</version>
   <name>api-tester-cli</name>
   <description>Spring Boot + Spring Shell CLI for running HTTP API test suites defined in YAML,
     with Thymeleaf expression support and GraalVM native-image compatibility.</description>
