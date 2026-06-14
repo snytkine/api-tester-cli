@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.4.0](https://github.com/snytkine/api-tester-cli/compare/v0.3.0...v0.4.0) (2026-06-14)
+
+
+### Features
+
+* added support for version command to display application version ([5aa624e](https://github.com/snytkine/api-tester-cli/commit/5aa624e539ba70b7fa1d004c586156971eb0dbfd))
+* added support for version command to display application version ([8008452](https://github.com/snytkine/api-tester-cli/commit/80084524dcdadeb74fe2a6a25c6fe8b31f1dd9f1))
+
+## [0.3.0](https://github.com/snytkine/api-tester-cli/compare/v0.2.0...v0.3.0) (2026-06-14)
+
+
+### Features
+
+* adding handler for --version command to show application version. Adding footer to generated reports that shows version of program. ([def1fa3](https://github.com/snytkine/api-tester-cli/commit/def1fa3b4ab8c30bfe8feee2bcf536a166f58735))
+
+
+### Bug Fixes
+
+* provide fallback BuildProperties bean when build-info.properties is absent ([e7728d1](https://github.com/snytkine/api-tester-cli/commit/e7728d1ebba5174873e8c1a4db896e5dbf4c35bd))
+* resolve versionCommand bean collision that blocked application startup ([e0395a0](https://github.com/snytkine/api-tester-cli/commit/e0395a0bc6ec5cf2f90af346c49a5146e9c05a29))
+
+
+### Documentation
+
+* document the version command in README and docs/ ([d6669e7](https://github.com/snytkine/api-tester-cli/commit/d6669e78de5f85791c1d2d7befca1c00c83449f4))
+
 ## [0.2.0](https://github.com/snytkine/api-tester-cli/compare/v0.1.0...v0.2.0) (2026-06-14)
 
 
