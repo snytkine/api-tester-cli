@@ -45,8 +45,22 @@ class JsonMatchAssertionEvaluatorTest {
 
     private static JsonMatchAssertionEvaluator evaluator(
             String expectedContent, List<String> ignore, Map<String, String> suiteVars, Map<String, String> testVars) {
+        return evaluatorForPath("response.body.json", expectedContent, ignore, suiteVars, testVars);
+    }
+
+    private static JsonMatchAssertionEvaluator evaluatorForPath(
+            String path, String expectedContent, List<String> ignore) {
+        return evaluatorForPath(path, expectedContent, ignore, Map.of(), Map.of());
+    }
+
+    private static JsonMatchAssertionEvaluator evaluatorForPath(
+            String path,
+            String expectedContent,
+            List<String> ignore,
+            Map<String, String> suiteVars,
+            Map<String, String> testVars) {
         ObjectExpectedValue expected = new ObjectExpectedValue("inline", expectedContent, ignore);
-        JsonMatchAssertion assertion = new JsonMatchAssertion("response.body.json", expected);
+        JsonMatchAssertion assertion = new JsonMatchAssertion(path, expected);
         return new JsonMatchAssertionEvaluator(
                 assertion, null, OBJECT_MAPPER, Map.of("suite", suiteVars, "test", testVars));
     }
@@ -200,5 +214,78 @@ class JsonMatchAssertionEvaluatorTest {
         assertThatThrownBy(() -> ev.evaluate(responseWithJson("{\"a\":1}", Map.of("a", 1)), collector))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Suite directory is required");
+    }
+
+    @Test
+    void jsonPathSubexpressionExtractsNestedObject() {
+        String text = "{\"data\":{\"id\":1}}";
+        Object json = Map.of("data", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorForPath("response.body.json.$.data", "{\"id\":1}", List.of())
+                .evaluate(responseWithJson(text, json), collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void jsonPathArrayElementExtractionMatchesIssueExample() {
+        String text = "[{\"data\":{\"id\":1}}]";
+        Object json = List.of(Map.of("data", Map.of("id", 1)));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorForPath("response.body.json.$[0].data", "{\"id\":1}", List.of())
+                .evaluate(responseWithJson(text, json), collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void jsonPathSubexpressionMismatchFails() {
+        String text = "{\"data\":{\"id\":1}}";
+        Object json = Map.of("data", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorForPath("response.body.json.$.data", "{\"id\":2}", List.of())
+                .evaluate(responseWithJson(text, json), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void missingJsonPathRecordsFailure() {
+        String text = "{\"data\":{\"id\":1}}";
+        Object json = Map.of("data", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorForPath("response.body.json.$.nonexistent", "{\"id\":1}", List.of())
+                .evaluate(responseWithJson(text, json), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void invalidJsonPathRecordsFailure() {
+        String text = "{\"data\":{\"id\":1}}";
+        Object json = Map.of("data", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorForPath("response.body.json.$[", "{\"id\":1}", List.of())
+                .evaluate(responseWithJson(text, json), collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void unsupportedPathPrefixRecordsFailure() {
+        String text = "{\"data\":{\"id\":1}}";
+        Object json = Map.of("data", Map.of("id", 1));
+
+        FailureCollector collector = new FailureCollector();
+        evaluatorForPath("foo.bar", "{\"id\":1}", List.of()).evaluate(responseWithJson(text, json), collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("response.");
     }
 }

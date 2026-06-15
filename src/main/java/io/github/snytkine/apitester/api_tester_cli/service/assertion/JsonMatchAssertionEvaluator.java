@@ -48,6 +48,15 @@ import org.slf4j.LoggerFactory;
  * org.opentest4j.AssertionFailedError} with expected and actual fields preserved via {@link
  * FailureCollector#rewrap(String, AssertionError)}.
  *
+ * <p>The {@code path} field on the assertion follows the same {@code response.*} convention as
+ * {@link JsonSchemaAssertionEvaluator}, resolved via {@link ResponseValueExtractor}:
+ *
+ * <ul>
+ *   <li>{@code response.body.json} — compare the entire parsed JSON body
+ *   <li>{@code response.body.json.<jsonpath>} — compare only the value at the given JSONPath
+ *       expression
+ * </ul>
+ *
  * <p>Current limitation: only top-level field names are supported in the ignore list. Nested
  * JSONPath expressions are not yet evaluated.
  */
@@ -110,8 +119,22 @@ class JsonMatchAssertionEvaluator implements AssertionEvaluator {
             return;
         }
 
+        JsonNode actualNode;
+        switch (ResponseValueExtractor.extract(response, assertion.path())) {
+            case ResponseValueExtractor.Result.Found found -> actualNode = objectMapper.valueToTree(found.value());
+            case ResponseValueExtractor.Result.Missing missing -> {
+                collector.fail(
+                        String.format("Path '%s' not found in response for json_match assertion", missing.path()),
+                        null);
+                return;
+            }
+            case ResponseValueExtractor.Result.Error error -> {
+                collector.fail(error.message(), null);
+                return;
+            }
+        }
+
         try {
-            JsonNode actualNode = objectMapper.valueToTree(response.body().json());
             JsonNode expectedNode = objectMapper.readTree(expectedJson);
 
             removeIgnoredFields(actualNode, assertion.expected().ignore());
