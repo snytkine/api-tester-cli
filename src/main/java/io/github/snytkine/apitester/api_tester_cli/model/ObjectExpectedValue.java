@@ -16,10 +16,20 @@
  */
 package io.github.snytkine.apitester.api_tester_cli.model;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import java.util.List;
 
 /**
  * Holds a content-reference expected value with an optional list of JSON paths to ignore during
  * comparison.
+ *
+ * <p>Deserialization accepts two YAML forms via {@link ObjectExpectedValueDeserializer}: the full
+ * object form ({@code {type, content, ignore}}) and a plain-string shorthand which is normalised to
+ * {@code type: inline} with the string as {@code content} and an empty {@code ignore} list.
+ *
+ * @param type the content-reference type, e.g. {@code inline} or {@code file}
+ * @param content the inline content or the file path, depending on {@code type}
+ * @param ignore optional top-level field names to exclude from the comparison; may be {@code null}
  */
+@JsonDeserialize(using = ObjectExpectedValueDeserializer.class)
 public record ObjectExpectedValue(String type, String content, List<String> ignore) {}

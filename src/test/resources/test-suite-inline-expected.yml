@@ -1,0 +1,21 @@
+---
+name: "Inline expected shorthand suite"
+description: "Exercises the plain-string shorthand for json_match and json_schema\
+  \ expected."
+variables:
+  api_base_url: "[[${cli.api_base_url}]]"
+tests:
+- name: "Get user"
+  description: "Verify the user payload matches the inline expected JSON."
+  request:
+    method: "GET"
+    url: "[[${suite.api_base_url}]]/users/1"
+  assertions:
+  - type: "status_code"
+    expected: 200
+  - type: "json_match"
+    path: "response.body.json"
+    expected: "{\"id\": 1, \"name\": \"Alice\"}"
+  - type: "json_schema"
+    path: "response.body.json"
+    expected: "{\"type\": \"object\"}"

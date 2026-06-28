@@ -683,8 +683,14 @@
         "type": {"type": "string", "const": "json_match"},
         "path": {"$ref": "#/$defs/PathExpression"},
         "expected": {
-          "$ref": "#/$defs/ContentReference",
-          "description": "Reference to the expected JSON document"
+          "description": "Reference to the expected JSON document, or an inline JSON string (shorthand for type: inline)",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Inline expected JSON (shorthand — equivalent to type: inline)"
+            },
+            {"$ref": "#/$defs/ContentReference"}
+          ]
         }
       }
     },
@@ -697,8 +703,14 @@
         "type": {"type": "string", "const": "json_schema"},
         "path": {"$ref": "#/$defs/PathExpression"},
         "expected": {
-          "$ref": "#/$defs/ContentReference",
-          "description": "Reference to the JSON Schema file"
+          "description": "Reference to the JSON Schema file, or an inline JSON Schema string (shorthand for type: inline)",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Inline JSON Schema (shorthand — equivalent to type: inline)"
+            },
+            {"$ref": "#/$defs/ContentReference"}
+          ]
         }
       }
     },

@@ -245,6 +245,14 @@ assertions:
   milliseconds: 5000
 ```
 
+For `json_match` and `json_schema`, the `expected` field also accepts a plain string as a shorthand for `type: inline`, mirroring the request `body` shorthand above:
+
+```yaml
+- type: "json_match"
+  path: "response.body.json"
+  expected: '{"message": "success"}'
+```
+
 See [Assertions](assertions.md) for the full list of 25+ assertion types and examples.
 
 ## Complete example

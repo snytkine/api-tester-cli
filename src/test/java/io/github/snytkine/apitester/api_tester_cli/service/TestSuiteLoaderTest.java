@@ -180,6 +180,32 @@ class TestSuiteLoaderTest {
     }
 
     @Test
+    void loadResolvesPlainStringExpectedShorthandAsInlineContent() throws Exception {
+        Path path = Path.of(
+                getClass().getResource("/test-suite-inline-expected.yml").toURI());
+        SuiteRunContext context = SuiteRunContext.of(Map.of(), Map.of("api_base_url", "https://api.example.com"));
+
+        TestSuite testSuite = loader.load(path, context);
+
+        List<Assertion> assertions = testSuite.tests().get(0).assertions();
+        assertThat(assertions).hasSize(3);
+
+        assertThat(assertions.get(1)).isInstanceOf(JsonMatchAssertion.class);
+        JsonMatchAssertion matchAssertion = (JsonMatchAssertion) assertions.get(1);
+        assertThat(matchAssertion.path()).isEqualTo("response.body.json");
+        assertThat(matchAssertion.expected().type()).isEqualTo("inline");
+        assertThat(matchAssertion.expected().content()).isEqualTo("{\"id\": 1, \"name\": \"Alice\"}");
+        assertThat(matchAssertion.expected().ignore()).isNull();
+
+        assertThat(assertions.get(2)).isInstanceOf(JsonSchemaAssertion.class);
+        JsonSchemaAssertion schemaAssertion = (JsonSchemaAssertion) assertions.get(2);
+        assertThat(schemaAssertion.path()).isEqualTo("response.body.json");
+        assertThat(schemaAssertion.expected().type()).isEqualTo("inline");
+        assertThat(schemaAssertion.expected().content()).isEqualTo("{\"type\": \"object\"}");
+        assertThat(schemaAssertion.expected().ignore()).isNull();
+    }
+
+    @Test
     void elvisOperatorUsesDefaultValueWhenVariableIsMissing() throws Exception {
         Path path = Path.of(getClass().getResource("/test-suite-elvis.yml").toURI());
 

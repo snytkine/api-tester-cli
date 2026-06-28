@@ -459,9 +459,24 @@ Verify the response JSON matches an expected JSON document. Optionally ignore vo
 | Field | Type | Description |
 |-------|------|-------------|
 | `path` | String | Path to the JSON value (e.g. `response.body.json` or `response.body.json.user`) |
-| `expected` | Object | Contains `type` (inline or file) and `content` (JSON string or file path), plus optional `ignore` list |
+| `expected` | Object or String | Either an object with `type` (inline or file) and `content` (JSON string or file path), plus optional `ignore` list — or a plain string, treated as inline content |
 
 The `ignore` field removes specified top-level keys from both actual and expected before comparison, useful for timestamps and generated IDs.
+
+A plain string is a shorthand for `type: inline`. The following two assertions are equivalent:
+
+```yaml
+assertions:
+- type: "json_match"
+  path: "response.body.json"
+  expected: '{"id": 1, "name": "Alice"}'
+# is equivalent to
+- type: "json_match"
+  path: "response.body.json"
+  expected:
+    type: "inline"
+    content: '{"id": 1, "name": "Alice"}'
+```
 
 ```yaml
 assertions:
@@ -503,9 +518,11 @@ Validate the response JSON against a JSON Schema document.
 | Field | Type | Description |
 |-------|------|-------------|
 | `path` | String | Path to the JSON value |
-| `expected` | Object | Contains `type` and `content` (schema as string or file path) |
+| `expected` | Object or String | Either an object with `type` and `content` (schema as string or file path) — or a plain string, treated as an inline schema |
 
 Supports JSON Schema Draft 4, 6, 7, 2019-09, and 2020-12. Schema version is auto-detected from the `$schema` keyword.
+
+As with `json_match`, a plain string is a shorthand for `type: inline` (an inline schema).
 
 ```yaml
 assertions:
