@@ -21,6 +21,7 @@ import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
@@ -71,6 +72,13 @@ public class HtmlReportGenerator {
 
     /** Matches a complete {@code <style>…</style>} block, capturing the inner content. */
     private static final Pattern STYLE_PATTERN = Pattern.compile("(?s)(<style[^>]*>)(.*?)(</style>)");
+
+    /**
+     * Displayed in place of a real username/password in the report. The raw credentials in {@link
+     * io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo#auth()} must never reach
+     * the rendered HTML.
+     */
+    private static final String MASKED_VALUE = "*****";
 
     static {
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
@@ -186,6 +194,11 @@ public class HtmlReportGenerator {
         map.put(
                 "requestHeaders",
                 headersToList(tc.requestInfo() != null ? tc.requestInfo().headers() : null));
+        RequestAuth auth = tc.requestInfo() != null ? tc.requestInfo().auth() : null;
+        map.put("hasAuth", auth != null);
+        map.put("authType", auth != null ? auth.type().name() : null);
+        map.put("authUsername", auth != null ? MASKED_VALUE : null);
+        map.put("authPassword", auth != null ? MASKED_VALUE : null);
         map.put("hasResponse", tc.apiResponse() != null);
         map.put("responseStatus", tc.apiResponse() != null ? tc.apiResponse().statusCode() : null);
         map.put("responseTimeMs", tc.apiResponse() != null ? tc.apiResponse().responseTimeMs() : null);

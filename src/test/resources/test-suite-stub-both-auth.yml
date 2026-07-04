@@ -1,0 +1,19 @@
+---
+name: "Suite with both rest_client auth and request-level auth"
+rest-client:
+  auth:
+    type: "basic"
+    username: "suiteuser"
+    password: "suitepass"
+tests:
+- name: "GET with request auth overriding suite auth"
+  request:
+    method: "GET"
+    url: "/objects"
+    auth:
+      type: "basic"
+      username: "requser"
+      password: "reqpass"
+  assertions:
+  - type: "status_code"
+    expected: 200

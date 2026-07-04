@@ -54,4 +54,17 @@ public record ExecutedRequestInfo(
          * The resolved request body string, or {@code null} for bodyless requests (e.g. GET, HEAD).
          * For {@code FILE}-type bodies this is the fully loaded and template-processed file content.
          */
-        @Nullable String body) {}
+        @Nullable String body,
+
+        /**
+         * The authentication actually applied to this request — from the test case's own {@code
+         * request.auth}, or falling back to the selected rest-client's {@code auth} — or {@code null}
+         * when no authentication was applied (including when an explicit {@code Authorization} header
+         * took precedence over a declared {@code auth}).
+         *
+         * <p>Holds the real, unmasked {@link RequestAuth#username()}/{@link RequestAuth#password()}.
+         * Masking these values for display is a report-rendering concern (see {@code
+         * HtmlReportGenerator}), not a model concern — this field must never be serialised or logged
+         * verbatim.
+         */
+        @Nullable RequestAuth auth) {}

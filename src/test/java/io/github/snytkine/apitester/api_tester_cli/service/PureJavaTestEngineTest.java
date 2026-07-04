@@ -130,6 +130,7 @@ class PureJavaTestEngineTest {
                 .isEqualTo(io.github.snytkine.apitester.api_tester_cli.model.HttpMethod.GET);
         assertThat(firstResult.requestInfo().url()).isEqualTo("/objects");
         assertThat(firstResult.requestInfo().body()).isNull();
+        assertThat(firstResult.requestInfo().auth()).isNull();
     }
 
     @Test

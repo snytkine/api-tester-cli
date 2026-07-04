@@ -362,6 +362,23 @@
               </div>
             </div>
           </div>
+          <div th:if="${t.hasAuth}">
+            <p class="section-label">Authentication</p>
+            <div class="headers-grid">
+              <div class="header-row">
+                <span class="header-name">Type</span>
+                <span class="header-value" th:text="${t.authType}">BASIC</span>
+              </div>
+              <div class="header-row">
+                <span class="header-name">Username</span>
+                <span class="header-value" th:text="${t.authUsername}">*****</span>
+              </div>
+              <div class="header-row">
+                <span class="header-name">Password</span>
+                <span class="header-value" th:text="${t.authPassword}">*****</span>
+              </div>
+            </div>
+          </div>
           <div th:if="${t.requestBody != null}">
             <p class="section-label">Body</p>
             <pre><code th:text="${t.requestBody}"></code></pre>

@@ -162,6 +162,10 @@ Shows the HTTP request that was sent to the server:
 
 - **Method + URL** — for example `GET https://api.example.com/users`
 - **Request headers** — all headers sent, including `Authorization`, `Content-Type`, etc.
+- **Authentication** — shown only when the test's request declares `auth` (or falls back to a
+  suite-wide `rest-client.auth`). The authentication **type** is shown in full (e.g. `BASIC`), but
+  the **username and password are always masked** as `*****` — the real credentials are never
+  written into the report.
 - **Request body** — the raw body text, when a body was included
 
 #### Response

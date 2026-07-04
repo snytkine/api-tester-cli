@@ -433,7 +433,8 @@ public class PureJavaTestEngine implements TestEngine {
                 config.request().method(),
                 config.request().url(),
                 config.request().headers(),
-                resolvedBody));
+                resolvedBody,
+                resolveEffectiveAuth(testSuite, config)));
 
         RestClient selectedClient = selectRestClient(restClients, defaultRestClient, config);
         RestClient.RequestBodySpec requestSpec = buildRequestSpec(selectedClient, config, resolvedBody);
@@ -679,5 +680,32 @@ public class PureJavaTestEngine implements TestEngine {
             return false;
         }
         return headers.keySet().stream().anyMatch(h -> h.equalsIgnoreCase(HttpHeaders.AUTHORIZATION));
+    }
+
+    /**
+     * Resolves the authentication that actually applies to a test case's request, mirroring the
+     * precedence implemented across {@link #buildRestClient} and {@link #buildRequestSpec}: a
+     * request-level {@code auth} wins when present and not itself overridden by an explicit {@code
+     * Authorization} header (in which case the header wins and no auth is reported); otherwise the
+     * selected rest-client's suite-level {@code auth} applies, falling back to the suite's default
+     * rest-client the same way {@link #selectRestClient} does when the request selects no client or
+     * an unresolvable one.
+     *
+     * @param testSuite the suite whose {@link TestSuite#restClientsById()} provides the rest-client
+     *     configurations to fall back to
+     * @param config the test case whose request's effective auth is being resolved
+     * @return the {@link RequestAuth} actually applied to this request, or {@code null} when none was
+     *     applied
+     */
+    private static @Nullable RequestAuth resolveEffectiveAuth(TestSuite testSuite, TestCase config) {
+        RequestAuth requestAuth = config.request().auth();
+        if (requestAuth != null && !hasAuthorizationHeader(config.request().headers())) {
+            return requestAuth;
+        }
+        String id = config.request().restClient();
+        RestClientConfig restClientConfig = testSuite
+                .restClientsById()
+                .getOrDefault(id, testSuite.restClientsById().get(TestSuite.DEFAULT_REST_CLIENT_ID));
+        return restClientConfig != null ? restClientConfig.auth() : null;
     }
 }

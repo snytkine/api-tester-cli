@@ -21,9 +21,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.AuthType;
 import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
@@ -98,6 +100,38 @@ class HtmlReportGeneratorTest {
         assertThat(html).contains("class=\"upgrade-banner\"");
         assertThat(html).contains("Version 9.9.9 is available.");
         assertThat(html).contains("https://github.com/snytkine/api-tester-cli/releases/latest");
+    }
+
+    @Test
+    void generateOmitsAuthenticationBlockWhenNoAuthCaptured() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("Authentication");
+    }
+
+    @Test
+    void generateShowsMaskedCredentialsAndNeverTheRawValues() throws Exception {
+        TestCaseResult withAuth = new TestCaseResult(
+                "Get secured pets",
+                TestResult.PASSED,
+                1,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(
+                        HttpMethod.GET, "/api/pets", null, null, new RequestAuth(AuthType.BASIC, "realuser", "s3cr3t")),
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
+        TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withAuth), Map.of());
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Authentication");
+        assertThat(html).contains("BASIC");
+        assertThat(html).contains("*****");
+        assertThat(html).doesNotContain("realuser");
+        assertThat(html).doesNotContain("s3cr3t");
     }
 
     @Test
@@ -324,7 +358,7 @@ class HtmlReportGeneratorTest {
                 3,
                 List.of(),
                 null,
-                new ExecutedRequestInfo(HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null),
+                new ExecutedRequestInfo(HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null, null),
                 new ApiResponse(
                         200,
                         Map.of("Content-Type", "application/json"),
@@ -337,7 +371,7 @@ class HtmlReportGeneratorTest {
                 1,
                 List.of(new AssertionFailure("status_code equals 201", "201", "400", "Expected 201 but was 400")),
                 null,
-                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}"),
+                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}", null),
                 new ApiResponse(
                         400,
                         Map.of("Content-Type", "application/json"),
