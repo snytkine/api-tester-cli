@@ -33,11 +33,13 @@ import org.jspecify.annotations.Nullable;
  * @param headers optional HTTP headers; {@code null} when none are declared
  * @param body optional request body descriptor; {@code null} when no body is declared
  * @param auth optional authentication configuration; {@code null} when none are declared
+ * @param restClient optional id of the REST client to use; {@code null} to use the default client
  */
 public record PayloadRequest(
         HttpMethod method,
         String url,
         Map<String, String> headers,
         @Nullable RequestBody body,
-        @Nullable RequestAuth auth)
+        @Nullable RequestAuth auth,
+        @Nullable String restClient)
         implements Request {}

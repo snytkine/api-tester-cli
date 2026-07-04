@@ -33,6 +33,12 @@ import org.jspecify.annotations.Nullable;
  * @param url the target URL or path
  * @param headers optional HTTP headers; {@code null} when none are declared
  * @param auth optional authentication configuration; {@code null} when none are declared
+ * @param restClient optional id of the REST client to use; {@code null} to use the default client
  */
-public record BodylessRequest(HttpMethod method, String url, Map<String, String> headers, @Nullable RequestAuth auth)
+public record BodylessRequest(
+        HttpMethod method,
+        String url,
+        Map<String, String> headers,
+        @Nullable RequestAuth auth,
+        @Nullable String restClient)
         implements Request {}

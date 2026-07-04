@@ -8,39 +8,101 @@ A test suite is defined in YAML format with a top-level structure, HTTP request 
 |-------|----------|------|-------------|
 | `name` | **Yes** | String | Display name for the test suite |
 | `description` | No | String | Human-readable description of what the suite tests |
-| `rest_client` | No | Object | HTTP client configuration (base URL, timeout, default headers) |
+| `rest-client` | Yes¹ | Object | Single default HTTP client (base URL, timeout, default headers, auth) |
+| `rest-clients` | Yes¹ | List | Multiple named HTTP clients, each with an `id` |
 | `variables` | No | Map | Suite-level template variables; supports Thymeleaf expressions |
 | `tests` | **Yes** | List | Ordered list of test cases |
 
-## `rest_client` block (optional)
+¹ Exactly one of `rest-client` (singular) or `rest-clients` (plural) must be present.
+Declaring neither — or both — is a validation error.
 
-Provide suite-level HTTP client defaults:
+## HTTP clients: `rest-client` / `rest-clients`
+
+Every suite must declare its HTTP client(s) using **exactly one** of two mutually
+exclusive keys.
+
+### `rest-client` (singular) — one default client
+
+Shorthand for a suite that talks to a single service. No `id` is needed; this block is
+always the default client used by every request.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `base_url` | String | `""` (empty) | Base URL prepended to all relative test URLs. Test URLs are used as-is when empty. |
-| `connect_timeout` | Integer | `30000` | Connection timeout in milliseconds. |
+| `base-url` | String | `""` (empty) | Base URL prepended to all relative test URLs. Test URLs are used as-is when empty. |
+| `connect-timeout` | Integer | `30000` | Connection timeout in milliseconds. |
 | `headers` | Map | (none) | Default HTTP headers sent with every request. Per-test headers take precedence for same-named keys. |
 | `auth` | Object | (none) | Optional HTTP Basic Auth applied as default to all requests in the suite. See "Authentication" section below. |
 
-Example:
-
 ```yaml
-rest_client:
-  base_url: "https://api.example.com"
-  connect_timeout: 60000
+rest-client:
+  base-url: "https://api.example.com"
+  connect-timeout: 60000
   headers:
     x-api-key: "test-key-123"
     Accept: "application/json"
 ```
 
-### Authentication
+### `rest-clients` (plural) — multiple named clients
 
-Declare suite-level HTTP Basic Auth to apply credentials to every request:
+For suites that call more than one service or environment. Each entry supports all the
+fields above **plus** an `id`. A request selects a client with its own `rest-client`
+property; requests without one use the client whose `id` is `default`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | String | Unique client id. **Required when more than one client is configured.** Optional (implicitly `default`) when the list has exactly one entry. |
 
 ```yaml
-rest_client:
-  base_url: "https://api.example.com"
+rest-clients:
+  - id: default
+    base-url: "https://api.example.com"
+    connect-timeout: 30000
+
+  - id: payments
+    base-url: "https://payments.example.com"
+    connect-timeout: 10000
+
+tests:
+  - name: "Pay invoice"
+    request:
+      rest-client: payments   # selects the 'payments' client by id
+      method: "POST"
+      url: "/invoices/pay"
+    assertions:
+      - type: "status_code"
+        expected: 200
+
+  - name: "List users"
+    request:
+      method: "GET"           # no rest-client → uses the 'default' client
+      url: "/users"
+    assertions:
+      - type: "status_code"
+        expected: 200
+```
+
+**Validation rules** (checked before execution, at the same stage as the unique
+test-name check):
+
+1. Exactly one of `rest-client` / `rest-clients` must be present — *"Test suite must
+   define exactly one of 'rest-client' or 'rest-clients', but found neither / …found both"*.
+2. `id` values in `rest-clients` must be unique — *"Duplicate rest-client id: '<id>'"*.
+3. When multiple clients are configured, every entry must have an `id` — *"rest-client at
+   index <n> is missing required 'id' (required when multiple rest-clients are configured)"*.
+4. A request's `rest-client` id must reference a defined client — *"Test '<name>'
+   references unknown rest-client id: '<id>'"*.
+
+The per-request `rest-client` selector is only meaningful with the plural `rest-clients`
+form; when the singular `rest-client` form is used it is ignored (a warning is logged) and
+the default client is used.
+
+### Authentication
+
+Declare HTTP Basic Auth on a client to apply credentials to every request that uses it:
+
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
   auth:
     type: "basic"
     username: "[[${env.API_USER}]]"
@@ -63,7 +125,7 @@ Never hardcode usernames and passwords directly in your test suite YAML. Instead
    Then reference them in your suite:
 
    ```yaml
-   rest_client:
+   rest-client:
      auth:
        type: "basic"
        username: "[[${env.API_USER}]]"
@@ -86,15 +148,15 @@ Never hardcode usernames and passwords directly in your test suite YAML. Instead
 
 When multiple authentication methods are specified, they follow this precedence (lowest to highest):
 
-1. **Suite-level default** (`rest_client.auth`) — applied to all requests
-2. **Per-request override** (`request.auth`) — overrides suite-level auth for that test
+1. **Client-level default** (`rest-client.auth`) — applied to all requests using that client
+2. **Per-request override** (`request.auth`) — overrides the client's auth for that test
 3. **Explicit header** (`request.headers.Authorization`) — always takes precedence
 
 Example demonstrating precedence:
 
 ```yaml
-rest_client:
-  base_url: "https://api.example.com"
+rest-client:
+  base-url: "https://api.example.com"
   auth:
     type: "basic"
     username: "[[${env.API_USER}]]"
@@ -105,7 +167,7 @@ tests:
     request:
       method: "GET"
       url: "/data"
-    # Uses rest_client.auth credentials automatically
+    # Uses rest-client.auth credentials automatically
 
   - name: "Test with per-request auth override"
     request:
@@ -245,6 +307,14 @@ assertions:
   milliseconds: 5000
 ```
 
+For `json_match` and `json_schema`, the `expected` field also accepts a plain string as a shorthand for `type: inline`, mirroring the request `body` shorthand above:
+
+```yaml
+- type: "json_match"
+  path: "response.body.json"
+  expected: '{"message": "success"}'
+```
+
 See [Assertions](assertions.md) for the full list of 25+ assertion types and examples.
 
 ## Complete example
@@ -253,9 +323,9 @@ See [Assertions](assertions.md) for the full list of 25+ assertion types and exa
 name: "User Management API Test Suite"
 description: "Test create, read, update, delete user operations"
 
-rest_client:
-  base_url: "https://api.example.com"
-  connect_timeout: 30000
+rest-client:
+  base-url: "https://api.example.com"
+  connect-timeout: 30000
   headers:
     Accept: "application/json"
   auth:
@@ -264,7 +334,7 @@ rest_client:
     password: "[[${env.API_PASSWORD}]]"
 
 variables:
-  api_base_url: "[[${suite.rest_client.base_url}]]"
+  api_base_url: "https://api.example.com"
   request_id: "[[${#strings.randomAlphanumeric(12)}]]"
   timestamp: "[[${#temporals.format(#temporals.createToday(), 'yyyy-MM-dd')}]]"
 

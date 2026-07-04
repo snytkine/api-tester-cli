@@ -49,6 +49,9 @@ The simplest workflow is to name your file `test-suite.yml` and run the CLI from
 ```yaml
 # test-suite.yml
 name: "My First Test Suite"
+rest-client:
+  # Every suite must declare a client; base-url is optional when URLs are absolute
+  connect-timeout: 30000
 tests:
 - name: "Verify API is responding"
   request:

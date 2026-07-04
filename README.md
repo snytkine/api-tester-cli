@@ -18,7 +18,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 ## What It Does
 
 - Executes HTTP test suites described in YAML
-- Supports suite-level `rest_client` defaults such as `base_url`, `connect_timeout`, shared headers, and HTTP Basic Auth
+- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, and HTTP Basic Auth
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
@@ -95,9 +95,9 @@ The top-level structure looks like this:
 name: "User API smoke suite"
 description: "Basic end-to-end checks for the user endpoints."
 
-rest_client:
-  base_url: "[[${cli.base_url != null ? cli.base_url : 'http://localhost:8080'}]]"
-  connect_timeout: 30000
+rest-client:
+  base-url: "[[${cli.base_url != null ? cli.base_url : 'http://localhost:8080'}]]"
+  connect-timeout: 30000
   headers:
     Accept: "application/json"
 
@@ -147,28 +147,65 @@ tests:
 
 - `name`: required suite name
 - `description`: optional suite description
-- `rest_client`: optional suite-wide HTTP client defaults
+- `rest-client` / `rest-clients`: HTTP client(s) — exactly one is required (see below)
 - `variables`: optional suite-level variables
 - `tests`: required list of test cases
 
-### `rest_client`
+### `rest-client` / `rest-clients`
 
-`rest_client` supports:
+Every suite must declare its HTTP client(s) using **exactly one** of two mutually
+exclusive keys. Declaring neither — or both — is a validation error.
 
-- `base_url`: prepended to relative request URLs
-- `connect_timeout`: timeout in milliseconds; defaults to `30000`
-- `headers`: default headers added to every request in the suite
-- `auth`: optional HTTP Basic Auth (suite-level default)
+**`rest-client` (singular)** — shorthand for a single default client:
 
-Per-test headers override same-named suite-level headers. Per-test authentication and explicit `Authorization` headers in request headers override suite-level authentication.
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
+  connect-timeout: 30000
+  headers:
+    Accept: "application/json"
+```
+
+**`rest-clients` (plural)** — multiple named clients, each with an `id`. A request selects
+one via its own `rest-client` property; requests without one use the client whose `id` is
+`default`:
+
+```yaml
+rest-clients:
+  - id: default
+    base-url: "https://api.example.com"
+  - id: payments
+    base-url: "https://payments.example.com"
+    connect-timeout: 10000
+
+tests:
+  - name: "Pay invoice"
+    request:
+      rest-client: payments   # selects the 'payments' client
+      method: "POST"
+      url: "/invoices/pay"
+    assertions:
+      - type: "status_code"
+        expected: 200
+```
+
+Each client supports:
+
+- `id`: client id (required when more than one client is configured; implicitly `default` for a single unnamed client)
+- `base-url`: prepended to relative request URLs
+- `connect-timeout`: timeout in milliseconds; defaults to `30000`
+- `headers`: default headers added to every request using the client
+- `auth`: optional HTTP Basic Auth (client-level default)
+
+Per-test headers override same-named client-level headers. Per-test authentication and explicit `Authorization` headers in request headers override client-level authentication. The per-request `rest-client` selector is ignored (a warning is logged) when the singular `rest-client` form is used.
 
 #### HTTP Basic Auth
 
-Declare suite-level authentication with `auth`:
+Declare client-level authentication with `auth`:
 
 ```yaml
-rest_client:
-  base_url: "https://api.example.com"
+rest-client:
+  base-url: "https://api.example.com"
   auth:
     type: "basic"
     username: "[[${env.API_USER}]]"
@@ -195,8 +232,8 @@ tests:
 **Best Practice:** Store usernames and passwords in a `.env` file or environment variables, then reference them via `[[${env.API_USER}]]` and `[[${env.API_PASSWORD}]]` (never hardcode credentials in the YAML).
 
 Precedence (lowest to highest):
-1. Suite-level `rest_client.auth` (applied as default to all requests)
-2. Per-request `request.auth` (overrides suite-level)
+1. Client-level `rest-client.auth` (applied as default to all requests using the client)
+2. Per-request `request.auth` (overrides client-level)
 3. Explicit `Authorization` header in `request.headers` (always wins)
 
 ### Test cases

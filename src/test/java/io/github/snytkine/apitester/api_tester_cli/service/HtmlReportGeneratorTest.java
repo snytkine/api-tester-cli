@@ -277,7 +277,8 @@ class HtmlReportGeneratorTest {
     }
 
     private static TestSuite buildTestSuite() {
-        return new TestSuite("Pet Store API", "Integration tests for the pet store", null, null, List.of(), null, null);
+        return new TestSuite(
+                "Pet Store API", "Integration tests for the pet store", null, null, null, List.of(), null, null);
     }
 
     private static TestRunResult buildTestRunResult() {

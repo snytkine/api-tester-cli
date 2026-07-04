@@ -27,9 +27,9 @@ import org.jspecify.annotations.Nullable;
  * values. This makes {@code ExecutedRequestInfo} suitable as a source of truth for report
  * generation without needing to re-run any logic.
  *
- * <p>Note: {@code url} may be a relative path (e.g. {@code /api/users}) when the suite declares a
- * {@code base_url} in its {@link RestClientConfig}. The base URL is accessible separately via
- * {@link TestSuite#restClientConfig()}.
+ * <p>Note: {@code url} may be a relative path (e.g. {@code /api/users}) when the selected
+ * {@link RestClientConfig} declares a {@code base-url}. The suite's REST client configuration is
+ * accessible separately via {@link TestSuite#restClientsById()}.
  *
  * <p>Thread-safety: immutable after construction; safe to read from any thread.
  */

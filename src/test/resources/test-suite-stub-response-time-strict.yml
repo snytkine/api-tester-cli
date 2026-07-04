@@ -1,7 +1,7 @@
 ---
 name: "Stub Suite – response_time strict"
-rest_client:
-  base_url: "http://stub.test"
+rest-client:
+  base-url: "http://stub.test"
 tests:
 - name: "Strict response time check"
   request:

@@ -15,16 +15,16 @@
       "type": "string",
       "description": "Optional description of the test suite"
     },
-    "rest_client": {
+    "rest-client": {
       "type": "object",
-      "description": "Optional HTTP client settings applied to all requests in the suite",
+      "description": "Single default HTTP client applied to all requests in the suite. Mutually exclusive with 'rest-clients'.",
       "additionalProperties": false,
       "properties": {
-        "base_url": {
+        "base-url": {
           "type": "string",
           "description": "Base URL prepended to all relative request URLs in the suite"
         },
-        "connect_timeout": {
+        "connect-timeout": {
           "type": "integer",
           "description": "Connection timeout in milliseconds",
           "minimum": 0
@@ -39,6 +39,41 @@
         "auth": {
           "$ref": "#/$defs/RequestAuth",
           "description": "Optional authentication configuration applied as a default to every request in the suite"
+        }
+      }
+    },
+    "rest-clients": {
+      "type": "array",
+      "description": "Multiple named HTTP clients. Each request may select one by id via its 'rest-client' property. Mutually exclusive with 'rest-client'.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique id of this client. Required when more than one client is configured; the client with id 'default' is used by requests that do not select a client."
+          },
+          "base-url": {
+            "type": "string",
+            "description": "Base URL prepended to all relative request URLs that use this client"
+          },
+          "connect-timeout": {
+            "type": "integer",
+            "description": "Connection timeout in milliseconds",
+            "minimum": 0
+          },
+          "headers": {
+            "type": "object",
+            "description": "Optional default HTTP headers sent with every request that uses this client",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "auth": {
+            "$ref": "#/$defs/RequestAuth",
+            "description": "Optional authentication configuration applied as a default to every request that uses this client"
+          }
         }
       }
     },
@@ -58,6 +93,10 @@
       }
     }
   },
+  "oneOf": [
+    {"required": ["rest-client"], "not": {"required": ["rest-clients"]}},
+    {"required": ["rest-clients"], "not": {"required": ["rest-client"]}}
+  ],
   "$defs": {
     "TestCase": {
       "type": "object",
@@ -128,7 +167,11 @@
         },
         "url": {
           "type": "string",
-          "description": "Target URL or path (relative to rest_client.base_url when set)"
+          "description": "Target URL or path (relative to the selected client's base-url when set)"
+        },
+        "rest-client": {
+          "type": "string",
+          "description": "Id of the client (from 'rest-clients') to use for this request. When omitted, the default client is used. Ignored when the suite uses the singular 'rest-client' form."
         },
         "headers": {
           "type": "object",
@@ -167,7 +210,11 @@
         },
         "url": {
           "type": "string",
-          "description": "Target URL or path (relative to rest_client.base_url when set)"
+          "description": "Target URL or path (relative to the selected client's base-url when set)"
+        },
+        "rest-client": {
+          "type": "string",
+          "description": "Id of the client (from 'rest-clients') to use for this request. When omitted, the default client is used. Ignored when the suite uses the singular 'rest-client' form."
         },
         "headers": {
           "type": "object",
@@ -683,8 +730,14 @@
         "type": {"type": "string", "const": "json_match"},
         "path": {"$ref": "#/$defs/PathExpression"},
         "expected": {
-          "$ref": "#/$defs/ContentReference",
-          "description": "Reference to the expected JSON document"
+          "description": "Reference to the expected JSON document, or an inline JSON string (shorthand for type: inline)",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Inline expected JSON (shorthand — equivalent to type: inline)"
+            },
+            {"$ref": "#/$defs/ContentReference"}
+          ]
         }
       }
     },
@@ -697,8 +750,14 @@
         "type": {"type": "string", "const": "json_schema"},
         "path": {"$ref": "#/$defs/PathExpression"},
         "expected": {
-          "$ref": "#/$defs/ContentReference",
-          "description": "Reference to the JSON Schema file"
+          "description": "Reference to the JSON Schema file, or an inline JSON Schema string (shorthand for type: inline)",
+          "oneOf": [
+            {
+              "type": "string",
+              "description": "Inline JSON Schema (shorthand — equivalent to type: inline)"
+            },
+            {"$ref": "#/$defs/ContentReference"}
+          ]
         }
       }
     },

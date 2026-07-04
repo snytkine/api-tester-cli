@@ -27,7 +27,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -62,11 +64,36 @@ public class TestSuiteLoader {
         return new TestSuite(
                 testSuite.name(),
                 testSuite.description(),
-                RestClientConfig.withDefaults(testSuite.restClientConfig()),
+                defaultedClient(testSuite.restClient()),
+                defaultedClients(testSuite.restClients()),
                 testSuite.variables(),
                 testSuite.tests(),
                 filePath,
                 templateContent);
+    }
+
+    /**
+     * Applies scalar defaults to a singular {@code rest-client} config, preserving {@code null} when
+     * the key was absent so that {@link TestSuiteValidator} can detect a missing declaration.
+     *
+     * @param raw the parsed singular config, or {@code null} when absent
+     * @return a defaulted config, or {@code null} when {@code raw} is {@code null}
+     */
+    private static @Nullable RestClientConfig defaultedClient(@Nullable RestClientConfig raw) {
+        return raw == null ? null : RestClientConfig.withDefaults(raw);
+    }
+
+    /**
+     * Applies scalar defaults to every entry of a {@code rest-clients} list, preserving {@code null}
+     * when the key was absent so that {@link TestSuiteValidator} can detect a missing declaration.
+     *
+     * @param raw the parsed list, or {@code null} when absent
+     * @return a list of defaulted configs, or {@code null} when {@code raw} is {@code null}
+     */
+    private static @Nullable List<RestClientConfig> defaultedClients(@Nullable List<RestClientConfig> raw) {
+        return raw == null
+                ? null
+                : raw.stream().map(RestClientConfig::withDefaults).toList();
     }
 
     /**
@@ -124,7 +151,8 @@ public class TestSuiteLoader {
         return new TestSuite(
                 processedTestSuite.name(),
                 processedTestSuite.description(),
-                RestClientConfig.withDefaults(processedTestSuite.restClientConfig()),
+                defaultedClient(processedTestSuite.restClient()),
+                defaultedClients(processedTestSuite.restClients()),
                 resolvedVariables,
                 processedTestSuite.tests(),
                 filePath,

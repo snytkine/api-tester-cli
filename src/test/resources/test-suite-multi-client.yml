@@ -1,0 +1,25 @@
+---
+name: "Suite with multiple rest clients"
+rest-clients:
+- id: "default"
+  base-url: "https://api.example.com"
+  connect-timeout: 30000
+- id: "payments"
+  base-url: "https://payments.example.com"
+  connect-timeout: 10000
+tests:
+- name: "List users"
+  request:
+    method: "GET"
+    url: "/users"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "Pay invoice"
+  request:
+    rest-client: "payments"
+    method: "POST"
+    url: "/invoices/pay"
+  assertions:
+  - type: "status_code"
+    expected: 200

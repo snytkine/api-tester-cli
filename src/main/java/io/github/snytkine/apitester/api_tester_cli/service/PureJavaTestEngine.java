@@ -170,7 +170,9 @@ public class PureJavaTestEngine implements TestEngine {
     @Override
     public TestRunResult runConfigurationSuite(
             TestSuite testSuite, SuiteRunContext context, TestProgressListener listener) {
-        RestClient restClient = buildRestClient(testSuite.restClientConfig());
+        Map<String, RestClient> restClients = new LinkedHashMap<>();
+        testSuite.restClientsById().forEach((id, config) -> restClients.put(id, buildRestClient(config)));
+        RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
         Map<String, Map<String, String>> configMap =
@@ -202,7 +204,8 @@ public class PureJavaTestEngine implements TestEngine {
 
             try {
                 executeSingleTest(
-                        restClient,
+                        restClients,
+                        defaultRestClient,
                         testSuite,
                         i,
                         suiteDir,
@@ -316,7 +319,9 @@ public class PureJavaTestEngine implements TestEngine {
      * MultipleFailuresError}. Both are caught by the caller in
      * {@link #runConfigurationSuite}.
      *
-     * @param restClient the configured client for this suite run
+     * @param restClients     the configured clients for this suite run, keyed by id
+     * @param defaultRestClient the default client, used when a request selects no client or
+     *                          selects an unknown one
      * @param testSuite  the loaded test suite containing the raw YAML template and
      *                   test cases
      * @param i          zero-based index of the test case to execute within
@@ -338,7 +343,8 @@ public class PureJavaTestEngine implements TestEngine {
      *     be read from disk
      */
     private void executeSingleTest(
-            RestClient restClient,
+            Map<String, RestClient> restClients,
+            RestClient defaultRestClient,
             TestSuite testSuite,
             int i,
             @Nullable Path suiteDir,
@@ -429,7 +435,8 @@ public class PureJavaTestEngine implements TestEngine {
                 config.request().headers(),
                 resolvedBody));
 
-        RestClient.RequestBodySpec requestSpec = buildRequestSpec(restClient, config, resolvedBody);
+        RestClient selectedClient = selectRestClient(restClients, defaultRestClient, config);
+        RestClient.RequestBodySpec requestSpec = buildRequestSpec(selectedClient, config, resolvedBody);
         RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
         log.debug(
@@ -599,6 +606,38 @@ public class PureJavaTestEngine implements TestEngine {
             builder.defaultHeader(HttpHeaders.AUTHORIZATION, basicAuthHeaderValue(suiteAuth));
         }
         return builder.build();
+    }
+
+    /**
+     * Selects the {@link RestClient} a test case's request should use.
+     *
+     * <p>When the request declares no {@code rest-client} id, or declares one that is not among the
+     * suite's configured clients (which can happen when the suite uses the singular {@code
+     * rest-client} form, where the selector is ignored), the {@code defaultRestClient} is returned. A
+     * warning is logged when a declared id cannot be resolved. When the suite uses the plural {@code
+     * rest-clients} form, {@link TestSuiteValidator} has already guaranteed that any declared id
+     * exists.
+     *
+     * @param restClients       the configured clients keyed by id
+     * @param defaultRestClient the fallback client
+     * @param config            the test case whose request selects the client
+     * @return the {@link RestClient} to use for this request
+     */
+    private RestClient selectRestClient(
+            Map<String, RestClient> restClients, RestClient defaultRestClient, TestCase config) {
+        String requestedId = config.request().restClient();
+        if (requestedId == null) {
+            return defaultRestClient;
+        }
+        RestClient selected = restClients.get(requestedId);
+        if (selected != null) {
+            return selected;
+        }
+        log.warn(
+                "Test '{}' request selects rest-client '{}' which is not defined; using the default client",
+                config.name(),
+                requestedId);
+        return defaultRestClient;
     }
 
     /**

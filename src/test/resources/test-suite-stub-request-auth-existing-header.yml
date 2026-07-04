@@ -1,5 +1,7 @@
 ---
 name: "Suite with auth and pre-existing Authorization header"
+rest-client:
+  connect-timeout: 30000
 tests:
 - name: "GET with auth and Authorization header"
   request:

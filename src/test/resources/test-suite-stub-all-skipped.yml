@@ -1,7 +1,7 @@
 ---
 name: "All Skipped Suite"
-rest_client:
-  connect_timeout: 5000
+rest-client:
+  connect-timeout: 5000
 tests:
 - name: "skipped test"
   skip: "Not implemented"

@@ -1,5 +1,7 @@
 ---
 name: "Tagged Test Suite"
+rest-client:
+  connect-timeout: 5000
 tests:
 - name: "smoke test one"
   tag: "smoke"

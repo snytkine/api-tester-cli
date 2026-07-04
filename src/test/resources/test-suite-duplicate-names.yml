@@ -1,5 +1,7 @@
 ---
 name: "Dup Suite"
+rest-client:
+  connect-timeout: 5000
 tests:
 - name: "dup"
   request:

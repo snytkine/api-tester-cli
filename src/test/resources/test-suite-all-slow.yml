@@ -1,5 +1,7 @@
 ---
 name: "All Slow Suite"
+rest-client:
+  connect-timeout: 5000
 tests:
 - name: "slow test one"
   tag: "slow"

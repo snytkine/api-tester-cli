@@ -21,6 +21,8 @@ The tool runs as a regular JVM application (fast builds, simplest development) o
 
 ```yaml
 name: "Example Test Suite"
+rest-client:
+  connect-timeout: 30000
 variables:
   api_base_url: "[[${cli.api_url}]]"
 tests:

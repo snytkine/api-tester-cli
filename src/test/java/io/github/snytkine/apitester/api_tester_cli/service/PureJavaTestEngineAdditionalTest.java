@@ -142,12 +142,13 @@ class PureJavaTestEngineAdditionalTest {
                 null,
                 null,
                 Map.of("path", "/objects"),
-                new BodylessRequest(HttpMethod.GET, "/objects", null, null),
+                new BodylessRequest(HttpMethod.GET, "/objects", null, null, null),
                 List.of(new StatusCodeAssertion(200)));
         TestSuite suite = new TestSuite(
                 "no-template-suite",
                 null,
                 RestClientConfig.withDefaults(null),
+                null,
                 Map.of(),
                 List.of(testCase),
                 null,
@@ -175,10 +176,17 @@ class PureJavaTestEngineAdditionalTest {
                 null,
                 "   ",
                 Map.of(),
-                new BodylessRequest(HttpMethod.GET, "/objects", null, null),
+                new BodylessRequest(HttpMethod.GET, "/objects", null, null, null),
                 List.of(new StatusCodeAssertion(200)));
         TestSuite suite = new TestSuite(
-                "blank-skip-suite", null, RestClientConfig.withDefaults(null), Map.of(), List.of(testCase), null, null);
+                "blank-skip-suite",
+                null,
+                RestClientConfig.withDefaults(null),
+                null,
+                Map.of(),
+                List.of(testCase),
+                null,
+                null);
 
         TestRunResult result = engine.runConfigurationSuite(
                 suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
@@ -336,5 +344,87 @@ class PureJavaTestEngineAdditionalTest {
 
         assertThat(result.skippedCount()).isEqualTo(1);
         assertThat(result.passedCount()).isZero();
+    }
+
+    // ---- per-request rest-client selection (selectRestClient) --------------------------
+
+    /**
+     * Verifies that a request declaring {@code rest-client: <id>} is dispatched through the matching
+     * client (identified here by a distinct base URL/host), while a request without a selector uses
+     * the {@code default} client. Correct routing is proven by giving each host a stub that returns a
+     * different status code and asserting both status-code assertions pass.
+     */
+    @Test
+    void perRequestSelectorRoutesToTheChosenClient() throws Exception {
+        Path suiteFile = tempDir.resolve("multi-client-suite.yml");
+        Files.writeString(
+                suiteFile,
+                "---\n"
+                        + "name: \"Multi client suite\"\n"
+                        + "rest-clients:\n"
+                        + "- id: \"default\"\n"
+                        + "  base-url: \"http://api.stub.test\"\n"
+                        + "- id: \"payments\"\n"
+                        + "  base-url: \"http://payments.stub.test\"\n"
+                        + "tests:\n"
+                        + "- name: \"List users\"\n"
+                        + "  request:\n"
+                        + "    method: \"GET\"\n"
+                        + "    url: \"/users\"\n"
+                        + "  assertions:\n"
+                        + "  - type: \"status_code\"\n"
+                        + "    expected: 200\n"
+                        + "- name: \"Pay invoice\"\n"
+                        + "  request:\n"
+                        + "    rest-client: \"payments\"\n"
+                        + "    method: \"POST\"\n"
+                        + "    url: \"/invoices/pay\"\n"
+                        + "  assertions:\n"
+                        + "  - type: \"status_code\"\n"
+                        + "    expected: 201\n");
+        TestSuite suite = loader.load(suiteFile, SuiteRunContext.of(Map.of(), Map.of()));
+        var factory = new StubClientHttpRequestFactory()
+                .stub("api.stub.test", 200, "{}", "application/json")
+                .stub("payments.stub.test", 201, "{}", "application/json");
+        var engine = engineWith(factory);
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(result.passedCount()).isEqualTo(2);
+        assertThat(result.failedCount()).isZero();
+    }
+
+    /**
+     * Verifies that when the suite uses the singular {@code rest-client} form, a request that still
+     * declares a {@code rest-client} selector is ignored and falls back to the default client (rather
+     * than failing). This covers the unknown-id branch of {@code selectRestClient}.
+     */
+    @Test
+    void selectorIsIgnoredUnderSingularFormAndFallsBackToDefault() throws Exception {
+        Path suiteFile = tempDir.resolve("singular-suite.yml");
+        Files.writeString(
+                suiteFile,
+                "---\n"
+                        + "name: \"Singular client suite\"\n"
+                        + "rest-client:\n"
+                        + "  base-url: \"http://api.stub.test\"\n"
+                        + "tests:\n"
+                        + "- name: \"List users\"\n"
+                        + "  request:\n"
+                        + "    rest-client: \"payments\"\n"
+                        + "    method: \"GET\"\n"
+                        + "    url: \"/users\"\n"
+                        + "  assertions:\n"
+                        + "  - type: \"status_code\"\n"
+                        + "    expected: 200\n");
+        TestSuite suite = loader.load(suiteFile, SuiteRunContext.of(Map.of(), Map.of()));
+        var factory = new StubClientHttpRequestFactory().stub("api.stub.test", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(result.passedCount()).isEqualTo(1);
     }
 }

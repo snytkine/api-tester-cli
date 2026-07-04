@@ -22,6 +22,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
 import io.github.snytkine.apitester.api_tester_cli.model.BodylessRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
+import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValueDeserializer;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
@@ -108,6 +109,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     NotEmptyAssertion.class,
     NotNullAssertion.class,
     ObjectExpectedValue.class,
+    ObjectExpectedValueDeserializer.class,
     OneOfAssertion.class,
     PayloadRequest.class,
     RangeAssertion.class,

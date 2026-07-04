@@ -72,11 +72,12 @@ public class RequestDeserializer extends StdDeserializer<Request> {
         String url = node.path("url").asText();
         Map<String, String> headers = readHeaders(node);
         RequestAuth auth = readAuth(codec, node);
+        String restClient = readRestClient(node);
 
         if (PAYLOAD_METHODS.contains(method)) {
-            return new PayloadRequest(method, url, headers, readBody(codec, node), auth);
+            return new PayloadRequest(method, url, headers, readBody(codec, node), auth, restClient);
         }
-        return new BodylessRequest(method, url, headers, auth);
+        return new BodylessRequest(method, url, headers, auth, restClient);
     }
 
     /**
@@ -140,5 +141,20 @@ public class RequestDeserializer extends StdDeserializer<Request> {
             return null;
         }
         return codec.treeToValue(authNode, RequestAuth.class);
+    }
+
+    /**
+     * Reads the optional {@code rest-client} field, the id of the REST client this request should
+     * use.
+     *
+     * @param node the root request node
+     * @return the selected REST client id, or {@code null} when the key is absent
+     */
+    private static String readRestClient(JsonNode node) {
+        JsonNode restClientNode = node.get("rest-client");
+        if (restClientNode == null || restClientNode.isNull()) {
+            return null;
+        }
+        return restClientNode.asText();
     }
 }
