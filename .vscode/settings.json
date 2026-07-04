@@ -11,11 +11,16 @@
   "xml.format.spaceBeforeEmptyCloseTag": true,
   "java.configuration.updateBuildConfiguration": "automatic",
   "yaml.schemas": {
-    ".vscode/schemas/test-suite-schema.json": ["**/test-suite.yml", "**/test-suite.yaml"]
+    ".vscode/schemas/test-suite-schema.json": [
+      "**/test-suite.yml",
+      "**/test-suite.yaml"
+    ]
   },
   "[yaml]": {
     "editor.trimAutoWhitespace": true,
     "files.trimTrailingWhitespace": true,
     "editor.formatOnSave": false
-  }
+  },
+  "java.debug.settings.onBuildFailureProceed": true,
+  "python.terminal.activateEnvironment": false
 }

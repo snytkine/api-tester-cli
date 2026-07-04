@@ -21,8 +21,6 @@ jobs:
             asset-name: api-tester-cli-linux-amd64
           - os: macos-latest
             asset-name: api-tester-cli-macos-aarch64
-          - os: macos-13
-            asset-name: api-tester-cli-macos-amd64
           - os: windows-latest
             asset-name: api-tester-cli-windows-amd64.exe
 
