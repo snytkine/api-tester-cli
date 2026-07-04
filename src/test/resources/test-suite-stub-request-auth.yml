@@ -1,5 +1,7 @@
 ---
 name: "Suite with request-level basic auth"
+rest-client:
+  connect-timeout: 30000
 tests:
 - name: "GET with basic auth"
   request:

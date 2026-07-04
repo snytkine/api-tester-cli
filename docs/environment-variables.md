@@ -112,8 +112,8 @@ request:
     Authorization: "Bearer [[${env.API_KEY}]]"
     x-api-key: "[[${env.API_KEY}]]"
 
-# For HTTP Basic Auth (suite-level default)
-rest_client:
+# For HTTP Basic Auth (client-level default)
+rest-client:
   auth:
     type: "basic"
     username: "[[${env.API_USER}]]"

@@ -64,9 +64,19 @@ public sealed interface Request permits BodylessRequest, PayloadRequest {
     /**
      * Returns the authentication configuration for this request, or {@code null} when no
      * authentication is declared on this request. When non-null, the credentials override any
-     * authentication declared at the suite level ({@code rest_client.auth}).
+     * authentication declared at the suite level ({@code rest-client.auth}).
      *
      * @return a {@link RequestAuth} when authentication is declared, or {@code null}
      */
     @Nullable RequestAuth auth();
+
+    /**
+     * Returns the id of the REST client this request should use, referencing an entry in the suite's
+     * {@code rest-clients} list. When {@code null}, the suite's default client is used. This selector
+     * is only meaningful when the suite declares multiple clients via {@code rest-clients}; it is
+     * ignored when the suite uses the singular {@code rest-client} form.
+     *
+     * @return the selected REST client id, or {@code null} to use the default client
+     */
+    @Nullable String restClient();
 }

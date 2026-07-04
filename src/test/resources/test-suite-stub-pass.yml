@@ -1,7 +1,7 @@
 ---
 name: "Stub Suite – passing"
-rest_client:
-  base_url: "http://stub.test"
+rest-client:
+  base-url: "http://stub.test"
 tests:
 - name: "GET objects – 200"
   request:

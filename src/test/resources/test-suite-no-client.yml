@@ -1,9 +1,6 @@
 ---
-name: "Test Suite for My Application v1.0"
-description: "Integration test suite used to verify HTTP request execution against\
-  \ a live endpoint."
-rest-client:
-  connect-timeout: 5000
+name: "Suite without a rest client"
+description: "Fixture that declares neither rest-client nor rest-clients."
 variables:
   api_base_url: "https://api.restful-api.dev"
 tests:

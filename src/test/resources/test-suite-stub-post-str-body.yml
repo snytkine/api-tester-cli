@@ -1,5 +1,7 @@
 ---
 name: "Suite with POST string body"
+rest-client:
+  connect-timeout: 30000
 tests:
 - name: "POST with string body"
   request:

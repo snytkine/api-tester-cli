@@ -43,6 +43,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -375,7 +376,9 @@ public class RunSuiteCommand {
                     tagFilterActive ? tag : null,
                     testNameFilterActive ? testName : null);
             controller.start();
-            List<String> validationErrors = testSuiteValidator.validate(suiteToRun);
+            List<String> validationErrors = new ArrayList<>();
+            validationErrors.addAll(testSuiteValidator.validate(suiteToRun));
+            validationErrors.addAll(testSuiteValidator.validateRestClients(suiteToRun));
             if (!validationErrors.isEmpty()) {
                 uiListener.onProgress(new TestProgressEvent.ValidationFailed(validationErrors));
             } else if (tagFilterActive && suiteToRun.tests().isEmpty()) {
@@ -388,7 +391,9 @@ public class RunSuiteCommand {
             }
             controller.await();
         } else {
-            List<String> validationErrors = testSuiteValidator.validate(suiteToRun);
+            List<String> validationErrors = new ArrayList<>();
+            validationErrors.addAll(testSuiteValidator.validate(suiteToRun));
+            validationErrors.addAll(testSuiteValidator.validateRestClients(suiteToRun));
             if (!validationErrors.isEmpty()) {
                 reportOptionsError(validationErrors, nonInteractive, context);
                 return;

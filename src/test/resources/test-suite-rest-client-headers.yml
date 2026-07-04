@@ -1,7 +1,7 @@
 ---
 name: "Suite with rest_client headers"
-rest_client:
-  base_url: "https://api.example.com"
+rest-client:
+  base-url: "https://api.example.com"
   headers:
     x-api-key: "test-key-123"
     Accept: "application/json"

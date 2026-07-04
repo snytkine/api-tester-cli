@@ -1,6 +1,6 @@
 ---
 name: "Suite with rest_client basic auth"
-rest_client:
+rest-client:
   auth:
     type: "basic"
     username: "admin"

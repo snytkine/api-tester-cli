@@ -40,7 +40,7 @@ class RestClientConfigTest {
 
     @Test
     void withDefaultsPreservesExplicitValues() {
-        RestClientConfig raw = new RestClientConfig("https://api.example.com", 1000, null, null);
+        RestClientConfig raw = new RestClientConfig(null, "https://api.example.com", 1000, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -50,7 +50,7 @@ class RestClientConfigTest {
 
     @Test
     void withDefaultsFillsMissingBaseUrlAndTimeout() {
-        RestClientConfig raw = new RestClientConfig(null, null, null, null);
+        RestClientConfig raw = new RestClientConfig(null, null, null, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -59,9 +59,18 @@ class RestClientConfigTest {
     }
 
     @Test
+    void withDefaultsPassesThroughIdWhenPresent() {
+        RestClientConfig raw = new RestClientConfig("payments", null, null, null, null);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.id()).isEqualTo("payments");
+    }
+
+    @Test
     void withDefaultsPassesThroughHeadersWhenPresent() {
         Map<String, String> headers = Map.of("x-api-key", "secret", "Accept", "application/json");
-        RestClientConfig raw = new RestClientConfig(null, null, headers, null);
+        RestClientConfig raw = new RestClientConfig(null, null, null, headers, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -70,7 +79,7 @@ class RestClientConfigTest {
 
     @Test
     void withDefaultsPassesThroughNullHeadersWhenAbsent() {
-        RestClientConfig raw = new RestClientConfig("https://api.example.com", 5000, null, null);
+        RestClientConfig raw = new RestClientConfig(null, "https://api.example.com", 5000, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -80,7 +89,7 @@ class RestClientConfigTest {
     @Test
     void withDefaultsPassesThroughAuthWhenPresent() {
         RequestAuth auth = new RequestAuth(AuthType.BASIC, "user", "pass");
-        RestClientConfig raw = new RestClientConfig(null, null, null, auth);
+        RestClientConfig raw = new RestClientConfig(null, null, null, null, auth);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 
@@ -89,7 +98,7 @@ class RestClientConfigTest {
 
     @Test
     void withDefaultsPassesThroughNullAuthWhenAbsent() {
-        RestClientConfig raw = new RestClientConfig(null, null, null, null);
+        RestClientConfig raw = new RestClientConfig(null, null, null, null, null);
 
         RestClientConfig result = RestClientConfig.withDefaults(raw);
 

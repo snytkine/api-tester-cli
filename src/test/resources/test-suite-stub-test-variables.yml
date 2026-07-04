@@ -1,5 +1,7 @@
 ---
 name: "Suite with Test Variables"
+rest-client:
+  connect-timeout: 30000
 tests:
 - name: "GET with test variable url"
   variables:

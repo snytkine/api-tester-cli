@@ -65,6 +65,24 @@ class RequestDeserializerTest {
         assertThat(((PayloadRequest) request).body()).isNull();
     }
 
+    @org.junit.jupiter.api.Test
+    void restClientSelectorIsReadWhenPresent() throws Exception {
+        String json = "{\"method\":\"GET\",\"url\":\"/api/resource\",\"rest-client\":\"payments\"}";
+
+        Request request = mapper.readValue(json, Request.class);
+
+        assertThat(request.restClient()).isEqualTo("payments");
+    }
+
+    @org.junit.jupiter.api.Test
+    void restClientSelectorIsNullWhenAbsent() throws Exception {
+        String json = "{\"method\":\"GET\",\"url\":\"/api/resource\"}";
+
+        Request request = mapper.readValue(json, Request.class);
+
+        assertThat(request.restClient()).isNull();
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"POST", "PUT", "PATCH", "DELETE"})
     void payloadRequestDeserializesInlineStringBody(String method) throws Exception {

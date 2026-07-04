@@ -153,7 +153,7 @@ API_PASSWORD=mypassword
 Then reference them in your suite:
 
 ```yaml
-rest_client:
+rest-client:
   auth:
     type: "basic"
     username: "[[${env.API_USER}]]"

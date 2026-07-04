@@ -142,10 +142,10 @@ Any editor that supports the [Language Server Protocol](https://microsoft.github
 
 The schema enforces the complete test-suite structure, including:
 
-- **Top-level fields** — `name`, `description`, `rest_client`, `variables`, `tests`
-- **`rest_client` block** — `base_url`, `connect_timeout`, `headers`, and `auth` (with `type: "basic"` and credential fields)
+- **Top-level fields** — `name`, `description`, `rest-client` / `rest-clients` (exactly one required), `variables`, `tests`
+- **`rest-client` / `rest-clients` blocks** — `base-url`, `connect-timeout`, `headers`, and `auth` (with `type: "basic"` and credential fields); `rest-clients` entries also carry an `id`
 - **Test cases** — `name`, `description`, `skip`, `tags`, `variables`, `request`, `assertions`
-- **Request definitions** — method, URL, headers, body (`inline` or `file`), and per-request auth
+- **Request definitions** — method, URL, `rest-client` selector, headers, body (`inline` or `file`), and per-request auth
 - **All 30+ assertion types** — each `type` value resolves to its own sub-schema with the correct required and optional fields
 
 When you type `- type: ` inside an `assertions` list, a compliant editor will offer all valid assertion type names. Selecting one immediately reveals the fields that assertion expects.

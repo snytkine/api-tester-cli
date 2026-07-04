@@ -229,7 +229,7 @@ class TestSuiteLoaderTest {
 
         TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        RestClientConfig config = testSuite.restClientConfig();
+        RestClientConfig config = testSuite.defaultRestClient();
         assertThat(config).isNotNull();
         assertThat(config.headers()).isNotNull();
         assertThat(config.headers()).containsEntry("x-api-key", "test-key-123");
@@ -237,15 +237,16 @@ class TestSuiteLoaderTest {
     }
 
     @Test
-    void restClientHeadersAreNullWhenAbsentFromYaml() throws Exception {
-        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+    void restClientIsNullWhenAbsentFromYaml() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-no-client.yml").toURI());
 
         TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        // TestSuiteLoader always applies withDefaults, so restClientConfig() is never null.
-        // When the YAML has no rest_client.headers key, headers() is null.
-        assertThat(testSuite.restClientConfig()).isNotNull();
-        assertThat(testSuite.restClientConfig().headers()).isNull();
+        // No default is synthesized when the YAML declares neither rest-client nor rest-clients;
+        // the absence is reported later by TestSuiteValidator.validateRestClients.
+        assertThat(testSuite.restClient()).isNull();
+        assertThat(testSuite.restClients()).isNull();
+        assertThat(testSuite.defaultRestClient()).isNull();
     }
 
     @Test
@@ -255,7 +256,7 @@ class TestSuiteLoaderTest {
 
         TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
 
-        RestClientConfig withDefaults = RestClientConfig.withDefaults(testSuite.restClientConfig());
+        RestClientConfig withDefaults = RestClientConfig.withDefaults(testSuite.defaultRestClient());
         assertThat(withDefaults.headers()).isNotNull();
         assertThat(withDefaults.headers()).containsEntry("x-api-key", "test-key-123");
     }
@@ -291,7 +292,7 @@ class TestSuiteLoaderTest {
 
         TestSuite testSuite = loader.load(path);
 
-        RestClientConfig config = testSuite.restClientConfig();
+        RestClientConfig config = testSuite.defaultRestClient();
         assertThat(config).isNotNull();
         assertThat(config.baseUrl()).isEqualTo("https://api.example.com");
         assertThat(config.connectTimeout()).isEqualTo(RestClientConfig.DEFAULT_CONNECT_TIMEOUT_MS);
@@ -300,15 +301,25 @@ class TestSuiteLoaderTest {
     }
 
     @Test
-    void loadWithoutContextAppliesDefaultRestClientConfigWhenAbsent() throws Exception {
-        Path path = Path.of(getClass().getResource("/test-suite-1.yml").toURI());
+    void loadWithoutContextLeavesRestClientNullWhenAbsent() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-no-client.yml").toURI());
 
         TestSuite testSuite = loader.load(path);
 
-        RestClientConfig config = testSuite.restClientConfig();
-        assertThat(config).isNotNull();
-        assertThat(config.baseUrl()).isEqualTo(RestClientConfig.DEFAULT_BASE_URL);
-        assertThat(config.connectTimeout()).isEqualTo(RestClientConfig.DEFAULT_CONNECT_TIMEOUT_MS);
-        assertThat(config.headers()).isNull();
+        assertThat(testSuite.restClient()).isNull();
+        assertThat(testSuite.restClients()).isNull();
+        assertThat(testSuite.defaultRestClient()).isNull();
+    }
+
+    @Test
+    void loadResolvesMultipleRestClientsById() throws Exception {
+        Path path =
+                Path.of(getClass().getResource("/test-suite-multi-client.yml").toURI());
+
+        TestSuite testSuite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        assertThat(testSuite.restClientsById()).containsOnlyKeys("default", "payments");
+        assertThat(testSuite.defaultRestClient().baseUrl()).isEqualTo("https://api.example.com");
+        assertThat(testSuite.restClientsById().get("payments").baseUrl()).isEqualTo("https://payments.example.com");
     }
 }
