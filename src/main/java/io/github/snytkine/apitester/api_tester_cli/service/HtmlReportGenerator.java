@@ -188,6 +188,7 @@ public class HtmlReportGenerator {
                 "requestMethod",
                 tc.requestInfo() != null ? tc.requestInfo().method().name() : null);
         map.put("requestUrl", tc.requestInfo() != null ? tc.requestInfo().url() : null);
+        map.put("restClientId", tc.requestInfo() != null ? tc.requestInfo().restClientId() : null);
         map.put(
                 "requestBody",
                 tc.requestInfo() != null ? formatJsonString(tc.requestInfo().body(), compactJson) : null);

@@ -353,6 +353,10 @@
             <span class="method" th:text="${t.requestMethod}">GET</span>
             <span class="url" th:text="${t.requestUrl}">/api</span>
           </div>
+          <div class="meta-grid">
+            <span class="meta-key">Rest Client</span>
+            <span th:text="${t.restClientId}">default</span>
+          </div>
           <div th:if="${!t.requestHeaders.empty}">
             <p class="section-label">Headers</p>
             <div class="headers-grid">

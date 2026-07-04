@@ -128,9 +128,12 @@ class PureJavaTestEngineTest {
         assertThat(firstResult.requestInfo()).isNotNull();
         assertThat(firstResult.requestInfo().method())
                 .isEqualTo(io.github.snytkine.apitester.api_tester_cli.model.HttpMethod.GET);
-        assertThat(firstResult.requestInfo().url()).isEqualTo("/objects");
+        // test-suite-stub-pass.yml declares rest-client.base-url = "http://stub.test" and a
+        // relative request url of "/objects"; the two are now combined into the full URL.
+        assertThat(firstResult.requestInfo().url()).isEqualTo("http://stub.test/objects");
         assertThat(firstResult.requestInfo().body()).isNull();
         assertThat(firstResult.requestInfo().auth()).isNull();
+        assertThat(firstResult.requestInfo().restClientId()).isEqualTo("default");
     }
 
     @Test

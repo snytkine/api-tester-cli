@@ -357,6 +357,90 @@ class PureJavaTestEngineAdditionalTest {
                 .isEqualTo(new RequestAuth(AuthType.BASIC, "requser", "reqpass"));
     }
 
+    // ---- resolveFullUrl / resolveRestClientId (Issue #61) -------------------------------
+
+    /**
+     * Verifies that an absolute request URL is left unchanged even when the selected rest-client
+     * declares a {@code base-url} — the base-url must only be prepended to relative URLs.
+     */
+    @Test
+    void absoluteRequestUrlIsNotCombinedWithRestClientBaseUrl() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass()
+                .getResource("/test-suite-stub-absolute-url-with-base.yml")
+                .toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(result.passedCount()).isEqualTo(1);
+        assertThat(result.results().get(0).requestInfo().url()).isEqualTo("http://other-host.test/objects");
+        assertThat(result.results().get(0).requestInfo().restClientId()).isEqualTo("default");
+    }
+
+    /**
+     * Verifies that in a multi-client suite, a request selecting a non-default rest-client by id
+     * reports that id, and its full URL is combined using *that* client's {@code base-url}, not the
+     * default client's.
+     */
+    @Test
+    void nonDefaultRestClientSelectionReportsItsOwnIdAndBaseUrl() throws Exception {
+        var factory = new StubClientHttpRequestFactory()
+                .stub("/users", 200, "{}", "application/json")
+                .stub("/invoices/pay", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path =
+                Path.of(getClass().getResource("/test-suite-multi-client.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(result.passedCount()).isEqualTo(2);
+        var listUsers = result.results().get(0);
+        assertThat(listUsers.requestInfo().restClientId()).isEqualTo("default");
+        assertThat(listUsers.requestInfo().url()).isEqualTo("https://api.example.com/users");
+        var payInvoice = result.results().get(1);
+        assertThat(payInvoice.requestInfo().restClientId()).isEqualTo("payments");
+        assertThat(payInvoice.requestInfo().url()).isEqualTo("https://payments.example.com/invoices/pay");
+    }
+
+    /**
+     * Verifies that a request selecting an unresolvable rest-client id falls back to {@code
+     * "default"} for the reported {@code restClientId}, matching {@code selectRestClient}'s existing
+     * warning-and-fallback behavior for the actual HTTP dispatch.
+     */
+    @Test
+    void unknownRestClientIdFallsBackToDefaultInCapturedRequestInfo() throws Exception {
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        TestCase testCase = new TestCase(
+                "get objects",
+                null,
+                null,
+                null,
+                Map.of(),
+                new BodylessRequest(HttpMethod.GET, "/objects", null, null, "unresolvable-client"),
+                List.of(new StatusCodeAssertion(200)));
+        TestSuite suite = new TestSuite(
+                "unknown-client-suite",
+                null,
+                RestClientConfig.withDefaults(null),
+                null,
+                Map.of(),
+                List.of(testCase),
+                null,
+                null);
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(result.passedCount()).isEqualTo(1);
+        assertThat(result.results().get(0).requestInfo().restClientId()).isEqualTo("default");
+    }
+
     // ---- buildRestClient: JDK factory + connect timeout (lines 589-592) -----------------
 
     /**

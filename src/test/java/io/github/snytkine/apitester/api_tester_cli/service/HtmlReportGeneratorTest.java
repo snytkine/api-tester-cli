@@ -119,7 +119,12 @@ class HtmlReportGeneratorTest {
                 List.of(),
                 null,
                 new ExecutedRequestInfo(
-                        HttpMethod.GET, "/api/pets", null, null, new RequestAuth(AuthType.BASIC, "realuser", "s3cr3t")),
+                        HttpMethod.GET,
+                        "/api/pets",
+                        null,
+                        null,
+                        new RequestAuth(AuthType.BASIC, "realuser", "s3cr3t"),
+                        "default"),
                 new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
         TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withAuth), Map.of());
         Path outputPath = tempDir.resolve("report.html");
@@ -132,6 +137,34 @@ class HtmlReportGeneratorTest {
         assertThat(html).contains("*****");
         assertThat(html).doesNotContain("realuser");
         assertThat(html).doesNotContain("s3cr3t");
+    }
+
+    @Test
+    void generateShowsRestClientId() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Rest Client");
+        assertThat(html).contains("default");
+    }
+
+    @Test
+    void generateShowsTheFullCombinedUrlVerbatim() throws Exception {
+        TestCaseResult withCombinedUrl = new TestCaseResult(
+                "Get objects",
+                TestResult.PASSED,
+                1,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(HttpMethod.GET, "http://stub.test/objects", null, null, null, "default"),
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
+        TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withCombinedUrl), Map.of());
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("http://stub.test/objects");
     }
 
     @Test
@@ -358,7 +391,8 @@ class HtmlReportGeneratorTest {
                 3,
                 List.of(),
                 null,
-                new ExecutedRequestInfo(HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null, null),
+                new ExecutedRequestInfo(
+                        HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null, null, "default"),
                 new ApiResponse(
                         200,
                         Map.of("Content-Type", "application/json"),
@@ -371,7 +405,7 @@ class HtmlReportGeneratorTest {
                 1,
                 List.of(new AssertionFailure("status_code equals 201", "201", "400", "Expected 201 but was 400")),
                 null,
-                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}", null),
+                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}", null, "default"),
                 new ApiResponse(
                         400,
                         Map.of("Content-Type", "application/json"),

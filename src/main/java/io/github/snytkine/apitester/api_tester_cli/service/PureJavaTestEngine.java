@@ -47,6 +47,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseRes
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -429,12 +430,15 @@ public class PureJavaTestEngine implements TestEngine {
 
         // Fire callback before retrieve() so the caller has request details for both
         // PASS and FAIL outcomes (MultipleFailuresError is thrown after this point).
+        String restClientId = resolveRestClientId(testSuite, config);
+        RestClientConfig selectedRestClientConfig = testSuite.restClientsById().get(restClientId);
         requestCapture.accept(new ExecutedRequestInfo(
                 config.request().method(),
-                config.request().url(),
+                resolveFullUrl(selectedRestClientConfig, config.request().url()),
                 config.request().headers(),
                 resolvedBody,
-                resolveEffectiveAuth(testSuite, config)));
+                resolveEffectiveAuth(testSuite, config),
+                restClientId));
 
         RestClient selectedClient = selectRestClient(restClients, defaultRestClient, config);
         RestClient.RequestBodySpec requestSpec = buildRequestSpec(selectedClient, config, resolvedBody);
@@ -707,5 +711,62 @@ public class PureJavaTestEngine implements TestEngine {
                 .restClientsById()
                 .getOrDefault(id, testSuite.restClientsById().get(TestSuite.DEFAULT_REST_CLIENT_ID));
         return restClientConfig != null ? restClientConfig.auth() : null;
+    }
+
+    /**
+     * Resolves the id of the rest-client that will actually handle a test case's request, mirroring
+     * the exact fallback rule implemented in {@link #selectRestClient}: the request's declared {@code
+     * rest-client} id when it names a client configured in the suite, otherwise {@link
+     * TestSuite#DEFAULT_REST_CLIENT_ID}.
+     *
+     * @param testSuite the suite whose {@link TestSuite#restClientsById()} is checked for the
+     *     declared id
+     * @param config the test case whose request's rest-client id is being resolved
+     * @return the resolved, always non-null rest-client id
+     */
+    private static String resolveRestClientId(TestSuite testSuite, TestCase config) {
+        String requestedId = config.request().restClient();
+        if (requestedId != null && testSuite.restClientsById().containsKey(requestedId)) {
+            return requestedId;
+        }
+        return TestSuite.DEFAULT_REST_CLIENT_ID;
+    }
+
+    /**
+     * Combines a rest-client's {@code base-url} with a request's declared URL when that URL is
+     * relative, producing the full URL actually dispatched. Absolute declared URLs, and declared
+     * URLs paired with a rest-client that has no {@code base-url}, are returned unchanged.
+     *
+     * @param restClientConfig the resolved rest-client configuration, or {@code null} if somehow
+     *     unresolvable (defensive; every suite declares at least one client)
+     * @param requestUrl the request's declared URL, after template resolution
+     * @return the full URL to report, per the combination rule above
+     */
+    private static String resolveFullUrl(@Nullable RestClientConfig restClientConfig, String requestUrl) {
+        String baseUrl = restClientConfig != null ? restClientConfig.baseUrl() : null;
+        if (!StringUtils.hasText(baseUrl) || isAbsolute(requestUrl)) {
+            return requestUrl;
+        }
+        String trimmedBase = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+        String trimmedPath = requestUrl.startsWith("/") ? requestUrl : "/" + requestUrl;
+        return trimmedBase + trimmedPath;
+    }
+
+    /**
+     * Determines whether {@code url} is absolute (carries a scheme, e.g. {@code http://...}) using
+     * {@link URI#isAbsolute()}. Unparsable strings are treated as relative so {@link
+     * #resolveFullUrl} still attempts to combine them with a base-url rather than silently leaving a
+     * broken URL in the report.
+     *
+     * @param url the URL string to check
+     * @return {@code true} when {@code url} is absolute, {@code false} otherwise (including when it
+     *     cannot be parsed as a {@link URI})
+     */
+    private static boolean isAbsolute(String url) {
+        try {
+            return URI.create(url).isAbsolute();
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
 }

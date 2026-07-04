@@ -160,7 +160,12 @@ Below the header, three expandable sections may appear (using the native HTML `<
 
 Shows the HTTP request that was sent to the server:
 
-- **Method + URL** — for example `GET https://api.example.com/users`
+- **Method + URL** — for example `GET https://api.example.com/users`. When the test declares a
+  relative URL (e.g. `/users`) and the selected `rest-client` declares a `base-url`, the two are
+  combined here into the full URL that was actually dispatched — the report never shows a bare
+  relative path in that case. An already-absolute URL is always shown unchanged.
+- **Rest Client** — the `id` of the rest-client that handled this request (`default` when the
+  suite uses the singular `rest-client` form, or when the request selects no client).
 - **Request headers** — all headers sent, including `Authorization`, `Content-Type`, etc.
 - **Authentication** — shown only when the test's request declares `auth` (or falls back to a
   suite-wide `rest-client.auth`). The authentication **type** is shown in full (e.g. `BASIC`), but

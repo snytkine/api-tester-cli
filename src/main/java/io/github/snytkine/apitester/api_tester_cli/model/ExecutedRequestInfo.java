@@ -27,10 +27,6 @@ import org.jspecify.annotations.Nullable;
  * values. This makes {@code ExecutedRequestInfo} suitable as a source of truth for report
  * generation without needing to re-run any logic.
  *
- * <p>Note: {@code url} may be a relative path (e.g. {@code /api/users}) when the selected
- * {@link RestClientConfig} declares a {@code base-url}. The suite's REST client configuration is
- * accessible separately via {@link TestSuite#restClientsById()}.
- *
  * <p>Thread-safety: immutable after construction; safe to read from any thread.
  */
 public record ExecutedRequestInfo(
@@ -38,8 +34,11 @@ public record ExecutedRequestInfo(
         HttpMethod method,
 
         /**
-         * The URL or path used for the request, after template resolution. May be relative when the
-         * suite defines a {@code base_url} in {@link RestClientConfig}.
+         * The full URL dispatched for this request, after template resolution. When the test declares
+         * a relative URL (e.g. {@code /api/users}) and the selected rest-client (see {@link
+         * #restClientId()}) declares a {@code base-url}, this is the two combined (e.g. {@code
+         * https://api.example.com/api/users}). When the declared URL is already absolute, or the
+         * selected rest-client has no {@code base-url}, this is the declared URL unchanged.
          */
         String url,
 
@@ -67,4 +66,12 @@ public record ExecutedRequestInfo(
          * HtmlReportGenerator}), not a model concern — this field must never be serialised or logged
          * verbatim.
          */
-        @Nullable RequestAuth auth) {}
+        @Nullable RequestAuth auth,
+
+        /**
+         * The id of the rest-client actually used to dispatch this request — {@code "default"} when
+         * the suite uses the singular {@code rest-client} form, or when the request selects no client
+         * or an unresolvable one. Always non-null: every request resolves to some client, since the
+         * suite is guaranteed to declare at least one (enforced by {@code TestSuiteValidator}).
+         */
+        String restClientId) {}
