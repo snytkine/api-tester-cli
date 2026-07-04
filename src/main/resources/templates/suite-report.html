@@ -256,6 +256,20 @@
     .failure-actual   { background: #fff5f5; }
     .error-msg { margin-top: 6px; color: #666; font-style: italic; font-size: .85rem; }
 
+    /* Upgrade-available banner */
+    .upgrade-banner {
+      margin-top: 20px;
+      padding: 10px 16px;
+      background: #eef6ff;
+      border: 1px solid #bcdcff;
+      border-radius: 6px;
+      text-align: center;
+      font-size: .85rem;
+      color: #2c5282;
+    }
+    .upgrade-banner p { margin: 0 0 4px; font-weight: 600; }
+    .upgrade-banner a { color: #2c5282; }
+
     /* Footer */
     footer {
       margin-top: 28px;
@@ -412,6 +426,11 @@
 
     </article>
   </section>
+
+  <div th:if="${upgradeAvailable}" class="upgrade-banner">
+    <p th:text="${upgradeMessage}">Version X.Y.Z is available.</p>
+    <a th:href="${upgradePageUrl}" th:text="${upgradePageUrl}">upgrade link</a>
+  </div>
 
   <footer>
     <p>Powered by Api Tester CLI version <span th:text="${appVersion}">dev</span></p>

@@ -739,4 +739,37 @@ class TerminalUiControllerTest {
 
         assertThat(capture.toString()).doesNotContain("Filtering by tag");
     }
+
+    @Test
+    void upgradeNoticeAppearsAfterSummaryWhenUpgradeMessageIsSet() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = new TerminalUiController(
+                queue, false, 80, new PrintWriter(capture), null, null, "Version 9.9.9 is available.");
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        assertThat(capture.toString()).contains("Version 9.9.9 is available.");
+    }
+
+    @Test
+    void upgradeNoticeAbsentWhenUpgradeMessageIsNull() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 10L, 1, List.of()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        assertThat(capture.toString()).doesNotContain("is available");
+    }
 }

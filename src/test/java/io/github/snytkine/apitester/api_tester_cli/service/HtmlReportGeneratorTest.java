@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
@@ -48,7 +49,21 @@ class HtmlReportGeneratorTest {
         return new BuildProperties(props);
     }
 
-    private final HtmlReportGenerator generator = new HtmlReportGenerator(buildProperties());
+    private static VersionCheckProperties versionCheckProperties() {
+        return new VersionCheckProperties(
+                true,
+                "https://api.github.com/repos/snytkine/api-tester-cli/releases/latest",
+                "https://github.com/snytkine/api-tester-cli/releases/latest",
+                10,
+                3,
+                5,
+                "Version {latestVersion} is available.");
+    }
+
+    private final LatestVersionHolder latestVersionHolder = new LatestVersionHolder();
+
+    private final HtmlReportGenerator generator =
+            new HtmlReportGenerator(buildProperties(), latestVersionHolder, versionCheckProperties());
 
     @Test
     void generateWritesSelfContainedHtmlFile() throws Exception {
@@ -62,6 +77,27 @@ class HtmlReportGeneratorTest {
         String html = Files.readString(outputPath);
         assertThat(html).startsWith("<!DOCTYPE html>");
         assertThat(html).contains("<style>");
+    }
+
+    @Test
+    void generateOmitsUpgradeBannerWhenNoNewerVersionKnown() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        // The CSS rule for ".upgrade-banner" is always present in <style>; only the rendered
+        // element (identifiable by the class *attribute*) should be absent.
+        assertThat(html).doesNotContain("class=\"upgrade-banner\"");
+    }
+
+    @Test
+    void generateIncludesUpgradeBannerWhenNewerVersionKnown() throws Exception {
+        latestVersionHolder.set("9.9.9");
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("class=\"upgrade-banner\"");
+        assertThat(html).contains("Version 9.9.9 is available.");
+        assertThat(html).contains("https://github.com/snytkine/api-tester-cli/releases/latest");
     }
 
     @Test

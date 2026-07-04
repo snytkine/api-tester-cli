@@ -24,6 +24,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
@@ -34,6 +35,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.HtmlReportGenerator;
+import io.github.snytkine.apitester.api_tester_cli.service.LatestVersionHolder;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
@@ -68,6 +70,17 @@ class RunSuiteCommandTest {
     private RunSuiteCommand command;
     private RunSuiteCommand commandWithUi;
 
+    private static VersionCheckProperties noOpVersionCheckProperties() {
+        return new VersionCheckProperties(
+                false,
+                "https://example.invalid",
+                "https://example.invalid",
+                1,
+                1,
+                1,
+                "Version {latestVersion} is available.");
+    }
+
     @BeforeEach
     void setUp() {
         mockEngine = mock(TestEngine.class);
@@ -78,6 +91,8 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
                 null,
                 new MockEnvironment());
         commandWithUi = new RunSuiteCommand(
@@ -86,6 +101,8 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
                 mock(ViewComponentBuilder.class),
                 new MockEnvironment());
     }
@@ -620,6 +637,8 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
                 null,
                 env);
     }
@@ -764,6 +783,8 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
                 null,
                 env,
                 recorder);

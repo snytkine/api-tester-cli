@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.snytkine.apitester.api_tester_cli.config.InteractiveModeRunnerConfiguration;
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
@@ -32,6 +33,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.HtmlReportGenerator;
+import io.github.snytkine.apitester.api_tester_cli.service.LatestVersionHolder;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.ui.ErrorBox;
@@ -84,6 +86,8 @@ public class RunSuiteCommand {
     private final TestEngine testEngine;
     private final DotEnvLoader dotEnvLoader;
     private final HtmlReportGenerator htmlReportGenerator;
+    private final LatestVersionHolder latestVersionHolder;
+    private final VersionCheckProperties versionCheckProperties;
 
     @Nullable private final ViewComponentBuilder viewComponentBuilder;
 
@@ -114,6 +118,9 @@ public class RunSuiteCommand {
      * @param testEngine executes the loaded test cases
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any, for
+     *     the terminal-UI upgrade notice
+     * @param versionCheckProperties supplies the upgrade message template
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      * @param environment the application environment, read at runtime to detect non-interactive mode
      *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
@@ -125,6 +132,8 @@ public class RunSuiteCommand {
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
             HtmlReportGenerator htmlReportGenerator,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties,
             @Nullable ViewComponentBuilder viewComponentBuilder,
             Environment environment) {
         this(
@@ -133,6 +142,8 @@ public class RunSuiteCommand {
                 testEngine,
                 dotEnvLoader,
                 htmlReportGenerator,
+                latestVersionHolder,
+                versionCheckProperties,
                 viewComponentBuilder,
                 environment,
                 System::exit);
@@ -149,6 +160,9 @@ public class RunSuiteCommand {
      * @param testEngine executes the loaded test cases
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any, for
+     *     the terminal-UI upgrade notice
+     * @param versionCheckProperties supplies the upgrade message template
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      * @param environment the application environment, read at runtime to detect non-interactive mode
      *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
@@ -161,6 +175,8 @@ public class RunSuiteCommand {
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
             HtmlReportGenerator htmlReportGenerator,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties,
             @Nullable ViewComponentBuilder viewComponentBuilder,
             Environment environment,
             IntConsumer exitHandler) {
@@ -169,6 +185,8 @@ public class RunSuiteCommand {
         this.testEngine = testEngine;
         this.dotEnvLoader = dotEnvLoader;
         this.htmlReportGenerator = htmlReportGenerator;
+        this.latestVersionHolder = latestVersionHolder;
+        this.versionCheckProperties = versionCheckProperties;
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         this.viewComponentBuilder = viewComponentBuilder;
         this.environment = environment;
@@ -187,6 +205,24 @@ public class RunSuiteCommand {
     boolean isNonInteractive() {
         return "true"
                 .equalsIgnoreCase(environment.getProperty(InteractiveModeRunnerConfiguration.DISABLE_INTERACTIVE_MODE));
+    }
+
+    /**
+     * Resolves the terminal-UI upgrade notice, if the background version check has found a newer
+     * release than the one currently running.
+     *
+     * <p>Delegates the {@code {latestVersion}} placeholder substitution to {@link
+     * VersionCheckProperties#resolveUpgradeMessage(String)} — the same method used by {@link
+     * HtmlReportGenerator} — so the terminal UI and HTML report can never disagree on the resolved
+     * text.
+     *
+     * @return the resolved upgrade message, or {@code null} when no newer version is known
+     */
+    @Nullable private String resolveUpgradeMessage() {
+        return latestVersionHolder
+                .get()
+                .map(versionCheckProperties::resolveUpgradeMessage)
+                .orElse(null);
     }
 
     /**
@@ -374,7 +410,8 @@ public class RunSuiteCommand {
                     TtyDetector.getTerminalWidth(),
                     context.outputWriter(),
                     tagFilterActive ? tag : null,
-                    testNameFilterActive ? testName : null);
+                    testNameFilterActive ? testName : null,
+                    resolveUpgradeMessage());
             controller.start();
             List<String> validationErrors = new ArrayList<>();
             validationErrors.addAll(testSuiteValidator.validate(suiteToRun));

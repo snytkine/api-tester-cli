@@ -17,6 +17,7 @@
 package io.github.snytkine.apitester.api_tester_cli.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
@@ -84,14 +86,24 @@ public class HtmlReportGenerator {
 
     private final ObjectMapper jsonMapper = new ObjectMapper();
     private final String appVersion;
+    private final LatestVersionHolder latestVersionHolder;
+    private final VersionCheckProperties versionCheckProperties;
 
     /**
-     * Constructs the generator with the application build properties.
+     * Constructs the generator with the application build properties and the version-check
+     * collaborators used to render the upgrade-available banner.
      *
      * @param buildProperties Spring Boot build properties providing the application version
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any
+     * @param versionCheckProperties supplies the upgrade message template and upgrade-page URL
      */
-    public HtmlReportGenerator(BuildProperties buildProperties) {
+    public HtmlReportGenerator(
+            BuildProperties buildProperties,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties) {
         this.appVersion = buildProperties.getVersion();
+        this.latestVersionHolder = latestVersionHolder;
+        this.versionCheckProperties = versionCheckProperties;
     }
 
     /**
@@ -127,6 +139,13 @@ public class HtmlReportGenerator {
                         .toList());
         ctx.setVariable("jsEnabled", options.jsEnabled());
         ctx.setVariable("appVersion", appVersion);
+
+        Optional<String> latestVersion = latestVersionHolder.get();
+        ctx.setVariable("upgradeAvailable", latestVersion.isPresent());
+        ctx.setVariable(
+                "upgradeMessage",
+                latestVersion.map(versionCheckProperties::resolveUpgradeMessage).orElse(null));
+        ctx.setVariable("upgradePageUrl", versionCheckProperties.upgradePageUrl());
 
         String html = HTML_ENGINE.process("suite-report", ctx);
         if (options.minifyEnabled()) {

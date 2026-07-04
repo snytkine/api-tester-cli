@@ -162,6 +162,12 @@ public final class TerminalUiController {
     @Nullable private final String activeTestName;
 
     /**
+     * When non-null, printed as a one-line notice after the run summary and failure details, once
+     * the background version check has found a newer published release than the one running.
+     */
+    @Nullable private final String upgradeMessage;
+
+    /**
      * Computed visible character width for the Test Name column; equals {@code max(10,
      * terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH)}.
      */
@@ -198,7 +204,7 @@ public final class TerminalUiController {
      */
     public TerminalUiController(
             LinkedBlockingQueue<TestProgressEvent> queue, boolean useColors, int terminalWidth, PrintWriter output) {
-        this(queue, useColors, terminalWidth, output, null, null);
+        this(queue, useColors, terminalWidth, output, null, null, null);
     }
 
     /**
@@ -220,7 +226,7 @@ public final class TerminalUiController {
             int terminalWidth,
             PrintWriter output,
             @Nullable String activeTagFilter) {
-        this(queue, useColors, terminalWidth, output, activeTagFilter, null);
+        this(queue, useColors, terminalWidth, output, activeTagFilter, null, null);
     }
 
     /**
@@ -248,12 +254,44 @@ public final class TerminalUiController {
             PrintWriter output,
             @Nullable String activeTagFilter,
             @Nullable String activeTestName) {
+        this(queue, useColors, terminalWidth, output, activeTagFilter, activeTestName, null);
+    }
+
+    /**
+     * Constructs a controller for one suite run, optionally displaying a tag-filter notice, a
+     * single-test notice, and/or an upgrade-available notice.
+     *
+     * <p>Column widths and 1-indexed column start positions are computed once from {@code
+     * terminalWidth} and stored for use throughout the run loop. At most one of {@code
+     * activeTagFilter} and {@code activeTestName} is expected to be non-null at any time (the
+     * command layer enforces mutual exclusion between {@code --tag} and {@code --test}).
+     *
+     * @param queue the shared event queue populated by a {@link TerminalUiListener}
+     * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
+     * @param terminalWidth terminal column count used to derive the name-column width and banner width
+     * @param output writer connected to the terminal; used for all UI output and post-TUI details
+     * @param activeTagFilter when non-null, the tag value that was used to filter the test list;
+     *     displayed as a notice between the banner and the test grid
+     * @param activeTestName when non-null, the exact test name that was selected via {@code --test};
+     *     displayed as a notice between the banner and the test grid
+     * @param upgradeMessage when non-null, printed as a one-line notice after the run summary and
+     *     failure details, once the background version check has found a newer release
+     */
+    public TerminalUiController(
+            LinkedBlockingQueue<TestProgressEvent> queue,
+            boolean useColors,
+            int terminalWidth,
+            PrintWriter output,
+            @Nullable String activeTagFilter,
+            @Nullable String activeTestName,
+            @Nullable String upgradeMessage) {
         this.queue = queue;
         this.useColors = useColors;
         this.terminalWidth = terminalWidth;
         this.output = output;
         this.activeTagFilter = activeTagFilter;
         this.activeTestName = activeTestName;
+        this.upgradeMessage = upgradeMessage;
         this.nameColWidth =
                 Math.max(10, terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH);
         // 1-indexed column starts:
@@ -378,6 +416,7 @@ public final class TerminalUiController {
             output.println();
             printSummary(summaryPassCount, summaryFailCount, summarySkipCount, summaryErrorCount, summaryTotalMs);
             printFailures(collectedFailures);
+            printUpgradeNotice();
             output.flush();
 
         } catch (InterruptedException e) {
@@ -697,5 +736,17 @@ public final class TerminalUiController {
         for (TestProgressEvent.TestCompleted tc : failures) {
             renderer.render(tc.testName(), tc.failures(), useColors, terminalWidth, output);
         }
+    }
+
+    /**
+     * Prints the one-line upgrade-available notice after the summary and failure details, when
+     * {@link #upgradeMessage} is non-null. Prints nothing otherwise.
+     */
+    private void printUpgradeNotice() {
+        if (upgradeMessage == null) {
+            return;
+        }
+        output.println();
+        output.println(colorize(upgradeMessage, ANSI_YELLOW));
     }
 }
