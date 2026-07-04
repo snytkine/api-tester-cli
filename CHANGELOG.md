@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/snytkine/api-tester-cli/compare/v0.4.1...v0.5.0) (2026-07-04)
+
+
+### Features
+
+* added support for multiple rest-clients. Implements ([#33](https://github.com/snytkine/api-tester-cli/issues/33)) ([fa06a58](https://github.com/snytkine/api-tester-cli/commit/fa06a583762547dd6ef9a93de1c9042ae7267fa8))
+
+
+### Bug Fixes
+
+* json_match assertion now honors the path field. Fixes Issue [#29](https://github.com/snytkine/api-tester-cli/issues/29) … ([9d47ce5](https://github.com/snytkine/api-tester-cli/commit/9d47ce534973d075c54a13fdaee0f1483eb13678))
+* json_match assertion now honors the path field. Fixes Issue [#29](https://github.com/snytkine/api-tester-cli/issues/29) https://github.com/snytkine/api-tester-cli/issues/29 ([9dbeee8](https://github.com/snytkine/api-tester-cli/commit/9dbeee8883f17d2e96cd2b0f812b4f0c5258ff6d))
+
 ## [0.4.1](https://github.com/snytkine/api-tester-cli/compare/v0.4.0...v0.4.1) (2026-06-14)
 
 
