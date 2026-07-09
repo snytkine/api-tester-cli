@@ -26,7 +26,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Can show an interactive terminal UI when running in a compatible TTY
 - Can generate a self-contained single-page HTML execution report with `--report` (browser-side JSON formatting via optional inline JS)
 - Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
-- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](http://cmdrest.com/docs/upgrade-notifications)); never blocks startup or a run and can be disabled via `apitester.version-check.enabled=false`
+- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](http://cmdrest.com/docs/version-check)); never blocks startup or a run and can be disabled via `apitester.version-check.enabled=false`
 
 ## Build And Run
 
