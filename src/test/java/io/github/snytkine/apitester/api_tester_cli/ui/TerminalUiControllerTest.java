@@ -173,6 +173,118 @@ class TerminalUiControllerTest {
     }
 
     @Test
+    void bannerContainsRunIdLineWhenRunIdSupplied() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        String runId = "11111111-2222-3333-4444-555555555555";
+        TerminalUiController ctrl =
+                new TerminalUiController(queue, false, 80, new PrintWriter(capture), null, null, null, runId);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("my-api-suite", 0, Instant.now()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L));
+
+        ctrl.await();
+
+        String out = capture.toString();
+        assertThat(out).contains("Starting Test Suite my-api-suite");
+        assertThat(out).contains("Suite runID: " + runId);
+    }
+
+    @Test
+    void runIdLineIsRenderedInsideBannerBoxAboveGrid() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        String runId = "abc-run-id";
+        TerminalUiController ctrl =
+                new TerminalUiController(queue, false, 80, new PrintWriter(capture), null, null, null, runId);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 1L, 0L, 0L));
+
+        ctrl.await();
+
+        List<String> lines = capture.toString().lines().toList();
+        int topBorder = indexOfLineContaining(lines, "┌");
+        int suiteLine = indexOfLineContaining(lines, "Starting Test Suite");
+        int runIdLine = indexOfLineContaining(lines, "Suite runID:");
+        int bottomBorder = indexOfLineContaining(lines, "└");
+
+        // The runID line is the line directly after the suite-name line, and both sit strictly
+        // between the top and bottom borders of the same box.
+        assertThat(runIdLine).isEqualTo(suiteLine + 1);
+        assertThat(topBorder).isLessThan(suiteLine);
+        assertThat(runIdLine).isLessThan(bottomBorder);
+    }
+
+    @Test
+    void runIdLineDoesNotBreakTheEnclosingBox() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        // A runID far longer than the box inner width must be truncated, not overflow the box.
+        String longRunId = "x".repeat(500);
+        TerminalUiController ctrl =
+                new TerminalUiController(queue, false, 80, new PrintWriter(capture), null, null, null, longRunId);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 0, Instant.now()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L));
+
+        ctrl.await();
+
+        List<String> lines = capture.toString().lines().toList();
+        int topBorder = indexOfLineContaining(lines, "┌");
+        int bottomBorder = indexOfLineContaining(lines, "└");
+        String top = lines.get(topBorder);
+        String suiteRow = lines.get(topBorder + 1);
+        String runIdRow = lines.get(topBorder + 2);
+        String bottom = lines.get(bottomBorder);
+
+        // Border and both content rows must all have identical visible width (colors disabled),
+        // proving the long runID was truncated to fit and the box remains rectangular.
+        assertThat(runIdRow.length()).isEqualTo(top.length());
+        assertThat(suiteRow.length()).isEqualTo(top.length());
+        assertThat(bottom.length()).isEqualTo(top.length());
+        assertThat(runIdRow)
+                .startsWith(top.substring(0, top.indexOf("┌")) + "│")
+                .endsWith("│");
+        assertThat(runIdRow).contains("…");
+    }
+
+    @Test
+    void bannerHasNoRunIdLineWhenRunIdNotSupplied() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 0, Instant.now()));
+        queue.offer(new TestProgressEvent.SuiteCompleted(0, 0, 0L, 0L, 0L));
+
+        ctrl.await();
+
+        assertThat(capture.toString()).doesNotContain("Suite runID:");
+    }
+
+    /**
+     * Returns the zero-based index of the first line in {@code lines} containing {@code needle}.
+     *
+     * @param lines the captured output split into lines
+     * @param needle the substring to search for
+     * @return the index of the first matching line
+     * @throws AssertionError if no line contains {@code needle}
+     */
+    private static int indexOfLineContaining(List<String> lines, String needle) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).contains(needle)) {
+                return i;
+            }
+        }
+        throw new AssertionError("No line contains: " + needle);
+    }
+
+    @Test
     void testNameAppearsInOutputAfterTestStarted() throws InterruptedException {
         LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
         StringWriter capture = new StringWriter();

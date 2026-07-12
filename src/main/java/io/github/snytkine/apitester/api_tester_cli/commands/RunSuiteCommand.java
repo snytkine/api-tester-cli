@@ -411,7 +411,8 @@ public class RunSuiteCommand {
                     context.outputWriter(),
                     tagFilterActive ? tag : null,
                     testNameFilterActive ? testName : null,
-                    resolveUpgradeMessage());
+                    resolveUpgradeMessage(),
+                    suiteRunContext.getRunID());
             controller.start();
             List<String> validationErrors = new ArrayList<>();
             validationErrors.addAll(testSuiteValidator.validate(suiteToRun));
@@ -456,7 +457,7 @@ public class RunSuiteCommand {
             String fileName = "test-suite_" + safeName + "_" + timestamp + ".html";
             reportPath = Path.of(reportDir).resolve(fileName);
             ReportOptions reportOptions = ReportOptions.fromEnv(envVars);
-            htmlReportGenerator.generate(result, suiteToRun, reportPath, reportOptions);
+            htmlReportGenerator.generate(result, suiteToRun, reportPath, reportOptions, suiteRunContext.getRunID());
         }
 
         // Output mode: concise human-readable summary to stdout when --no-ui is passed or in

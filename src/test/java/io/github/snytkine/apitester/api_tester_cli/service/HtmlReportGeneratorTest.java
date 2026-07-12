@@ -82,6 +82,50 @@ class HtmlReportGeneratorTest {
     }
 
     @Test
+    void generateRendersRunIdLineAboveGeneratedWhenRunIdSupplied() throws Exception {
+        String runId = "11111111-2222-3333-4444-555555555555";
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), runId);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("runID: ");
+        assertThat(html).contains(runId);
+        // The runID line must precede the "Generated:" line inside the header tile.
+        assertThat(html.indexOf("runID: ")).isLessThan(html.indexOf("Generated:"));
+    }
+
+    @Test
+    void generateOmitsRunIdLineWhenRunIdNull() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), null);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateOmitsRunIdLineWhenRunIdBlank() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), "   ");
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateFourArgOverloadOmitsRunIdLine() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
     void generateOmitsUpgradeBannerWhenNoNewerVersionKnown() throws Exception {
         Path outputPath = tempDir.resolve("report.html");
         generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());

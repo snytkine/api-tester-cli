@@ -428,7 +428,7 @@ class RunSuiteCommandTest {
         command.runSuite(suite, false, false, null, null, tempDir.toString(), ctx);
 
         ArgumentCaptor<Path> pathCaptor = ArgumentCaptor.forClass(Path.class);
-        verify(mockReportGenerator).generate(any(), any(), pathCaptor.capture(), any());
+        verify(mockReportGenerator).generate(any(), any(), pathCaptor.capture(), any(), any());
         String generatedFileName = pathCaptor.getValue().getFileName().toString();
         assertThat(generatedFileName).matches("test-suite_.+_\\d{14}\\.html");
         assertThat(output.toString()).contains("Test report generated at");
@@ -466,7 +466,7 @@ class RunSuiteCommandTest {
 
         commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), ctx);
 
-        verify(mockReportGenerator).generate(any(), any(), any(), any());
+        verify(mockReportGenerator).generate(any(), any(), any(), any(), any());
         assertThat(output.toString()).contains("Report written to");
     }
 
@@ -485,7 +485,7 @@ class RunSuiteCommandTest {
 
         command.runSuite(suite, false, false, null, null, null, buildContext());
 
-        verify(mockReportGenerator, never()).generate(any(), any(), any(), any());
+        verify(mockReportGenerator, never()).generate(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -611,7 +611,7 @@ class RunSuiteCommandTest {
 
         commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), ctx);
 
-        verify(mockReportGenerator, never()).generate(any(), any(), any(), any());
+        verify(mockReportGenerator, never()).generate(any(), any(), any(), any(), any());
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
     }
 

@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
  * <pre>
  * ┌──────────────────────────────────────────────────────────────┐
  * │              Starting Test Suite &lt;name&gt;                      │
+ * │              Suite runID: &lt;runID&gt;                            │
  * └──────────────────────────────────────────────────────────────┘
  * ┌─────────────────────┬────────┬─────────────────┬────────────┐
  * │ Test Name           │ Status │ Response Time   │ Result     │
@@ -168,6 +169,14 @@ public final class TerminalUiController {
     @Nullable private final String upgradeMessage;
 
     /**
+     * When non-null, rendered as a second centred line inside the suite-start banner box, directly
+     * below the "Starting Test Suite …" line, in the form {@code Suite runID: <runID>}. Identifies
+     * the current test-suite execution (see {@link
+     * io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext#getRunID()}).
+     */
+    @Nullable private final String runID;
+
+    /**
      * Computed visible character width for the Test Name column; equals {@code max(10,
      * terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH)}.
      */
@@ -285,6 +294,40 @@ public final class TerminalUiController {
             @Nullable String activeTagFilter,
             @Nullable String activeTestName,
             @Nullable String upgradeMessage) {
+        this(queue, useColors, terminalWidth, output, activeTagFilter, activeTestName, upgradeMessage, null);
+    }
+
+    /**
+     * Constructs a controller for one suite run, optionally displaying a tag-filter notice, a
+     * single-test notice, an upgrade-available notice, and/or the suite run identifier.
+     *
+     * <p>Column widths and 1-indexed column start positions are computed once from {@code
+     * terminalWidth} and stored for use throughout the run loop. At most one of {@code
+     * activeTagFilter} and {@code activeTestName} is expected to be non-null at any time (the
+     * command layer enforces mutual exclusion between {@code --tag} and {@code --test}).
+     *
+     * @param queue the shared event queue populated by a {@link TerminalUiListener}
+     * @param useColors {@code true} to render coloured ANSI glyphs; {@code false} for plain text
+     * @param terminalWidth terminal column count used to derive the name-column width and banner width
+     * @param output writer connected to the terminal; used for all UI output and post-TUI details
+     * @param activeTagFilter when non-null, the tag value that was used to filter the test list;
+     *     displayed as a notice between the banner and the test grid
+     * @param activeTestName when non-null, the exact test name that was selected via {@code --test};
+     *     displayed as a notice between the banner and the test grid
+     * @param upgradeMessage when non-null, printed as a one-line notice after the run summary and
+     *     failure details, once the background version check has found a newer release
+     * @param runID when non-null, rendered as a second centred line inside the suite-start banner
+     *     box, below the "Starting Test Suite …" line, identifying the current suite execution
+     */
+    public TerminalUiController(
+            LinkedBlockingQueue<TestProgressEvent> queue,
+            boolean useColors,
+            int terminalWidth,
+            PrintWriter output,
+            @Nullable String activeTagFilter,
+            @Nullable String activeTestName,
+            @Nullable String upgradeMessage,
+            @Nullable String runID) {
         this.queue = queue;
         this.useColors = useColors;
         this.terminalWidth = terminalWidth;
@@ -292,6 +335,7 @@ public final class TerminalUiController {
         this.activeTagFilter = activeTagFilter;
         this.activeTestName = activeTestName;
         this.upgradeMessage = upgradeMessage;
+        this.runID = runID;
         this.nameColWidth =
                 Math.max(10, terminalWidth - FIXED_COL_OVERHEAD - STATUS_COL_WIDTH - TIME_COL_WIDTH - RESULT_COL_WIDTH);
         // 1-indexed column starts:
@@ -539,43 +583,68 @@ public final class TerminalUiController {
     }
 
     /**
-     * Draws the three-line suite-start banner to {@link #output}.
+     * Draws the suite-start banner to {@link #output}.
      *
      * <p>The banner box is approximately {@code 0.8 × terminalWidth} wide and centred horizontally
-     * using leading spaces. The suite name is centred within the inner box width; if it exceeds the
-     * available space it is truncated with "…". Text and border characters are rendered in yellow
-     * when {@link #useColors} is {@code true}.
+     * using leading spaces. The box always contains a first line reading {@code Starting Test Suite
+     * <name>}. When {@link #runID} is non-null (and non-blank) a second line reading {@code Suite
+     * runID: <runID>} is drawn directly below it inside the same box. Each line is centred within the
+     * inner box width and truncated with "…" if it exceeds the available space, so a long runID can
+     * never break the enclosing box. Text and border characters are rendered in yellow when {@link
+     * #useColors} is {@code true}.
      *
      * @param suiteName the suite name to display; from {@link
      *     io.github.snytkine.apitester.api_tester_cli.model.TestSuite#name()}
      */
     private void drawBanner(String suiteName) {
-        drawCenteredBox("Starting Test Suite " + suiteName, ANSI_YELLOW);
+        List<String> lines = new ArrayList<>(2);
+        lines.add("Starting Test Suite " + suiteName);
+        if (runID != null && !runID.isBlank()) {
+            lines.add("Suite runID: " + runID);
+        }
+        drawCenteredBox(lines, ANSI_YELLOW);
     }
 
     /**
-     * Draws a centred three-line box to {@link #output}.
+     * Draws a centred box containing a single line of text to {@link #output}.
      *
-     * <p>The box is approximately {@code 0.8 × terminalWidth} wide. The text is centred within the
-     * inner width; if it is longer than the available space it is truncated with "…". Both the
-     * border characters and the text are rendered with {@code ansiColor} when {@link #useColors} is
-     * {@code true}.
+     * <p>Convenience overload of {@link #drawCenteredBox(List, int)} for a one-line box.
      *
      * @param text the label to centre inside the box
      * @param ansiColor the ANSI SGR colour code (e.g. {@link #ANSI_YELLOW}, {@link #ANSI_RED})
      */
     private void drawCenteredBox(String text, int ansiColor) {
+        drawCenteredBox(List.of(text), ansiColor);
+    }
+
+    /**
+     * Draws a centred box wrapping one or more lines of text to {@link #output}.
+     *
+     * <p>The box is approximately {@code 0.8 × terminalWidth} wide and consists of a top border, one
+     * line per element of {@code lines}, and a bottom border. Every line is centred within the inner
+     * width; any line longer than the inner width is truncated with "…". Because each line is padded
+     * or truncated to exactly the inner width, no line — however long — can break the enclosing box.
+     * Both the border characters and the text are rendered with {@code ansiColor} when {@link
+     * #useColors} is {@code true}.
+     *
+     * @param lines the labels to centre inside the box, one per row; must be non-empty
+     * @param ansiColor the ANSI SGR colour code (e.g. {@link #ANSI_YELLOW}, {@link #ANSI_RED})
+     */
+    private void drawCenteredBox(List<String> lines, int ansiColor) {
         int bannerWidth = Math.max(10, Math.min((int) (terminalWidth * 0.8), terminalWidth - 2));
         int innerWidth = bannerWidth - 2;
-        if (text.length() > innerWidth) {
-            text = text.substring(0, Math.max(1, innerWidth - 1)) + "…";
-        }
-        int leftPad = Math.max(0, (innerWidth - text.length()) / 2);
-        int rightPad = Math.max(0, innerWidth - text.length() - leftPad);
         String indent = " ".repeat(Math.max(0, (terminalWidth - bannerWidth) / 2));
 
         output.println(colorize(indent + "┌" + "─".repeat(innerWidth) + "┐", ansiColor));
-        output.println(colorize(indent + "│" + " ".repeat(leftPad) + text + " ".repeat(rightPad) + "│", ansiColor));
+        for (String line : lines) {
+            String text = line;
+            if (text.length() > innerWidth) {
+                text = text.substring(0, Math.max(1, innerWidth - 1)) + "…";
+            }
+            int leftPad = Math.max(0, (innerWidth - text.length()) / 2);
+            int rightPad = Math.max(0, innerWidth - text.length() - leftPad);
+            output.println(colorize(indent + "│" + " ".repeat(leftPad) + text + " ".repeat(rightPad) + "│", ansiColor));
+        }
         output.println(colorize(indent + "└" + "─".repeat(innerWidth) + "┘", ansiColor));
     }
 

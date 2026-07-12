@@ -118,8 +118,9 @@ public class HtmlReportGenerator {
      * Renders the supplied test-run result and suite metadata into an HTML report and writes it to
      * {@code outputPath}, using the supplied {@link ReportOptions} to control JS and minification.
      *
-     * <p>Any missing parent directories of {@code outputPath} are created automatically. The file is
-     * overwritten if it already exists.
+     * <p>Convenience overload equivalent to {@link #generate(TestRunResult, TestSuite, Path,
+     * ReportOptions, String)} with a {@code null} run identifier, so no {@code runID} line is
+     * rendered in the report header.
      *
      * @param result the aggregated outcome of the test run
      * @param suite the test suite that was executed
@@ -129,9 +130,33 @@ public class HtmlReportGenerator {
      */
     public void generate(TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options)
             throws IOException {
+        generate(result, suite, outputPath, options, null);
+    }
+
+    /**
+     * Renders the supplied test-run result and suite metadata into an HTML report and writes it to
+     * {@code outputPath}, using the supplied {@link ReportOptions} to control JS and minification.
+     *
+     * <p>Any missing parent directories of {@code outputPath} are created automatically. The file is
+     * overwritten if it already exists.
+     *
+     * @param result the aggregated outcome of the test run
+     * @param suite the test suite that was executed
+     * @param outputPath the file path where the HTML report will be written
+     * @param options rendering options controlling JS formatter and HTML minification
+     * @param runID the unique identifier of this suite execution (see {@link
+     *     io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext#getRunID()}); when
+     *     non-null and non-blank it is rendered as a {@code runID: <value>} line in the report header
+     *     directly above the "Generated" timestamp; when {@code null} or blank the line is omitted
+     * @throws IOException if template rendering or file I/O fails
+     */
+    public void generate(
+            TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options, @Nullable String runID)
+            throws IOException {
         Context ctx = new Context();
         ctx.setVariable("suiteName", suite.name());
         ctx.setVariable("suiteDescription", suite.description());
+        ctx.setVariable("runID", runID != null && !runID.isBlank() ? runID : null);
         ctx.setVariable("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
         ctx.setVariable("passedCount", result.passedCount());
         ctx.setVariable("failedCount", result.failedCount());

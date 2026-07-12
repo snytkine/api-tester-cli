@@ -24,6 +24,7 @@
     }
     header h1 { font-size: 1.5rem; margin-bottom: 6px; }
     header .description { opacity: .85; margin-bottom: 8px; }
+    header .run-id { font-size: .85rem; opacity: .7; }
     header .generated { font-size: .85rem; opacity: .7; }
 
     /* Stats */
@@ -303,6 +304,7 @@
   <header>
     <h1 th:text="${suiteName}">Suite Name</h1>
     <p class="description" th:if="${suiteDescription}" th:text="${suiteDescription}">Description</p>
+    <p class="run-id" th:if="${runID}">runID: <span th:text="${runID}">00000000-0000-0000-0000-000000000000</span></p>
     <p class="generated">Generated: <span th:text="${generatedAt}">2026-01-01 00:00</span></p>
   </header>
 
