@@ -11,7 +11,7 @@
 
 The project can run as a regular JVM application or as a GraalVM native binary. The JVM build is easiest for development; the native build starts faster and runs without a JVM at runtime.
 
-**Full documentation:** [http://cmdrest.com/docs](http://cmdrest.com/docs)
+**Full documentation:** [https://cmdrest.com/docs](https://cmdrest.com/docs)
 
 ![TUI test run results](docs/tui-test-run-results.png)
 
@@ -26,7 +26,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Can show an interactive terminal UI when running in a compatible TTY
 - Can generate a self-contained single-page HTML execution report with `--report` (browser-side JSON formatting via optional inline JS)
 - Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
-- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](http://cmdrest.com/docs/version-check)); never blocks startup or a run and can be disabled via `apitester.version-check.enabled=false`
+- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](https://cmdrest.com/docs/version-check)); never blocks startup or a run and can be disabled via `apitester.version-check.enabled=false`
 
 ## Build And Run
 
@@ -408,7 +408,7 @@ For IDE-wide mappings that apply without modifying individual files:
 
 > **Note:** Some IDEs require a third-party YAML plugin to enable schema-based validation and autocompletion. If hints do not appear after wiring the schema, check whether a YAML or JSON Schema plugin is installed and enabled.
 
-For a full walkthrough see [Schema Support](http://cmdrest.com/docs/schema-support).
+For a full walkthrough see [Schema Support](https://cmdrest.com/docs/schema-support).
 
 ## Checking The Version
 
@@ -476,7 +476,7 @@ Set `REPORT_NO_MINIFY=true` to skip HTML minification. Both flags can be set in 
 environment or in the suite's `.env` file.
 
 For full documentation, including a behaviour matrix for these options, see
-[HTML Execution Report](http://cmdrest.com/docs/html-report).
+[HTML Execution Report](https://cmdrest.com/docs/html-report).
 
 ## Debug Logging
 
