@@ -85,6 +85,7 @@ Important behavior:
 - `--tag=smoke` runs only tests tagged `smoke`. Prefix with `!` to invert: `--tag="!slow"` runs all tests except those tagged `slow` (tests with no tags are always included under a negated filter).
 - `--ui` forces the interactive terminal UI.
 - `--no-ui` disables the UI and writes JSON results to stdout.
+- `--env-file=<path>` loads environment variables from an explicit file (which need not be named `.env`), letting you run the same suite against different environments (e.g. `--env-file=/path/to/staging.env`). See [The `.env` File](#the-env-file) for the full resolution order.
 - Relative file references inside the suite, such as body files or JSON schema files, are resolved relative to the suite file's directory.
 - Positional variables must not be written as `--key=value`; Spring Shell treats `--...` tokens as options instead of suite variables.
 
@@ -287,7 +288,7 @@ That means values like `[[${suite.base_url}]]` are the supported form for suite-
 
 ## The `.env` File
 
-The CLI looks for a `.env` file in the same directory as the suite YAML file and exposes those values through the `env` namespace.
+The CLI loads environment variables from a `.env`-style file and exposes those values through the `env` namespace.
 
 Example:
 
@@ -304,6 +305,22 @@ variables:
 ```
 
 This is the right place for secrets or machine-specific configuration that should not be committed into the suite itself.
+
+### Resolution Order
+
+The file that supplies the `env` namespace is resolved in the following order:
+
+1. **`--env-file=<path>` supplied** — that exact file is used. It need not be named `.env`, so you can keep per-environment files (e.g. `dev.env`, `staging.env`, `prod.env`) and swap them per invocation. If the path does not point to an existing regular file, the command **fails with an error and aborts** — this is the only case where a missing env file is treated as an error, because you asked for a specific file.
+2. **No `--env-file`** — the CLI looks for a `.env` file in the **current working directory**.
+3. **No `.env` in the current working directory** — the CLI falls back to a `.env` file in the **directory containing the suite YAML file** (the historical default).
+
+Cases 2 and 3 fail **silently**: if no `.env` is found anywhere the run proceeds with only the process/system environment variables. System environment variables always take precedence over same-named entries in the env file.
+
+Example — run the same suite against staging:
+
+```bash
+rs --suite=/path/to/suite.yml --env-file=/path/to/staging.env
+```
 
 ## Supported Assertions
 

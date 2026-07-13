@@ -266,6 +266,11 @@ public class RunSuiteCommand {
      * @param reportDir when non-null, the directory path where the HTML execution report will be
      *     written; the filename is auto-generated as
      *     {@code test-suite_<name>_yyyyMMddHHmmss.html}
+     * @param envFile when non-null, the path to an explicit env file to load variables from; the file
+     *     need not be named {@code .env}. It must refer to an existing regular file, otherwise the
+     *     command aborts with an options error. When {@code null} the loader falls back to looking for
+     *     a {@code .env} file in the current working directory first, then in the directory containing
+     *     the suite YAML file
      * @param context Spring Shell command context; positional arguments are extracted from it as CLI
      *     variables forwarded to the Thymeleaf template engine
      * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
@@ -307,6 +312,14 @@ public class RunSuiteCommand {
                                     + " The filename is auto-generated as"
                                     + " test-suite_<name>_yyyyMMddHHmmss.html.")
                     @Nullable String reportDir,
+            @Option(
+                            longName = "env-file",
+                            description = "Path to an explicit env file to load variables from."
+                                    + " The file need not be named .env. When supplied it must exist,"
+                                    + " otherwise the command aborts. When omitted, .env is looked up"
+                                    + " in the current working directory first, then in the suite"
+                                    + " file's directory.")
+                    @Nullable String envFile,
             CommandContext context)
             throws Exception {
 
@@ -341,7 +354,32 @@ public class RunSuiteCommand {
         boolean useUi = !nonInteractive && viewComponentBuilder != null && TtyDetector.shouldUseUi(forceUi, noUi);
 
         Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
-        Map<String, String> envVars = dotEnvLoader.loadDotEnv(suitePath.getParent());
+
+        // Resolve the source of env-file variables:
+        //   1. --env-file supplied  -> use exactly that file; a missing file is a loud error.
+        //   2. otherwise            -> .env in the current working directory, if present.
+        //   3. otherwise            -> .env in the suite file's directory (the historical default).
+        Map<String, String> envVars;
+        if (envFile != null) {
+            Path explicitEnvPath = Path.of(envFile);
+            if (!Files.isRegularFile(explicitEnvPath)) {
+                if (nonInteractive) {
+                    log.debug("Options error (exit {}): env file not found: {}", EXIT_OPTIONS_ERROR, envFile);
+                    exitHandler.accept(EXIT_OPTIONS_ERROR);
+                    return;
+                }
+                throw new IllegalArgumentException("Env file specified via --env-file not found: " + envFile);
+            }
+            Path absoluteEnvPath = explicitEnvPath.toAbsolutePath();
+            envVars = dotEnvLoader.loadDotEnv(
+                    absoluteEnvPath.getParent(), absoluteEnvPath.getFileName().toString());
+        } else {
+            Path cwd = Path.of(System.getProperty("user.dir"));
+            Path envSourceDir = Files.exists(cwd.resolve(".env"))
+                    ? cwd
+                    : suitePath.toAbsolutePath().getParent();
+            envVars = dotEnvLoader.loadDotEnv(envSourceDir);
+        }
         SuiteRunContext suiteRunContext = SuiteRunContext.of(envVars, cliVars);
         TestSuite testSuite = testSuiteLoader.load(suitePath, suiteRunContext);
 
