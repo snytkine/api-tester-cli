@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.model;
 
 import java.util.Map;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable holder for all named variable namespaces available during test-suite loading and
@@ -76,8 +77,16 @@ public final class SuiteRunContext {
     private final String runID;
 
     /**
+     * Optional run-level metadata needed to dispatch lifecycle hooks (interactive flag, report
+     * dir/path, filters, env-file path). {@code null} when the run declares no hooks or the context
+     * has not yet been enriched by the command layer. See {@link #withHookRunMetadata}.
+     */
+    @Nullable private final HookRunMetadata hookRunMetadata;
+
+    /**
      * Constructs a {@code SuiteRunContext}, defensively copying all four maps into unmodifiable
-     * views and generating a fresh, unique {@link #getRunID() runID}.
+     * views and generating a fresh, unique {@link #getRunID() runID}. No hook metadata is attached;
+     * use {@link #withHookRunMetadata(HookRunMetadata)} to attach it while preserving the runID.
      *
      * @param env environment variable map
      * @param cli CLI variable map
@@ -91,6 +100,55 @@ public final class SuiteRunContext {
         this.suite = Map.copyOf(suite);
         this.test = Map.copyOf(test);
         this.runID = UUID.randomUUID().toString();
+        this.hookRunMetadata = null;
+    }
+
+    /**
+     * Private copy constructor that preserves an existing {@code runID} rather than generating a new
+     * one, used by {@link #withHookRunMetadata(HookRunMetadata)} so that attaching metadata never
+     * changes the run's identity.
+     *
+     * @param env environment variable map (already unmodifiable)
+     * @param cli CLI variable map (already unmodifiable)
+     * @param suite suite-level variable map (already unmodifiable)
+     * @param test test-case variable map (already unmodifiable)
+     * @param runID the run identifier to preserve
+     * @param hookRunMetadata the hook run metadata to attach, or {@code null}
+     */
+    private SuiteRunContext(
+            Map<String, String> env,
+            Map<String, String> cli,
+            Map<String, String> suite,
+            Map<String, String> test,
+            String runID,
+            @Nullable HookRunMetadata hookRunMetadata) {
+        this.env = env;
+        this.cli = cli;
+        this.suite = suite;
+        this.test = test;
+        this.runID = runID;
+        this.hookRunMetadata = hookRunMetadata;
+    }
+
+    /**
+     * Returns a copy of this context with the supplied hook run metadata attached, preserving the
+     * {@link #getRunID() runID} and all four variable namespaces unchanged.
+     *
+     * @param metadata the run-level metadata lifecycle hooks require
+     * @return a new {@code SuiteRunContext} identical to this one but carrying {@code metadata}
+     */
+    public SuiteRunContext withHookRunMetadata(HookRunMetadata metadata) {
+        return new SuiteRunContext(env, cli, suite, test, runID, metadata);
+    }
+
+    /**
+     * Returns the attached hook run metadata, or {@link HookRunMetadata#empty()} when none was
+     * attached (so callers never have to null-check).
+     *
+     * @return the hook run metadata; never {@code null}
+     */
+    public HookRunMetadata hookRunMetadata() {
+        return hookRunMetadata != null ? hookRunMetadata : HookRunMetadata.empty();
     }
 
     /**

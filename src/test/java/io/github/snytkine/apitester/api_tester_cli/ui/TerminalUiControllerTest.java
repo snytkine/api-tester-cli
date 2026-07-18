@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
@@ -883,5 +884,37 @@ class TerminalUiControllerTest {
         ctrl.await();
 
         assertThat(capture.toString()).doesNotContain("is available");
+    }
+
+    @Test
+    void rendersBeforeAllHooksAboveGridAndAfterAllHooksBelowSummary() throws InterruptedException {
+        LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
+        StringWriter capture = new StringWriter();
+        TerminalUiController ctrl = controller(queue, capture);
+        ctrl.start();
+
+        // before-all hook phase (rendered before the grid)
+        queue.offer(new TestProgressEvent.HookPhaseStarted(HookPhase.BEFORE_ALL, 1));
+        queue.offer(new TestProgressEvent.HookCompleted(HookPhase.BEFORE_ALL, "seed", 1, false, true, 0, 5L, false));
+        queue.offer(new TestProgressEvent.HookPhaseCompleted(HookPhase.BEFORE_ALL, true));
+        // suite + one test
+        queue.offer(new TestProgressEvent.SuiteStarted("suite", 1, Instant.now()));
+        queue.offer(new TestProgressEvent.TestStarted("0", 0, "test-one"));
+        queue.offer(new TestProgressEvent.TestCompleted("0", 0, "test-one", TestStatus.PASS, 10L, 1, List.of()));
+        // after-all hook phase (buffered, rendered below the summary)
+        queue.offer(new TestProgressEvent.HookPhaseStarted(HookPhase.AFTER_ALL, 1));
+        queue.offer(new TestProgressEvent.HookCompleted(HookPhase.AFTER_ALL, "cleanup", 1, false, false, 1, 8L, false));
+        queue.offer(new TestProgressEvent.HookPhaseCompleted(HookPhase.AFTER_ALL, false));
+        queue.offer(new TestProgressEvent.SuiteCompleted(1, 0, 0L, 0L, 10L));
+        ctrl.await();
+
+        String output = capture.toString();
+        assertThat(output).contains("Running before all hooks");
+        assertThat(output).contains("before-all hook 1 (seed) finished");
+        assertThat(output).contains("Running after all hooks");
+        assertThat(output).contains("after-all hook 1 (cleanup) returned non-zero status");
+        // before-all block precedes the grid; after-all block follows the summary.
+        assertThat(output.indexOf("Running before all hooks")).isLessThan(output.indexOf("Test Name"));
+        assertThat(output.indexOf("Running after all hooks")).isGreaterThan(output.indexOf("Test Name"));
     }
 }

@@ -17,6 +17,7 @@
 package io.github.snytkine.apitester.api_tester_cli.event;
 
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import java.time.Instant;
 import java.util.List;
 
@@ -36,7 +37,10 @@ public sealed interface TestProgressEvent
                 TestProgressEvent.TestStarted,
                 TestProgressEvent.TestCompleted,
                 TestProgressEvent.SuiteCompleted,
-                TestProgressEvent.ValidationFailed {
+                TestProgressEvent.ValidationFailed,
+                TestProgressEvent.HookPhaseStarted,
+                TestProgressEvent.HookCompleted,
+                TestProgressEvent.HookPhaseCompleted {
 
     /**
      * Fired once before any test cases begin. Carries enough information for the UI to pre-allocate
@@ -109,4 +113,48 @@ public sealed interface TestProgressEvent
      *     failures
      */
     record ValidationFailed(List<String> errors) implements TestProgressEvent {}
+
+    /**
+     * Fired once when a lifecycle-hook phase begins execution, before its first hook runs. Carries
+     * enough information for the UI to render a phase header/box.
+     *
+     * <p>These records intentionally carry no script path, parameters, or web payload (they may
+     * contain secrets); only phase, hook identity, index, and outcome metadata are exposed.
+     *
+     * @param phase the lifecycle phase whose hooks are starting
+     * @param hookCount the number of hooks declared for this phase
+     */
+    record HookPhaseStarted(HookPhase phase, int hookCount) implements TestProgressEvent {}
+
+    /**
+     * Fired after a single lifecycle hook finishes (whether it succeeded, failed, or timed out).
+     *
+     * @param phase the lifecycle phase this hook belongs to
+     * @param hookId the hook's effective id (explicit or derived {@code <phase>-<index>})
+     * @param index the hook's 1-based position within its phase list
+     * @param async whether the hook was dispatched asynchronously
+     * @param success whether the hook completed successfully (script exit 0 / web status 200 or 201)
+     * @param exitCodeOrStatus the script exit code or the HTTP status code (or {@code -1} when the
+     *     hook could not be launched / no response was obtained)
+     * @param durationMs wall-clock duration in milliseconds
+     * @param timedOut whether the hook was terminated because it exceeded its timeout
+     */
+    record HookCompleted(
+            HookPhase phase,
+            String hookId,
+            int index,
+            boolean async,
+            boolean success,
+            int exitCodeOrStatus,
+            long durationMs,
+            boolean timedOut)
+            implements TestProgressEvent {}
+
+    /**
+     * Fired once after all hooks in a phase have finished (or been dispatched, for async hooks).
+     *
+     * @param phase the lifecycle phase that has completed
+     * @param allSucceeded whether every synchronous hook in the phase succeeded
+     */
+    record HookPhaseCompleted(HookPhase phase, boolean allSucceeded) implements TestProgressEvent {}
 }

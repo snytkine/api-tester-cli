@@ -68,6 +68,7 @@ public class TestSuiteLoader {
                 defaultedClients(testSuite.restClients()),
                 testSuite.variables(),
                 testSuite.tests(),
+                testSuite.hooks(),
                 filePath,
                 templateContent);
     }
@@ -155,6 +156,7 @@ public class TestSuiteLoader {
                 defaultedClients(processedTestSuite.restClients()),
                 resolvedVariables,
                 processedTestSuite.tests(),
+                processedTestSuite.hooks(),
                 filePath,
                 templateContent);
     }

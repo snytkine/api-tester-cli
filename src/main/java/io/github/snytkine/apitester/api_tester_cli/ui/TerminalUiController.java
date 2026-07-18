@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.ui;
 
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -383,15 +384,41 @@ public final class TerminalUiController {
      */
     private void runLoop() {
         try {
-            TestProgressEvent firstEvent = queue.poll(SUITE_STARTED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            if (firstEvent instanceof TestProgressEvent.ValidationFailed vf) {
-                new ErrorBox().render(vf.errors(), useColors, terminalWidth, output);
-                output.flush();
-                return;
-            }
-            if (!(firstEvent instanceof TestProgressEvent.SuiteStarted suiteStarted)) {
-                log.warn("TUI controller received unexpected first event or timed out; aborting UI render");
-                return;
+            // Pre-grid phase: render any before-all hook activity (and handle validation failure)
+            // until the SuiteStarted event arrives. Hook phases can run for a while, so we keep
+            // polling — each poll waits up to the SuiteStarted timeout for the next event.
+            TestProgressEvent.SuiteStarted suiteStarted = null;
+            while (suiteStarted == null) {
+                TestProgressEvent ev = queue.poll(SUITE_STARTED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                if (ev == null) {
+                    log.warn("TUI controller timed out waiting for SuiteStarted; aborting UI render");
+                    return;
+                }
+                switch (ev) {
+                    case TestProgressEvent.ValidationFailed vf -> {
+                        new ErrorBox().render(vf.errors(), useColors, terminalWidth, output);
+                        output.flush();
+                        return;
+                    }
+                    case TestProgressEvent.SuiteStarted ss -> suiteStarted = ss;
+                    case TestProgressEvent.HookPhaseStarted hps -> {
+                        drawHookPhaseHeader(hps.phase());
+                        output.flush();
+                    }
+                    case TestProgressEvent.HookCompleted hc -> {
+                        drawHookCompletedLine(hc);
+                        output.flush();
+                    }
+                    case TestProgressEvent.HookPhaseCompleted ignored -> {
+                        // No per-phase-completion rendering before the grid.
+                    }
+                    default -> {
+                        // A non-hook event before SuiteStarted (e.g. a stray SuiteCompleted) is
+                        // unexpected: abort the UI render rather than looping.
+                        log.warn("TUI controller received unexpected pre-grid event; aborting UI render");
+                        return;
+                    }
+                }
             }
 
             int rowCount = suiteStarted.totalTestCount();
@@ -414,6 +441,10 @@ public final class TerminalUiController {
             Map<String, Integer> uniqueIdToRow = new HashMap<>();
 
             List<TestProgressEvent.TestCompleted> collectedFailures = new ArrayList<>();
+            // Hook events that arrive during the grid loop (after-all, fired before SuiteCompleted)
+            // are buffered and replayed below the summary, so they never disturb the grid's cursor
+            // math. before-each/after-each hook events carry no display and are simply ignored here.
+            List<TestProgressEvent> postSummaryHookEvents = new ArrayList<>();
             long summaryPassCount = 0;
             long summaryFailCount = 0;
             long summarySkipCount = 0;
@@ -436,7 +467,13 @@ public final class TerminalUiController {
                         summaryErrorCount = sc.errorCount();
                         summaryTotalMs = sc.totalDurationMs();
                     }
-                    done = applyEvent(event, rowCount, testNames, isRunning, spinnerFrames, uniqueIdToRow);
+                    if (isHookEvent(event)) {
+                        if (isAfterPhaseHookEvent(event)) {
+                            postSummaryHookEvents.add(event);
+                        }
+                    } else {
+                        done = applyEvent(event, rowCount, testNames, isRunning, spinnerFrames, uniqueIdToRow);
+                    }
                 }
 
                 // Advance the Braille spinner for every currently-running row using cursor positioning.
@@ -460,6 +497,7 @@ public final class TerminalUiController {
             output.println();
             printSummary(summaryPassCount, summaryFailCount, summarySkipCount, summaryErrorCount, summaryTotalMs);
             printFailures(collectedFailures);
+            replayHookEvents(postSummaryHookEvents);
             printUpgradeNotice();
             output.flush();
 
@@ -544,7 +582,89 @@ public final class TerminalUiController {
             case TestProgressEvent.SuiteCompleted ignored -> true;
             // Handled before the main loop starts; should never reach here.
             case TestProgressEvent.ValidationFailed ignored -> false;
+            // Hook events are intercepted in runLoop and never dispatched here; covered for
+            // switch exhaustiveness only.
+            case TestProgressEvent.HookPhaseStarted ignored -> false;
+            case TestProgressEvent.HookCompleted ignored -> false;
+            case TestProgressEvent.HookPhaseCompleted ignored -> false;
         };
+    }
+
+    /**
+     * Returns whether {@code event} is one of the three lifecycle-hook event types.
+     *
+     * @param event the event to classify
+     * @return {@code true} when {@code event} is a hook phase/completion event
+     */
+    private static boolean isHookEvent(TestProgressEvent event) {
+        return event instanceof TestProgressEvent.HookPhaseStarted
+                || event instanceof TestProgressEvent.HookCompleted
+                || event instanceof TestProgressEvent.HookPhaseCompleted;
+    }
+
+    /**
+     * Returns whether a hook event belongs to a phase that renders <em>after</em> the summary (i.e.
+     * {@code after-all}). Such events are buffered during the grid loop and replayed below the
+     * summary so they never disturb the grid's cursor positioning.
+     *
+     * @param event a hook event
+     * @return {@code true} when the event's phase is {@link HookPhase#AFTER_ALL}
+     */
+    private static boolean isAfterPhaseHookEvent(TestProgressEvent event) {
+        HookPhase phase =
+                switch (event) {
+                    case TestProgressEvent.HookPhaseStarted e -> e.phase();
+                    case TestProgressEvent.HookCompleted e -> e.phase();
+                    case TestProgressEvent.HookPhaseCompleted e -> e.phase();
+                    default -> null;
+                };
+        return phase == HookPhase.AFTER_ALL;
+    }
+
+    /**
+     * Replays buffered hook phase/completion events below the run summary, drawing a phase header
+     * box for each {@link TestProgressEvent.HookPhaseStarted} and a per-hook status line for each
+     * {@link TestProgressEvent.HookCompleted}.
+     *
+     * @param events the buffered hook events in arrival order; may be empty
+     */
+    private void replayHookEvents(List<TestProgressEvent> events) {
+        for (TestProgressEvent event : events) {
+            if (event instanceof TestProgressEvent.HookPhaseStarted hps) {
+                output.println();
+                drawHookPhaseHeader(hps.phase());
+            } else if (event instanceof TestProgressEvent.HookCompleted hc) {
+                drawHookCompletedLine(hc);
+            }
+        }
+    }
+
+    /**
+     * Draws a centred box titled {@code "Running <phase words> hooks"} (e.g. {@code "Running before
+     * all hooks"}) using the same helper as the suite banner.
+     *
+     * @param phase the lifecycle phase whose hooks are starting
+     */
+    private void drawHookPhaseHeader(HookPhase phase) {
+        drawCenteredBox("Running " + phase.yamlKey().replace('-', ' ') + " hooks", ANSI_YELLOW);
+    }
+
+    /**
+     * Draws a single per-hook status line: a green checkmark line when the hook succeeded, or a red
+     * cross line naming the timeout or the non-zero exit/status code when it failed. Async hooks are
+     * annotated as such.
+     *
+     * @param e the hook completion event to render
+     */
+    private void drawHookCompletedLine(TestProgressEvent.HookCompleted e) {
+        String label = e.phase().yamlKey() + " hook " + e.index() + " (" + e.hookId() + ")";
+        String asyncSuffix = e.async() ? " [async]" : "";
+        if (e.success()) {
+            output.println("  " + colorize(Glyphs.PASS + " " + label + " finished" + asyncSuffix, ANSI_GREEN));
+        } else {
+            String reason = e.timedOut() ? "timed out" : "returned non-zero status (" + e.exitCodeOrStatus() + ")";
+            output.println("  " + colorize(Glyphs.FAIL + " " + label + " " + reason + asyncSuffix, ANSI_RED));
+        }
     }
 
     /**

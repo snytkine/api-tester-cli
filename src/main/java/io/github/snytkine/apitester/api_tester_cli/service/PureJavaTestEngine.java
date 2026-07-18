@@ -23,6 +23,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.exception.AssertionFailuresException;
+import io.github.snytkine.apitester.api_tester_cli.exception.HookFailedException;
 import io.github.snytkine.apitester.api_tester_cli.exception.SkipTestException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
@@ -42,8 +43,15 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.AssertionEvaluatorFactory;
 import io.github.snytkine.apitester.api_tester_cli.service.assertion.ResponseResolver;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.AsyncHookHandles;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.HookRunner;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.ScriptHookExecutor;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.WebHookExecutor;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
 import java.io.IOException;
@@ -106,32 +114,50 @@ public class PureJavaTestEngine implements TestEngine {
     private final ClientHttpRequestFactory requestFactory;
     private final AssertionEvaluatorFactory evaluatorFactory;
     private final ResponseResolver responseResolver;
+    private final HookRunner hookRunner;
     private final ObjectMapper yamlMapper;
 
     /**
-     * Constructs the engine with the required collaborators. A YAML
-     * {@link ObjectMapper} is created
-     * here for re-parsing the suite template during per-test variable resolution;
-     * it is configured to
-     * ignore unknown properties so that loader-injected fields do not cause
-     * failures.
+     * Constructs the engine with all required collaborators, including the {@link HookRunner} used to
+     * dispatch lifecycle hooks. This is the constructor Spring uses.
      *
-     * @param requestFactory   the HTTP transport factory used to back each
-     *                         per-suite {@link RestClient}
-     * @param evaluatorFactory maps assertion model objects to their evaluator
-     *                         implementations
-     * @param responseResolver converts a {@link RestClient.ResponseSpec} into an
-     *                         {@link ApiResponse}
+     * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
+     * @param evaluatorFactory maps assertion model objects to their evaluator implementations
+     * @param responseResolver converts a {@link RestClient.ResponseSpec} into an {@link ApiResponse}
+     * @param hookRunner orchestrates lifecycle-hook phases
+     */
+    @org.springframework.beans.factory.annotation.Autowired
+    public PureJavaTestEngine(
+            ClientHttpRequestFactory requestFactory,
+            AssertionEvaluatorFactory evaluatorFactory,
+            ResponseResolver responseResolver,
+            HookRunner hookRunner) {
+        this.requestFactory = requestFactory;
+        this.evaluatorFactory = evaluatorFactory;
+        this.responseResolver = responseResolver;
+        this.hookRunner = hookRunner;
+        this.yamlMapper =
+                new ObjectMapper(new YAMLFactory()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    }
+
+    /**
+     * Convenience constructor that builds a default {@link HookRunner} from the supplied transport
+     * factory. Retained so pre-hooks unit tests that construct the engine with three collaborators
+     * continue to compile and to exercise hook dispatch with real executors.
+     *
+     * @param requestFactory the HTTP transport factory used to back each per-suite {@link RestClient}
+     * @param evaluatorFactory maps assertion model objects to their evaluator implementations
+     * @param responseResolver converts a {@link RestClient.ResponseSpec} into an {@link ApiResponse}
      */
     public PureJavaTestEngine(
             ClientHttpRequestFactory requestFactory,
             AssertionEvaluatorFactory evaluatorFactory,
             ResponseResolver responseResolver) {
-        this.requestFactory = requestFactory;
-        this.evaluatorFactory = evaluatorFactory;
-        this.responseResolver = responseResolver;
-        this.yamlMapper =
-                new ObjectMapper(new YAMLFactory()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        this(
+                requestFactory,
+                evaluatorFactory,
+                responseResolver,
+                new HookRunner(new ScriptHookExecutor(), new WebHookExecutor(requestFactory)));
     }
 
     /**
@@ -179,109 +205,253 @@ public class PureJavaTestEngine implements TestEngine {
         Map<String, Map<String, String>> configMap =
                 Map.of("cli", context.cli(), "env", context.env(), "suite", suiteVariables, "test", Map.of());
 
+        Hooks hooks = testSuite.hooks();
+        HookRunner.HookInvocationContext hookCtx = buildHookContext(testSuite, context, suiteDir);
+        List<Hook> beforeAllHooks = phaseHooks(hooks, HookPhase.BEFORE_ALL);
+        List<Hook> beforeEachHooks = phaseHooks(hooks, HookPhase.BEFORE_EACH);
+        List<Hook> afterEachHooks = phaseHooks(hooks, HookPhase.AFTER_EACH);
+        List<Hook> afterAllHooks = phaseHooks(hooks, HookPhase.AFTER_ALL);
+
         List<TestCase> tests = testSuite.tests();
-        Instant suiteStart = Instant.now();
-        listener.onProgress(new TestProgressEvent.SuiteStarted(testSuite.name(), tests.size(), suiteStart));
 
-        List<TestCaseResult> results = new ArrayList<>();
-
-        for (int i = 0; i < tests.size(); i++) {
-            TestCase config = tests.get(i);
-            String uniqueId = String.valueOf(i);
-            listener.onProgress(new TestProgressEvent.TestStarted(uniqueId, i, config.name()));
-            long testStart = System.currentTimeMillis();
-
-            // Single-element holder: written by the requestCapture callback inside
-            // executeSingleTest (before retrieve()), read by all non-skip catch branches.
-            // Safe because it is created fresh per iteration and the callback fires
-            // synchronously on this thread — no sharing between concurrent iterations.
-            @Nullable ExecutedRequestInfo[] capturedRequest = new ExecutedRequestInfo[1];
-
-            // Single-element holder: written by the responseCapture callback inside
-            // executeSingleTest (after ApiResponse is received), read by all non-skip catch branches.
-            // Safe because it is created fresh per iteration and the callback fires
-            // synchronously on this thread — no sharing between concurrent iterations.
-            @Nullable ApiResponse[] capturedResponse = new ApiResponse[1];
-
-            try {
-                executeSingleTest(
-                        restClients,
-                        defaultRestClient,
-                        testSuite,
-                        i,
-                        suiteDir,
-                        configMap,
-                        info -> capturedRequest[0] = info,
-                        resp -> capturedResponse[0] = resp);
-                long durationMs = System.currentTimeMillis() - testStart;
-                int totalAssertions = config.assertions().size();
-                results.add(new TestCaseResult(
-                        config.name(),
-                        TestResult.PASSED,
-                        totalAssertions,
-                        List.of(),
-                        null,
-                        capturedRequest[0],
-                        capturedResponse[0]));
-                listener.onProgress(new TestProgressEvent.TestCompleted(
-                        uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
-            } catch (SkipTestException e) {
-                long durationMs = System.currentTimeMillis() - testStart;
-                results.add(new TestCaseResult(
-                        config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage(), null, null));
-                listener.onProgress(new TestProgressEvent.TestCompleted(
-                        uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
-                log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
-            } catch (AssertionFailuresException e) {
-                long durationMs = System.currentTimeMillis() - testStart;
-                List<AssertionFailure> failures = e.failures();
-                int totalAssertions = config.assertions().size();
-                int passedAssertions = totalAssertions - failures.size();
-                results.add(new TestCaseResult(
-                        config.name(),
-                        TestResult.FAILED,
-                        passedAssertions,
-                        failures,
-                        null,
-                        capturedRequest[0],
-                        capturedResponse[0]));
-                listener.onProgress(new TestProgressEvent.TestCompleted(
-                        uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, failures));
-                log.debug("Test case '{}' failed with {} assertion failure(s)", config.name(), failures.size());
-            } catch (Throwable e) {
-                long durationMs = System.currentTimeMillis() - testStart;
-                results.add(new TestCaseResult(
-                        config.name(),
-                        TestResult.ERROR,
-                        0,
-                        List.of(new AssertionFailure(e.getMessage(), null, null, null)),
-                        null,
-                        capturedRequest[0],
-                        capturedResponse[0]));
-                listener.onProgress(new TestProgressEvent.TestCompleted(
-                        uniqueId,
-                        i,
-                        config.name(),
-                        TestStatus.ERROR,
-                        durationMs,
-                        0,
-                        List.of(new AssertionFailure(e.getMessage(), null, null, null))));
-                log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
+        try (AsyncHookHandles asyncHandles = new AsyncHookHandles()) {
+            // before-all runs before SuiteStarted; a blocking failure aborts the run fatally.
+            HookRunner.HookPhaseOutcome beforeAll = hookRunner.runPhase(
+                    HookPhase.BEFORE_ALL, beforeAllHooks, hookCtx, null, null, listener, asyncHandles);
+            if (!beforeAll.allSucceeded()) {
+                throw new HookFailedException(
+                        beforeAll.firstFailureMessage() != null
+                                ? beforeAll.firstFailureMessage()
+                                : "Before All hook returned non-zero status");
             }
+
+            Instant suiteStart = Instant.now();
+            listener.onProgress(new TestProgressEvent.SuiteStarted(testSuite.name(), tests.size(), suiteStart));
+
+            List<TestCaseResult> results = new ArrayList<>();
+
+            for (int i = 0; i < tests.size(); i++) {
+                TestCase config = tests.get(i);
+                String uniqueId = String.valueOf(i);
+                listener.onProgress(new TestProgressEvent.TestStarted(uniqueId, i, config.name()));
+                long testStart = System.currentTimeMillis();
+
+                boolean skipped = config.skip() != null && !config.skip().isBlank();
+
+                // before-each runs before the request is sent (skipped tests have no request).
+                // A blocking before-each failure marks this test an error and skips both the
+                // request and after-each; remaining tests still run.
+                if (!skipped && !beforeEachHooks.isEmpty()) {
+                    HookRunner.PerTestData beforeData = beforeEachPerTest(testSuite, config);
+                    HookRunner.HookPhaseOutcome be = hookRunner.runPhase(
+                            HookPhase.BEFORE_EACH, beforeEachHooks, hookCtx, beforeData, null, listener, asyncHandles);
+                    if (!be.allSucceeded()) {
+                        long durationMs = System.currentTimeMillis() - testStart;
+                        String msg = be.firstFailureMessage() != null
+                                ? be.firstFailureMessage()
+                                : "before-each hook returned non-zero status";
+                        List<AssertionFailure> failure = List.of(new AssertionFailure(msg, null, null, null));
+                        results.add(new TestCaseResult(config.name(), TestResult.ERROR, 0, failure, msg, null, null));
+                        listener.onProgress(new TestProgressEvent.TestCompleted(
+                                uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, failure));
+                        log.debug("Test case '{}' errored: before-each hook failed: {}", config.name(), msg);
+                        continue;
+                    }
+                }
+
+                // Single-element holder: written by the requestCapture callback inside
+                // executeSingleTest (before retrieve()), read by all non-skip catch branches.
+                // Safe because it is created fresh per iteration and the callback fires
+                // synchronously on this thread — no sharing between concurrent iterations.
+                @Nullable ExecutedRequestInfo[] capturedRequest = new ExecutedRequestInfo[1];
+
+                // Single-element holder: written by the responseCapture callback inside
+                // executeSingleTest (after ApiResponse is received), read by all non-skip catch branches.
+                // Safe because it is created fresh per iteration and the callback fires
+                // synchronously on this thread — no sharing between concurrent iterations.
+                @Nullable ApiResponse[] capturedResponse = new ApiResponse[1];
+
+                try {
+                    executeSingleTest(
+                            restClients,
+                            defaultRestClient,
+                            testSuite,
+                            i,
+                            suiteDir,
+                            configMap,
+                            info -> capturedRequest[0] = info,
+                            resp -> capturedResponse[0] = resp);
+                    long durationMs = System.currentTimeMillis() - testStart;
+                    int totalAssertions = config.assertions().size();
+                    results.add(new TestCaseResult(
+                            config.name(),
+                            TestResult.PASSED,
+                            totalAssertions,
+                            List.of(),
+                            null,
+                            capturedRequest[0],
+                            capturedResponse[0]));
+                    listener.onProgress(new TestProgressEvent.TestCompleted(
+                            uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
+                } catch (SkipTestException e) {
+                    long durationMs = System.currentTimeMillis() - testStart;
+                    results.add(new TestCaseResult(
+                            config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage(), null, null));
+                    listener.onProgress(new TestProgressEvent.TestCompleted(
+                            uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
+                    log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
+                } catch (AssertionFailuresException e) {
+                    long durationMs = System.currentTimeMillis() - testStart;
+                    List<AssertionFailure> failures = e.failures();
+                    int totalAssertions = config.assertions().size();
+                    int passedAssertions = totalAssertions - failures.size();
+                    results.add(new TestCaseResult(
+                            config.name(),
+                            TestResult.FAILED,
+                            passedAssertions,
+                            failures,
+                            null,
+                            capturedRequest[0],
+                            capturedResponse[0]));
+                    listener.onProgress(new TestProgressEvent.TestCompleted(
+                            uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, failures));
+                    log.debug("Test case '{}' failed with {} assertion failure(s)", config.name(), failures.size());
+                } catch (Throwable e) {
+                    long durationMs = System.currentTimeMillis() - testStart;
+                    results.add(new TestCaseResult(
+                            config.name(),
+                            TestResult.ERROR,
+                            0,
+                            List.of(new AssertionFailure(e.getMessage(), null, null, null)),
+                            null,
+                            capturedRequest[0],
+                            capturedResponse[0]));
+                    listener.onProgress(new TestProgressEvent.TestCompleted(
+                            uniqueId,
+                            i,
+                            config.name(),
+                            TestStatus.ERROR,
+                            durationMs,
+                            0,
+                            List.of(new AssertionFailure(e.getMessage(), null, null, null))));
+                    log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
+                }
+
+                // after-each runs after this test's assertions complete (not for skipped tests).
+                if (!skipped && !afterEachHooks.isEmpty()) {
+                    TestResult iterationResult = results.get(results.size() - 1).result();
+                    HookRunner.PerTestData afterData =
+                            afterEachPerTest(testSuite, config, capturedRequest[0], iterationResult);
+                    hookRunner.runPhase(
+                            HookPhase.AFTER_EACH, afterEachHooks, hookCtx, afterData, null, listener, asyncHandles);
+                }
+            }
+
+            Map<TestResult, Long> counts =
+                    results.stream().collect(Collectors.groupingBy(TestCaseResult::result, Collectors.counting()));
+            long passedCount = counts.getOrDefault(TestResult.PASSED, 0L);
+            long failedCount = counts.getOrDefault(TestResult.FAILED, 0L);
+            long skippedCount = counts.getOrDefault(TestResult.SKIPPED, 0L);
+            long errorCount = counts.getOrDefault(TestResult.ERROR, 0L);
+
+            long totalDurationMs = Instant.now().toEpochMilli() - suiteStart.toEpochMilli();
+
+            // after-all runs after the last test, before SuiteCompleted, so the UI can render it
+            // below the summary. Failures here are warnings only and never change the result.
+            HookRunner.SummaryData summary =
+                    new HookRunner.SummaryData(tests.size(), passedCount, failedCount, errorCount, totalDurationMs);
+            hookRunner.runPhase(HookPhase.AFTER_ALL, afterAllHooks, hookCtx, null, summary, listener, asyncHandles);
+
+            listener.onProgress(new TestProgressEvent.SuiteCompleted(
+                    passedCount, failedCount, skippedCount, errorCount, totalDurationMs));
+
+            return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results, Map.of());
         }
+    }
 
-        Map<TestResult, Long> counts =
-                results.stream().collect(Collectors.groupingBy(TestCaseResult::result, Collectors.counting()));
-        long passedCount = counts.getOrDefault(TestResult.PASSED, 0L);
-        long failedCount = counts.getOrDefault(TestResult.FAILED, 0L);
-        long skippedCount = counts.getOrDefault(TestResult.SKIPPED, 0L);
-        long errorCount = counts.getOrDefault(TestResult.ERROR, 0L);
+    /**
+     * Builds the run-level {@link HookRunner.HookInvocationContext} from the suite and run context.
+     *
+     * @param testSuite the suite being run
+     * @param context the run context (carries the runID and hook run metadata)
+     * @param suiteDir the suite file's directory, or {@code null}
+     * @return the immutable hook invocation context
+     */
+    private static HookRunner.HookInvocationContext buildHookContext(
+            TestSuite testSuite, SuiteRunContext context, @Nullable Path suiteDir) {
+        var meta = context.hookRunMetadata();
+        return new HookRunner.HookInvocationContext(
+                testSuite.name(),
+                context.getRunID(),
+                meta.interactive(),
+                meta.reportDir(),
+                meta.reportPath(),
+                meta.tagFilter(),
+                meta.testNameFilter(),
+                meta.envFilePath(),
+                suiteDir,
+                context.env(),
+                testSuite.restClientsById());
+    }
 
-        long totalDurationMs = Instant.now().toEpochMilli() - suiteStart.toEpochMilli();
-        listener.onProgress(new TestProgressEvent.SuiteCompleted(
-                passedCount, failedCount, skippedCount, errorCount, totalDurationMs));
+    /**
+     * Returns the hooks declared for {@code phase}, or an empty list when the suite declares no
+     * {@code hooks} block.
+     *
+     * @param hooks the suite's hooks block, or {@code null}
+     * @param phase the phase whose hooks are requested
+     * @return a non-null list of hooks for the phase
+     */
+    private static List<Hook> phaseHooks(@Nullable Hooks hooks, HookPhase phase) {
+        return hooks != null ? hooks.forPhase(phase) : List.of();
+    }
 
-        return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results, Map.of());
+    /**
+     * Builds {@link HookRunner.PerTestData} for a {@code before-each} hook using the pre-request
+     * (raw) test-case data: the resolved full URL, method, and declared headers. The body is not yet
+     * resolved at this point and is reported as {@code null}.
+     *
+     * @param testSuite the suite (for rest-client resolution)
+     * @param config the test case about to run
+     * @return the per-test data for {@code before-each}
+     */
+    private static HookRunner.PerTestData beforeEachPerTest(TestSuite testSuite, TestCase config) {
+        String id = resolveRestClientId(testSuite, config);
+        RestClientConfig rc = testSuite.restClientsById().get(id);
+        String url = resolveFullUrl(rc, config.request().url());
+        return new HookRunner.PerTestData(
+                config.name(), url, config.request().method(), config.request().headers(), null, null);
+    }
+
+    /**
+     * Builds {@link HookRunner.PerTestData} for an {@code after-each} hook, preferring the fully
+     * resolved request captured during execution (URL, headers, body) and including the test's result
+     * status.
+     *
+     * @param testSuite the suite (for rest-client resolution fallback)
+     * @param config the test case that ran
+     * @param captured the captured resolved request, or {@code null} when the request was never sent
+     * @param result the test's result
+     * @return the per-test data for {@code after-each}
+     */
+    private static HookRunner.PerTestData afterEachPerTest(
+            TestSuite testSuite, TestCase config, @Nullable ExecutedRequestInfo captured, TestResult result) {
+        String status =
+                switch (result) {
+                    case PASSED -> "passed";
+                    case FAILED -> "failed";
+                    case ERROR -> "error";
+                    case SKIPPED -> "skipped";
+                };
+        if (captured != null) {
+            return new HookRunner.PerTestData(
+                    config.name(), captured.url(), captured.method(), captured.headers(), captured.body(), status);
+        }
+        String id = resolveRestClientId(testSuite, config);
+        RestClientConfig rc = testSuite.restClientsById().get(id);
+        String url = resolveFullUrl(rc, config.request().url());
+        return new HookRunner.PerTestData(
+                config.name(), url, config.request().method(), config.request().headers(), null, status);
     }
 
     /**

@@ -66,6 +66,11 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusInAsse
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringContainsAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ValueTypeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.ScriptHook;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.WebHook;
 import java.util.Map;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.boot.Banner;
@@ -107,6 +112,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     GreaterThanAssertion.class,
     GreaterThanOrEqualAssertion.class,
     HasHeaderAssertion.class,
+    Hook.class,
+    HookPhase.class,
+    Hooks.class,
     HttpMethod.class,
     IsNullAssertion.class,
     JsonMatchAssertion.class,
@@ -127,6 +135,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     RequestDeserializer.class,
     ResponseTimeAssertion.class,
     RestClientConfig.class,
+    ScriptHook.class,
     StartsWithAssertion.class,
     StatusCodeAssertion.class,
     StatusInAssertion.class,
@@ -137,6 +146,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     TestRunResult.class,
     TestSuite.class,
     ValueTypeAssertion.class,
+    WebHook.class,
 })
 public class ApiTesterCliApplication {
 
