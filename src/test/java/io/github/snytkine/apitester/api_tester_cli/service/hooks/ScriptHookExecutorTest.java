@@ -170,6 +170,30 @@ class ScriptHookExecutorTest {
     }
 
     @Test
+    void directoryPathFailsToLaunch(@TempDir Path dir) {
+        // A directory is "executable" (searchable) on POSIX but cannot be exec'd; launch fails.
+        HookExecutionResult result = executor.execute(dir, dir.toString(), List.of(), Map.of(), 10, s -> {}, s -> {});
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorMessage()).contains("Failed to launch");
+    }
+
+    @Test
+    void interruptedWhileWaitingIsReportedAsFailure(@TempDir Path dir) throws IOException {
+        Path script = writeScript(dir, "slow.sh", "sleep 3\nexit 0\n");
+        Thread.currentThread().interrupt();
+        try {
+            HookExecutionResult result =
+                    executor.execute(dir, script.toString(), List.of(), Map.of(), 10, s -> {}, s -> {});
+            assertThat(result.success()).isFalse();
+            assertThat(result.errorMessage()).contains("Interrupted");
+        } finally {
+            // Clear the interrupt flag re-set by the executor so it can't leak into other tests.
+            Thread.interrupted();
+        }
+    }
+
+    @Test
     void resolvePathUsesAbsoluteAsIsAndRelativeAgainstSuiteDir(@TempDir Path dir) {
         Path abs = dir.resolve("x.sh").toAbsolutePath();
         assertThat(ScriptHookExecutor.resolvePath(dir, abs.toString())).isEqualTo(abs);

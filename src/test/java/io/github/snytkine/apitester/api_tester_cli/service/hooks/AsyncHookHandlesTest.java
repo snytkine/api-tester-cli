@@ -70,4 +70,23 @@ class AsyncHookHandlesTest {
             handles.awaitAll(); // must not propagate
         }
     }
+
+    @Test
+    void awaitAllReturnsWhenInterrupted() throws InterruptedException {
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            handles.submit(() -> {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            Thread waiter = new Thread(handles::awaitAll);
+            waiter.start();
+            Thread.sleep(50);
+            waiter.interrupt();
+            waiter.join(1000);
+            assertThat(waiter.isAlive()).isFalse();
+        }
+    }
 }

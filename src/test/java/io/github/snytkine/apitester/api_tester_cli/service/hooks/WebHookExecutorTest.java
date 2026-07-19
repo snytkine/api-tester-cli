@@ -18,7 +18,9 @@ package io.github.snytkine.apitester.api_tester_cli.service.hooks;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.snytkine.apitester.api_tester_cli.model.AuthType;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
 import io.github.snytkine.apitester.api_tester_cli.service.StubClientHttpRequestFactory;
 import java.io.IOException;
@@ -27,6 +29,7 @@ import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 
 /** Unit tests for {@link WebHookExecutor} using the shared stub HTTP factory. */
 class WebHookExecutorTest {
@@ -102,5 +105,68 @@ class WebHookExecutorTest {
         assertThat(result.timedOut()).isTrue();
         assertThat(result.success()).isFalse();
         assertThat(elapsed).isLessThan(2500L);
+    }
+
+    @Test
+    void baseUrlHeadersAndBasicAuthAreApplied() {
+        RestClientConfig config = new RestClientConfig(
+                null,
+                "http://example.test",
+                30000,
+                Map.of("X-Extra", "1"),
+                new RequestAuth(AuthType.BASIC, "user", "pass"));
+        StubClientHttpRequestFactory factory =
+                new StubClientHttpRequestFactory().stub("hook", 200, "{}", "application/json");
+        WebHookExecutor executor = new WebHookExecutor(factory);
+
+        // Relative URL resolved against the config base-url; headers + Basic auth applied by builder.
+        HookExecutionResult result = executor.execute(config, HttpMethod.POST, "/hook", Map.of(), null, false, 10);
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.exitCodeOrStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void transportErrorWithJdkFactoryIsReportedAsFailure() {
+        // connect-timeout present + a real JDK factory exercises the timeout-configured builder branch;
+        // the unreachable port fails fast and surfaces as a (non-timeout) failure.
+        RestClientConfig config = new RestClientConfig(null, "", 200, null, null);
+        WebHookExecutor executor = new WebHookExecutor(new JdkClientHttpRequestFactory());
+
+        HookExecutionResult result =
+                executor.execute(config, HttpMethod.POST, "http://localhost:1/hook", Map.of(), null, false, 5);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.timedOut()).isFalse();
+        assertThat(result.errorMessage()).contains("failed");
+    }
+
+    @Test
+    void unserializablePayloadIsReportedAsFailure() {
+        WebHookExecutor executor =
+                new WebHookExecutor(new StubClientHttpRequestFactory().stub("hook", 200, "{}", "application/json"));
+        java.util.Map<String, Object> selfReferential = new java.util.HashMap<>();
+        selfReferential.put("self", selfReferential); // Jackson cannot serialise a cycle.
+
+        HookExecutionResult result =
+                executor.execute(CONFIG, HttpMethod.POST, "http://example.test/hook", selfReferential, null, false, 10);
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errorMessage()).contains("serialise");
+    }
+
+    @Test
+    void interruptedWhileWaitingIsReportedAsFailure() {
+        WebHookExecutor executor = new WebHookExecutor(new StubClientHttpRequestFactory()
+                .stubWithDelay(org.springframework.http.HttpMethod.POST, "hook", 200, "{}", "application/json", 2000));
+        Thread.currentThread().interrupt();
+        try {
+            HookExecutionResult result =
+                    executor.execute(CONFIG, HttpMethod.POST, "http://example.test/hook", Map.of(), null, false, 10);
+            assertThat(result.success()).isFalse();
+            assertThat(result.errorMessage()).contains("Interrupted");
+        } finally {
+            Thread.interrupted();
+        }
     }
 }

@@ -22,6 +22,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
+- Supports lifecycle hooks — local scripts or outbound web calls fired at suite-execution phases (before/after all, before/after each test, and around report generation); script hooks are gated behind `--allow-scripts` / `APITESTER_ALLOW_SCRIPTS=true` (see [Lifecycle Hooks](https://cmdrest.com/docs/lifecycle-hooks))
 - Emits JSON results in non-interactive mode
 - Can show an interactive terminal UI when running in a compatible TTY
 - Can generate a self-contained single-page HTML execution report with `--report` (browser-side JSON formatting via optional inline JS)

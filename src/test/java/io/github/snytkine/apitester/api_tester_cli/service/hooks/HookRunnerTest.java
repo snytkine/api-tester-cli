@@ -264,4 +264,176 @@ class HookRunnerTest {
         assertThat(completed.success()).isTrue();
         assertThat(completed.exitCodeOrStatus()).isEqualTo(200);
     }
+
+    private static HookRunner.HookInvocationContext interactiveCtx(Path suiteDir) {
+        return new HookRunner.HookInvocationContext(
+                "My Suite",
+                "run-123",
+                true,
+                null,
+                null,
+                null,
+                "MyTest",
+                null,
+                suiteDir,
+                Map.of(),
+                Map.of(TestSuite.DEFAULT_REST_CLIENT_ID, RestClientConfig.withDefaults(null)));
+    }
+
+    @Test
+    void beforeAllUsesTestNameFilterWhenPresent() {
+        Hook hook = new ScriptHook(null, null, null, "s.sh", null);
+        Map<String, String> args =
+                runner.buildScalarArgs(HookPhase.BEFORE_ALL, hook, "before-all-1", interactiveCtx(null), null, null);
+        assertThat(args).containsEntry("test_name", "MyTest").containsEntry("interactive", "true");
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void scriptOutputIsForwardedInNonInteractiveMode(@TempDir Path dir) throws IOException {
+        Path script = writeScript(dir, "noisy.sh", "echo out\necho err 1>&2\nexit 0\n");
+        Hook hook = new ScriptHook("noisy", null, null, script.toString(), null);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            HookRunner.HookPhaseOutcome outcome =
+                    runner.runPhase(HookPhase.BEFORE_ALL, List.of(hook), ctx(dir), null, null, events::add, handles);
+            assertThat(outcome.allSucceeded()).isTrue();
+        }
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void scriptOutputIsLoggedInInteractiveMode(@TempDir Path dir) throws IOException {
+        Path script = writeScript(dir, "noisy.sh", "echo out\necho err 1>&2\nexit 0\n");
+        Hook hook = new ScriptHook("noisy", null, null, script.toString(), null);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            runner.runPhase(HookPhase.BEFORE_ALL, List.of(hook), interactiveCtx(dir), null, null, events::add, handles);
+        }
+        assertThat(events).isNotEmpty();
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void syncTimeoutProducesTimedOutFailureMessage(@TempDir Path dir) throws IOException {
+        Path script = writeScript(dir, "slow.sh", "sleep 3\nexit 0\n");
+        Hook hook = new ScriptHook("slow", null, 1, script.toString(), null);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        HookRunner.HookPhaseOutcome outcome;
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            outcome = runner.runPhase(HookPhase.BEFORE_ALL, List.of(hook), ctx(dir), null, null, events::add, handles);
+        }
+
+        assertThat(outcome.allSucceeded()).isFalse();
+        assertThat(outcome.firstFailureMessage()).contains("Before All hook 'slow' timed out");
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void asyncFailureIsNonFatalAndReported(@TempDir Path dir) throws IOException {
+        Path script = writeScript(dir, "bad.sh", "exit 4\n");
+        Hook hook = new ScriptHook("bg", true, null, script.toString(), null);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        HookRunner.HookPhaseOutcome outcome;
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            outcome = runner.runPhase(HookPhase.AFTER_ALL, List.of(hook), ctx(dir), null, null, events::add, handles);
+            assertThat(outcome.allSucceeded()).isTrue();
+            handles.awaitAll();
+        }
+
+        TestProgressEvent.HookCompleted completed = (TestProgressEvent.HookCompleted) events.stream()
+                .filter(e -> e instanceof TestProgressEvent.HookCompleted)
+                .findFirst()
+                .orElseThrow();
+        assertThat(completed.async()).isTrue();
+        assertThat(completed.success()).isFalse();
+    }
+
+    @Test
+    void webHookWithUnknownRestClientFails() {
+        HookRunner.HookInvocationContext emptyClients = new HookRunner.HookInvocationContext(
+                "My Suite", "run-1", false, null, null, null, null, null, null, Map.of(), Map.of());
+        Hook hook = new WebHook("w", null, null, "ghost", "http://x/hook", HttpMethod.POST, null, null);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        HookRunner.HookPhaseOutcome outcome;
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            outcome =
+                    runner.runPhase(HookPhase.AFTER_ALL, List.of(hook), emptyClients, null, null, events::add, handles);
+        }
+
+        assertThat(outcome.allSucceeded()).isFalse();
+        assertThat(outcome.firstFailureMessage()).contains("After All hook 'w'");
+    }
+
+    @Test
+    void attachReportOnAfterReportSendsMultipart(@TempDir Path dir) throws IOException {
+        Path report = dir.resolve("report.html");
+        Files.writeString(report, "<html>ok</html>");
+        HookRunner reportRunner = new HookRunner(
+                new ScriptHookExecutor(),
+                new WebHookExecutor(new StubClientHttpRequestFactory().stub("report", 200, "{}", "application/json")));
+        HookRunner.HookInvocationContext reportCtx = new HookRunner.HookInvocationContext(
+                "My Suite",
+                "run-1",
+                false,
+                "/tmp/rep",
+                report,
+                null,
+                null,
+                null,
+                null,
+                Map.of(),
+                Map.of(TestSuite.DEFAULT_REST_CLIENT_ID, RestClientConfig.withDefaults(null)));
+        Hook hook = new WebHook("r", null, null, null, "http://x/report", HttpMethod.POST, null, Boolean.TRUE);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        HookRunner.HookPhaseOutcome outcome;
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            outcome = reportRunner.runPhase(
+                    HookPhase.AFTER_REPORT, List.of(hook), reportCtx, null, null, events::add, handles);
+        }
+
+        assertThat(outcome.allSucceeded()).isTrue();
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void scriptHookUserParametersAreAppendedToArgv(@TempDir Path dir) throws IOException {
+        Path outFile = dir.resolve("argv.txt");
+        Path script = writeScript(dir, "args.sh", "printf '%s\\n' \"$@\" > \"" + outFile + "\"\n");
+        Hook hook = new ScriptHook("p", null, null, script.toString(), Map.of("token", "s3cr3t"));
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            runner.runPhase(HookPhase.BEFORE_ALL, List.of(hook), ctx(dir), null, null, events::add, handles);
+        }
+
+        assertThat(Files.readAllLines(outFile)).contains("token=s3cr3t");
+    }
+
+    @Test
+    void webHookInAfterEachIncludesMaskedHeadersAndBody() {
+        Hook hook = new WebHook("w", null, null, null, "http://x/hook", HttpMethod.POST, null, null);
+        HookRunner.PerTestData perTest = new HookRunner.PerTestData(
+                "t1",
+                "http://x/hook",
+                HttpMethod.POST,
+                Map.of("Authorization", "Bearer secret", "Content-Type", "application/json"),
+                "{\"k\":1}",
+                "passed");
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        HookRunner.HookPhaseOutcome outcome;
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            outcome = runner.runPhase(
+                    HookPhase.AFTER_EACH, List.of(hook), ctx(null), perTest, null, events::add, handles);
+        }
+
+        assertThat(outcome.allSucceeded()).isTrue();
+    }
 }

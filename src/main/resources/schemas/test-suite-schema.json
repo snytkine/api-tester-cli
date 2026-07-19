@@ -91,6 +91,10 @@
       "items": {
         "$ref": "#/$defs/TestCase"
       }
+    },
+    "hooks": {
+      "$ref": "#/$defs/Hooks",
+      "description": "Lifecycle hooks (script or web) fired at suite-execution phases"
     }
   },
   "oneOf": [
@@ -98,6 +102,56 @@
     {"required": ["rest-clients"], "not": {"required": ["rest-client"]}}
   ],
   "$defs": {
+    "Hooks": {
+      "type": "object",
+      "description": "Lifecycle hooks grouped by execution phase. Each phase is an ordered list of hooks.",
+      "additionalProperties": false,
+      "properties": {
+        "suite-validation-failed": {"type": "array", "items": {"$ref": "#/$defs/Hook"}},
+        "before-all": {"type": "array", "items": {"$ref": "#/$defs/Hook"}},
+        "before-each": {"type": "array", "items": {"$ref": "#/$defs/Hook"}},
+        "after-each": {"type": "array", "items": {"$ref": "#/$defs/Hook"}},
+        "after-all": {"type": "array", "items": {"$ref": "#/$defs/Hook"}},
+        "before-report": {"type": "array", "items": {"$ref": "#/$defs/Hook"}},
+        "after-report": {"type": "array", "items": {"$ref": "#/$defs/Hook"}}
+      }
+    },
+    "Hook": {
+      "description": "A single lifecycle hook: a local script or an outbound web request, selected by the 'type' discriminator.",
+      "oneOf": [
+        {"$ref": "#/$defs/ScriptHook"},
+        {"$ref": "#/$defs/WebHook"}
+      ]
+    },
+    "ScriptHook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": {"const": "script"},
+        "id": {"type": "string", "description": "Unique hook id (defaults to '<phase>-<index>')"},
+        "async": {"type": "boolean", "description": "Run without blocking the next hook; failures never fail the suite"},
+        "timeout-seconds": {"type": "integer", "minimum": 1, "description": "Per-hook timeout in seconds (default 10)"},
+        "path": {"type": "string", "description": "Executable path; absolute or relative to the suite directory. Supports [[${...}]] templates"},
+        "parameters": {"type": "object", "description": "Extra key=value arguments appended after the system args. Values support templates", "additionalProperties": {"type": "string"}}
+      }
+    },
+    "WebHook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "url"],
+      "properties": {
+        "type": {"const": "web"},
+        "id": {"type": "string", "description": "Unique hook id (defaults to '<phase>-<index>')"},
+        "async": {"type": "boolean", "description": "Fire without blocking the next hook; failures never fail the suite"},
+        "timeout-seconds": {"type": "integer", "minimum": 1, "description": "Per-hook timeout in seconds (default 10)"},
+        "rest-client": {"type": "string", "description": "Id of the rest-client to use (defaults to 'default')"},
+        "url": {"type": "string", "description": "Absolute URL or relative to the client base-url. Supports templates"},
+        "method": {"type": "string", "enum": ["POST", "PUT", "post", "put"], "description": "HTTP method (default POST); only POST or PUT are allowed"},
+        "payload": {"type": "object", "description": "Extra JSON fields merged into the payload. Values support templates", "additionalProperties": {"type": "string"}},
+        "attach-report": {"type": "boolean", "description": "after-report hooks only: send multipart/form-data with the HTML report attached"}
+      }
+    },
     "TestCase": {
       "type": "object",
       "required": ["name", "request", "assertions"],
