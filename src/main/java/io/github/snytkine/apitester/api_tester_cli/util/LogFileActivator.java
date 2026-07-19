@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.ILoggerFactory;
 import org.slf4j.Logger;
@@ -83,18 +84,76 @@ public final class LogFileActivator {
     /** The five SLF4J-level names that are accepted as valid values for {@code CLI_LOG_LEVEL}. */
     static final Set<String> VALID_LEVELS = Set.of("TRACE", "DEBUG", "INFO", "WARN", "ERROR");
 
+    /**
+     * Guard ensuring file logging is configured at most once per process. The first <em>successful</em>
+     * activation — whether from the OS environment at startup or from the merged {@code .env}/{@code
+     * --env-file} variables when {@code run-suite} executes — wins; later calls are no-ops. Guarded by
+     * synchronising on {@link #activateGuarded(String, String)} and {@link #resetForTesting()}.
+     */
+    private static boolean activated = false;
+
     private LogFileActivator() {}
 
     /**
-     * Reads {@code CLI_LOG_LEVEL} and {@code CLI_LOG_DIR} from the process environment and, if both
+     * Reads {@code CLI_LOG_LEVEL} and {@code CLI_LOG_DIR} from the OS process environment and, if both
      * are present and valid, configures a Logback {@link FileAppender} on the root logger.
      *
      * <p>This is the entry point called at application startup (via {@link
-     * io.github.snytkine.apitester.api_tester_cli.config.LoggingActivatorRunner}). It delegates to
-     * the package-private {@link #activate(String, String)} overload.
+     * io.github.snytkine.apitester.api_tester_cli.config.LoggingActivatorRunner}). It only sees
+     * <em>exported</em> environment variables; values supplied through a {@code .env} file or {@code
+     * --env-file} are not part of the process environment at startup and are instead honoured later by
+     * {@link #activateFromEnv(Map)} when the {@code run-suite} command has loaded them.
      */
     public static void activate() {
-        activate(System.getenv(ENV_LOG_LEVEL), System.getenv(ENV_LOG_DIR));
+        activateGuarded(System.getenv(ENV_LOG_LEVEL), System.getenv(ENV_LOG_DIR));
+    }
+
+    /**
+     * Activates file logging from an already-resolved environment map, honouring {@code CLI_LOG_LEVEL}
+     * and {@code CLI_LOG_DIR} entries sourced from a {@code .env} file, an explicit {@code --env-file},
+     * and/or the OS environment (merged by the caller). This is the entry point that lets logging be
+     * configured from a {@code .env} file — the startup {@link #activate()} path only sees exported OS
+     * variables.
+     *
+     * <p>Delegates to the same {@link #activateGuarded(String, String)} logic as startup activation, so
+     * whichever source fires first (and succeeds) wins and no duplicate log file is created.
+     *
+     * @param env the merged environment variables (for example the map produced by the CLI's {@code
+     *     .env}/{@code --env-file} loading); {@code null} is treated as an empty map
+     */
+    public static void activateFromEnv(Map<String, String> env) {
+        if (env == null) {
+            return;
+        }
+        activateGuarded(env.get(ENV_LOG_LEVEL), env.get(ENV_LOG_DIR));
+    }
+
+    /**
+     * Activates file logging at most once per process. Returns immediately when either value is absent
+     * or when a previous call has already activated logging successfully; otherwise delegates to {@link
+     * #activate(String, String)} and records success so subsequent calls become no-ops.
+     *
+     * <p>Synchronised so the check-then-activate sequence is atomic across the startup thread and the
+     * command-execution thread.
+     *
+     * @param rawLevel candidate {@code CLI_LOG_LEVEL} value, or {@code null}
+     * @param rawDir candidate {@code CLI_LOG_DIR} value, or {@code null}
+     */
+    private static synchronized void activateGuarded(String rawLevel, String rawDir) {
+        if (rawLevel == null || rawDir == null || activated) {
+            return;
+        }
+        if (activate(rawLevel, rawDir)) {
+            activated = true;
+        }
+    }
+
+    /**
+     * Resets the one-time activation guard. Intended solely for unit tests that need to exercise the
+     * guarded activation paths deterministically; not used in production.
+     */
+    static synchronized void resetForTesting() {
+        activated = false;
     }
 
     /**
@@ -120,15 +179,17 @@ public final class LogFileActivator {
      * @param rawLevel raw value of the {@code CLI_LOG_LEVEL} environment variable; may be {@code
      *     null}
      * @param rawDir raw value of the {@code CLI_LOG_DIR} environment variable; may be {@code null}
+     * @return {@code true} when file logging was configured, {@code false} when activation was skipped
+     *     (missing/invalid values, directory or file creation failure, or a non-Logback SLF4J binding)
      */
-    static void activate(String rawLevel, String rawDir) {
+    static boolean activate(String rawLevel, String rawDir) {
         if (rawLevel == null || rawDir == null) {
-            return;
+            return false;
         }
 
         String normalizedLevel = rawLevel.toUpperCase(Locale.ROOT);
         if (!VALID_LEVELS.contains(normalizedLevel)) {
-            return;
+            return false;
         }
 
         Level level = Level.toLevel(normalizedLevel);
@@ -138,7 +199,7 @@ public final class LogFileActivator {
             try {
                 Files.createDirectories(dirPath);
             } catch (IOException e) {
-                return;
+                return false;
             }
         }
 
@@ -147,7 +208,7 @@ public final class LogFileActivator {
 
         ILoggerFactory factory = LoggerFactory.getILoggerFactory();
         if (!(factory instanceof LoggerContext loggerContext)) {
-            return;
+            return false;
         }
 
         PatternLayoutEncoder encoder = new PatternLayoutEncoder();
@@ -163,7 +224,7 @@ public final class LogFileActivator {
         appender.start();
 
         if (!appender.isStarted()) {
-            return;
+            return false;
         }
 
         ch.qos.logback.classic.Logger root = loggerContext.getLogger(Logger.ROOT_LOGGER_NAME);
@@ -188,5 +249,6 @@ public final class LogFileActivator {
         loggerContext.getLogger("org.jline").setLevel(Level.WARN);
 
         LoggerFactory.getLogger(LogFileActivator.class).info("Application Started");
+        return true;
     }
 }

@@ -217,7 +217,7 @@ class HookRunnerTest {
         }
 
         assertThat(outcome.allSucceeded()).isFalse();
-        assertThat(outcome.firstFailureMessage()).contains("Before All hook 'first'");
+        assertThat(outcome.firstFailureMessage()).contains("Error executing hook first");
         assertThat(Files.exists(marker)).isFalse();
         // Only one HookCompleted (the failing first hook); the second was skipped.
         assertThat(events.stream().filter(e -> e instanceof TestProgressEvent.HookCompleted))
@@ -328,7 +328,26 @@ class HookRunnerTest {
         }
 
         assertThat(outcome.allSucceeded()).isFalse();
-        assertThat(outcome.firstFailureMessage()).contains("Before All hook 'slow' timed out");
+        assertThat(outcome.firstFailureMessage()).startsWith("Error executing hook slow:");
+        assertThat(outcome.firstFailureMessage()).containsIgnoringCase("timeout");
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void syncFailureMessageIncludesScriptStderr(@TempDir Path dir) throws IOException {
+        // A hook that writes a diagnostic to stderr and exits non-zero: the captured stderr must be
+        // surfaced in the failure message using the spec format "Error executing hook <id>: <stderr>".
+        Path script = writeScript(dir, "boom.sh", "echo \"Hook Failed\" >&2\nexit 1\n");
+        Hook hook = new ScriptHook("my-hook", null, null, script.toString(), null);
+        List<TestProgressEvent> events = new CopyOnWriteArrayList<>();
+
+        HookRunner.HookPhaseOutcome outcome;
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            outcome = runner.runPhase(HookPhase.BEFORE_ALL, List.of(hook), ctx(dir), null, null, events::add, handles);
+        }
+
+        assertThat(outcome.allSucceeded()).isFalse();
+        assertThat(outcome.firstFailureMessage()).isEqualTo("Error executing hook my-hook: Hook Failed");
     }
 
     @Test
@@ -367,7 +386,8 @@ class HookRunnerTest {
         }
 
         assertThat(outcome.allSucceeded()).isFalse();
-        assertThat(outcome.firstFailureMessage()).contains("After All hook 'w'");
+        assertThat(outcome.firstFailureMessage()).contains("Error executing hook w");
+        assertThat(outcome.firstFailureMessage()).contains("ghost");
     }
 
     @Test

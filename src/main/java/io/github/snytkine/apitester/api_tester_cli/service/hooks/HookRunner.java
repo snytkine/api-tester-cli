@@ -203,7 +203,7 @@ public class HookRunner {
             listener.onProgress(hookCompletedEvent(phase, hookId, index, false, result));
             if (!result.success()) {
                 allSucceeded = false;
-                firstFailure = describeFailure(phase, hookId, result);
+                firstFailure = describeFailure(hookId, result);
                 log.debug("{} hook '{}' failed: {}", phase.yamlKey(), hookId, result.errorMessage());
                 // Skip remaining hooks in this phase once a sync hook fails.
                 break;
@@ -425,40 +425,41 @@ public class HookRunner {
     }
 
     /**
-     * Builds a human-readable description of a sync hook failure for the phase outcome (used by the
-     * fatal {@code before-all} message and warnings).
+     * Builds the human-readable description of a sync hook failure for the phase outcome, following
+     * the feature spec's required format {@code "Error executing hook <hook_id>: <detail>"}.
      *
-     * @param phase the phase
+     * <p>The {@code detail} is the hook's captured failure reason: for a script hook this is the
+     * captured stderr summary (feature spec: "the script's stderr is captured … and for a sync hook
+     * printed as {@code Error executing hook <hook_id>: <stderr message>}"); for a web hook it is the
+     * exception / status message. When no reason text is available it falls back to the timeout note
+     * or the non-zero exit/status code so the message is never empty. This message is surfaced to the
+     * user (as the fatal {@code before-all} message, the {@code before-each} test-error message, and
+     * warning-phase warnings); it deliberately does <em>not</em> travel inside a progress event,
+     * which by design carries no free-form text that might contain secrets.
+     *
      * @param hookId the hook id
      * @param result the failed execution result
-     * @return a description such as {@code "Before All hook 'seed-db' returned non-zero status"}
+     * @return a description such as {@code "Error executing hook seed-db: connection refused"}
      */
-    private static String describeFailure(HookPhase phase, String hookId, HookExecutionResult result) {
-        String label = titleCase(phase);
-        if (result.timedOut()) {
-            return label + " hook '" + hookId + "' timed out";
-        }
-        return label + " hook '" + hookId + "' returned non-zero status";
+    private static String describeFailure(String hookId, HookExecutionResult result) {
+        return "Error executing hook " + hookId + ": " + failureDetail(result);
     }
 
     /**
-     * Converts a phase's kebab-case key to Title Case words (e.g. {@code before-all} → {@code Before
-     * All}).
+     * Returns the failure-reason text for a failed hook result: the captured stderr / exception
+     * message when present, otherwise a timeout note or the non-zero exit/status code.
      *
-     * @param phase the phase
-     * @return the title-cased phase label
+     * @param result the failed execution result
+     * @return a non-empty, human-readable failure reason
      */
-    private static String titleCase(HookPhase phase) {
-        String[] words = phase.yamlKey().split("-");
-        StringBuilder sb = new StringBuilder();
-        for (String w : words) {
-            if (!w.isEmpty()) {
-                if (sb.length() > 0) {
-                    sb.append(' ');
-                }
-                sb.append(Character.toUpperCase(w.charAt(0))).append(w.substring(1));
-            }
+    private static String failureDetail(HookExecutionResult result) {
+        String message = result.errorMessage();
+        if (message != null && !message.isBlank()) {
+            return message.strip();
         }
-        return sb.toString();
+        if (result.timedOut()) {
+            return "timed out";
+        }
+        return "returned non-zero status (" + result.exitCodeOrStatus() + ")";
     }
 }

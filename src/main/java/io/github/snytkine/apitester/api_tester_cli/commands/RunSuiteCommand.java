@@ -49,6 +49,7 @@ import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
 import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
+import io.github.snytkine.apitester.api_tester_cli.util.LogFileActivator;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -416,6 +417,14 @@ public class RunSuiteCommand {
             envVars = dotEnvLoader.loadDotEnv(envSourceDir);
         }
         SuiteRunContext suiteRunContext = SuiteRunContext.of(envVars, cliVars);
+
+        // Activate file logging from the merged environment so CLI_LOG_LEVEL / CLI_LOG_DIR supplied
+        // through a .env file or --env-file take effect — not just exported OS variables. The merged
+        // envVars already overlays the OS environment on top of the .env file, so precedence is
+        // preserved. This is a no-op when startup activation already configured logging from the OS
+        // environment (the first successful activation wins).
+        LogFileActivator.activateFromEnv(envVars);
+
         TestSuite testSuite = testSuiteLoader.load(suitePath, suiteRunContext);
 
         // Opt-in gate: a suite declaring script hooks runs them only when --allow-scripts is passed

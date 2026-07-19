@@ -1066,7 +1066,7 @@ class RunSuiteCommandTest {
         RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
         Path suite = writeNoHookSuite(tempDir);
         when(mockEngine.runConfigurationSuite(any(), any(), any()))
-                .thenThrow(new HookFailedException("Before All hook 'x' returned non-zero status"));
+                .thenThrow(new HookFailedException("Error executing hook x: boom"));
 
         cmd.runSuite(suite.toString(), true, false, null, null, null, null, false, buildContext());
 

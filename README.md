@@ -498,14 +498,13 @@ For full documentation, including a behaviour matrix for these options, see
 
 ## Debug Logging
 
-File-based logging is controlled by environment variables rather than a command-line flag.
-
-Set both variables before launching the CLI:
+File-based logging is controlled by two variables rather than a command-line flag. Provide both
+through **either** the OS environment **or** a `.env` file (including one passed with `--env-file`):
 
 - `CLI_LOG_LEVEL`: one of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`
 - `CLI_LOG_DIR`: directory where log files should be written
 
-Example:
+Example (exported environment):
 
 ```bash
 CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=./logs \
@@ -513,7 +512,17 @@ CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=./logs \
   --suite ./src/test/resources/test-suite-1.yml
 ```
 
-When either variable is missing or invalid, the CLI runs normally without creating a log file.
+Example (via a `.env` file, no export needed):
+
+```bash
+printf 'CLI_LOG_LEVEL=DEBUG\nCLI_LOG_DIR=./logs\n' > .env
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+  --suite ./src/test/resources/test-suite-1.yml
+```
+
+Exported OS variables are honoured from startup; `.env`/`--env-file` values are honoured when the
+`run-suite` command loads them (the OS environment wins if a variable is set in both). When either
+variable is missing or invalid, the CLI runs normally without creating a log file.
 
 For more detail, see [DEBUG_LOGGING_README.md](./DEBUG_LOGGING_README.md).
 
