@@ -24,6 +24,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.exception.AssertionFailuresException;
 import io.github.snytkine.apitester.api_tester_cli.exception.HookFailedException;
+import io.github.snytkine.apitester.api_tester_cli.exception.SessionCaptureException;
 import io.github.snytkine.apitester.api_tester_cli.exception.SkipTestException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
@@ -202,8 +203,18 @@ public class PureJavaTestEngine implements TestEngine {
         RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
-        Map<String, Map<String, String>> configMap =
-                Map.of("cli", context.cli(), "env", context.env(), "suite", suiteVariables, "test", Map.of());
+
+        // Suite-wide, mutable 'session' namespace. Values are captured from test responses (via
+        // saved-session) and accumulate across the run, so later tests can reference
+        // [[${session.<name>}]]. Confined to this call stack: this engine is a stateless singleton
+        // and execution is sequential, so no synchronization is required.
+        Map<String, String> sessionVars = new LinkedHashMap<>();
+        Map<String, Map<String, String>> configMap = Map.of(
+                "cli", context.cli(),
+                "env", context.env(),
+                "suite", suiteVariables,
+                "test", Map.of(),
+                "session", sessionVars);
 
         Hooks hooks = testSuite.hooks();
         HookRunner.HookInvocationContext hookCtx = buildHookContext(testSuite, context, suiteDir);
@@ -279,6 +290,7 @@ public class PureJavaTestEngine implements TestEngine {
                             i,
                             suiteDir,
                             configMap,
+                            sessionVars,
                             info -> capturedRequest[0] = info,
                             resp -> capturedResponse[0] = resp);
                     long durationMs = System.currentTimeMillis() - testStart;
@@ -300,6 +312,20 @@ public class PureJavaTestEngine implements TestEngine {
                     listener.onProgress(new TestProgressEvent.TestCompleted(
                             uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
                     log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
+                } catch (SessionCaptureException e) {
+                    long durationMs = System.currentTimeMillis() - testStart;
+                    List<AssertionFailure> failure = List.of(new AssertionFailure(e.getMessage(), null, null, null));
+                    results.add(new TestCaseResult(
+                            config.name(),
+                            TestResult.FAILED,
+                            0,
+                            failure,
+                            null,
+                            capturedRequest[0],
+                            capturedResponse[0]));
+                    listener.onProgress(new TestProgressEvent.TestCompleted(
+                            uniqueId, i, config.name(), TestStatus.FAIL, durationMs, 0, failure));
+                    log.debug("Test case '{}' failed: session capture error: {}", config.name(), e.getMessage());
                 } catch (AssertionFailuresException e) {
                     long durationMs = System.currentTimeMillis() - testStart;
                     List<AssertionFailure> failures = e.failures();
@@ -500,8 +526,11 @@ public class PureJavaTestEngine implements TestEngine {
      * @param suiteDir   the directory of the suite file, or {@code null} if
      *                   unavailable
      * @param configMap      suite-level variable namespaces ({@code cli}, {@code env}, {@code
-     *                       suite}, {@code test}); the {@code "test"} entry is replaced per
-     *                       invocation with this test's vars
+     *                       suite}, {@code test}, {@code session}); the {@code "test"} entry is
+     *                       replaced per invocation with this test's vars
+     * @param sessionVars    the suite-wide, mutable {@code session} namespace; read when resolving
+     *                       this test's template and written after the response is received with any
+     *                       {@code saved-session} captures declared by this test
      * @param requestCapture callback invoked with the fully-resolved {@link ExecutedRequestInfo}
      *                       immediately before the HTTP request is dispatched; always called for
      *                       non-skipped tests regardless of whether assertions later pass or fail,
@@ -520,6 +549,7 @@ public class PureJavaTestEngine implements TestEngine {
             int i,
             @Nullable Path suiteDir,
             Map<String, Map<String, String>> configMap,
+            Map<String, String> sessionVars,
             Consumer<ExecutedRequestInfo> requestCapture,
             Consumer<ApiResponse> responseCapture)
             throws IOException {
@@ -546,11 +576,11 @@ public class PureJavaTestEngine implements TestEngine {
         // expressions like
         // [[${test.username}]] in URLs, headers, or bodies are resolved for this
         // specific test.
-        // Skip re-parsing when there are no test-level variables — no template
-        // expressions can
-        // reference ${test.*}, so rawConfig is already fully resolved.
+        // Skip re-parsing when there are neither test-level variables nor any captured
+        // session values — with both empty, no [[${test.*}]] or [[${session.*}]]
+        // expression can resolve to anything, so rawConfig is already fully resolved.
         TestCase config;
-        if (testSuite.templateContent() != null && !testVariables.isEmpty()) {
+        if (testSuite.templateContent() != null && (!testVariables.isEmpty() || !sessionVars.isEmpty())) {
             log.debug(
                     "Test [{}] '{}': re-parsing template with {} test variable(s)",
                     i,
@@ -620,10 +650,20 @@ public class PureJavaTestEngine implements TestEngine {
                 config.name(),
                 config.assertions().size());
 
-        ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions());
+        // Force full (body-reading) resolution when this test captures saved-session values, so the
+        // response body is available even if the test's only assertion is a status_code check.
+        boolean hasCaptures =
+                config.savedSession() != null && !config.savedSession().isEmpty();
+        ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions(), hasCaptures);
         log.debug("Test [{}] '{}': received status {}", i, config.name(), apiResponse.statusCode());
 
         responseCapture.accept(apiResponse);
+
+        // Capture saved-session values before evaluating assertions so the suite-wide 'session'
+        // namespace is populated for later tests regardless of whether this test's assertions pass.
+        // A required-but-missing value, a non-primitive extraction, or a failed type conversion
+        // raises a SessionCaptureException that the run loop records as a test failure.
+        SessionCapturer.capture(config.name(), config.savedSession(), apiResponse, sessionVars);
 
         // Evaluate one assertion at a time, collecting failures as AssertionFailedError instances.
         // Each evaluator stores structured AssertionFailedError entries (with message, expected,

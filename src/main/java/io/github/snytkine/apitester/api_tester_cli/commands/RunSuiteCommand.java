@@ -644,7 +644,8 @@ public class RunSuiteCommand {
 
     /**
      * Collects all pre-execution validation errors for {@code suite}: duplicate test names, invalid
-     * rest-client declarations, and invalid lifecycle hooks.
+     * rest-client declarations, invalid {@code depends-on} declarations (unknown references and
+     * cycles), and invalid lifecycle hooks.
      *
      * @param suite the suite to validate
      * @return a mutable, possibly-empty list of error messages
@@ -653,6 +654,7 @@ public class RunSuiteCommand {
         List<String> errors = new ArrayList<>();
         errors.addAll(testSuiteValidator.validate(suite));
         errors.addAll(testSuiteValidator.validateRestClients(suite));
+        errors.addAll(testSuiteValidator.validateDependencies(suite));
         errors.addAll(testSuiteValidator.validateHooks(suite));
         return errors;
     }

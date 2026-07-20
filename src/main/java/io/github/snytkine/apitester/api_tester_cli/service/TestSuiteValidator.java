@@ -30,6 +30,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -218,6 +220,99 @@ public class TestSuiteValidator {
             }
         }
         return errors;
+    }
+
+    /**
+     * Validates the suite's {@code depends-on} declarations across all test cases.
+     *
+     * <p>Two rules are enforced:
+     *
+     * <ol>
+     *   <li>every name listed in a test's {@code depends-on} must reference a test defined in the
+     *       suite;
+     *   <li>the {@code depends-on} graph must be acyclic — a cycle (including a test depending on
+     *       itself) is rejected because it can never be executed.
+     * </ol>
+     *
+     * <p>Both checks account for the fact that {@code depends-on} is resolved transitively at run
+     * time. Unknown-reference errors are reported before cycle detection so a missing name never
+     * masquerades as a cycle. This method is stateless; per-call data lives on the call stack.
+     *
+     * @param suite the fully-loaded test suite to validate; must not be {@code null}
+     * @return a non-null, possibly-empty list of error messages; empty means the declarations are
+     *     valid
+     */
+    public List<String> validateDependencies(TestSuite suite) {
+        List<TestCase> tests = suite.tests();
+        Map<String, TestCase> byName = new LinkedHashMap<>();
+        for (TestCase test : tests) {
+            byName.putIfAbsent(test.name(), test);
+        }
+
+        List<String> errors = new ArrayList<>();
+
+        // Rule 1: every depends-on reference must name a defined test.
+        for (TestCase test : tests) {
+            if (test.dependsOn() == null) {
+                continue;
+            }
+            for (String dep : test.dependsOn()) {
+                if (!byName.containsKey(dep)) {
+                    errors.add("Test '" + test.name() + "' depends-on unknown test: '" + dep + "'");
+                }
+            }
+        }
+
+        // Rule 2: the depends-on graph must be acyclic. Skip when unknown references exist so a
+        // dangling edge is not misreported as a cycle.
+        if (errors.isEmpty()) {
+            Set<String> visited = new HashSet<>();
+            for (TestCase test : tests) {
+                String cycle = findCycle(test.name(), byName, visited, new LinkedHashSet<>());
+                if (cycle != null) {
+                    errors.add("Circular depends-on dependency detected: " + cycle);
+                    break;
+                }
+            }
+        }
+
+        return errors;
+    }
+
+    /**
+     * Depth-first search for a cycle in the {@code depends-on} graph reachable from {@code name}.
+     *
+     * @param name the test currently being visited
+     * @param byName all test cases keyed by name
+     * @param visited names already fully explored without finding a cycle (mutated)
+     * @param stack the current DFS path, used both to detect a back-edge and to render the cycle
+     *     (mutated)
+     * @return a human-readable {@code a -> b -> a} cycle description when a cycle is found through
+     *     {@code name}, otherwise {@code null}
+     */
+    private static String findCycle(String name, Map<String, TestCase> byName, Set<String> visited, Set<String> stack) {
+        if (stack.contains(name)) {
+            List<String> path = new ArrayList<>(stack);
+            path.add(name);
+            int start = path.indexOf(name);
+            return String.join(" -> ", path.subList(start, path.size()));
+        }
+        if (!visited.add(name)) {
+            return null;
+        }
+        TestCase test = byName.get(name);
+        if (test == null || test.dependsOn() == null) {
+            return null;
+        }
+        stack.add(name);
+        for (String dep : test.dependsOn()) {
+            String cycle = findCycle(dep, byName, visited, stack);
+            if (cycle != null) {
+                return cycle;
+            }
+        }
+        stack.remove(name);
+        return null;
     }
 
     /**

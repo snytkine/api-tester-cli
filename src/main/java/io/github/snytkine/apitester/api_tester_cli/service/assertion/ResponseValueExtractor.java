@@ -42,9 +42,9 @@ import org.jspecify.annotations.Nullable;
  *       Result.Missing} when the JSONPath expression matches no node
  * </ul>
  *
- * <p>All methods are static; this class is not instantiable.
+ * <p>All methods are static; this class is not instantiable and is inherently thread-safe.
  */
-final class ResponseValueExtractor {
+public final class ResponseValueExtractor {
 
     private static final String RESPONSE_PREFIX = "response.";
     private static final String BODY_JSON_DOT = "body.json.";
@@ -64,7 +64,7 @@ final class ResponseValueExtractor {
      *   <li>{@link Error} — the path syntax is unsupported or another resolution error occurred
      * </ul>
      */
-    sealed interface Result permits Result.Found, Result.Missing, Result.Error {
+    public sealed interface Result permits Result.Found, Result.Missing, Result.Error {
 
         /**
          * The path resolved successfully. {@code value} may be {@code null} when the response field
@@ -88,7 +88,7 @@ final class ResponseValueExtractor {
      * @param path the full path expression starting with {@code response.}
      * @return a {@link Result} describing the outcome
      */
-    static Result extract(ApiResponse response, String path) {
+    public static Result extract(ApiResponse response, String path) {
         if (!path.startsWith(RESPONSE_PREFIX)) {
             return new Result.Error("Unsupported path '%s': must start with 'response.'".formatted(path));
         }

@@ -35,6 +35,14 @@ import org.jspecify.annotations.Nullable;
  * the skip reason. The {@code skip} field supports Thymeleaf expressions (e.g. {@code
  * [[${suite.skip_flag}]]}) that are resolved during template processing before the engine runs.
  *
+ * <p>The optional {@code saved-session} field declares a list of {@link SavedSession} captures that
+ * extract primitive values from this test's response into the suite-wide {@code session} namespace
+ * for use by later tests. The optional {@code depends-on} field lists other test names that must run
+ * (in the listed order, transitively) immediately before this test so their captured values are
+ * available to it; a dependency is re-executed once per dependent test. The optional {@code
+ * transient} field, when {@code true}, makes the test run <em>only</em> as another test's dependency
+ * and never as a standalone test.
+ *
  * <p>All fields are deserialized from the YAML test-suite file via Jackson.
  */
 public record TestCase(
@@ -73,4 +81,52 @@ public record TestCase(
         Request request,
 
         /** Ordered list of assertions to evaluate against the HTTP response. */
-        List<Assertion> assertions) {}
+        List<Assertion> assertions,
+
+        /**
+         * Optional list of response-value captures (YAML key {@code saved-session}). Each entry
+         * extracts a primitive value from this test's response into the suite-wide {@code session}
+         * namespace under its {@code name}. May be {@code null} or empty when the test captures
+         * nothing.
+         */
+        @JsonProperty("saved-session") @Nullable List<SavedSession> savedSession,
+
+        /**
+         * Optional list of other test names this test depends on (YAML key {@code depends-on}). The
+         * listed dependencies run — in order, resolved transitively — immediately before this test so
+         * their {@code session} captures are available to it. A dependency is re-executed once for
+         * each dependent test. May be {@code null} or empty.
+         */
+        @JsonProperty("depends-on") @Nullable List<String> dependsOn,
+
+        /**
+         * When {@code true} (YAML key {@code transient}), this test runs <em>only</em> as another
+         * test's dependency and is never executed as a standalone test. Defaults to {@code false}.
+         */
+        @JsonProperty("transient") boolean transientCase) {
+
+    /**
+     * Backward-compatible convenience constructor for callers (and tests) that predate the {@code
+     * saved-session}, {@code depends-on}, and {@code transient} fields. Delegates to the canonical
+     * constructor with {@code null} captures, {@code null} dependencies, and {@code
+     * transientCase=false}.
+     *
+     * @param name the test case name
+     * @param description optional human-readable description
+     * @param tags optional list of tags
+     * @param skip optional skip reason (non-blank means skipped)
+     * @param variables per-test-case template variables
+     * @param request the HTTP request definition
+     * @param assertions the assertions to evaluate
+     */
+    public TestCase(
+            String name,
+            @Nullable String description,
+            @Nullable List<String> tags,
+            @Nullable String skip,
+            Map<String, String> variables,
+            Request request,
+            List<Assertion> assertions) {
+        this(name, description, tags, skip, variables, request, assertions, null, null, false);
+    }
+}
