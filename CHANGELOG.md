@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.6.0](https://github.com/snytkine/api-tester-cli/compare/v0.5.0...v0.6.0) (2026-07-21)
+
+
+### Features
+
+* add --env-file option with explicit-file, cwd, then suite-dir resolution ([678364f](https://github.com/snytkine/api-tester-cli/commit/678364fbfc5cb7288de1c6bcd53a8345e190a42a)), closes [#62](https://github.com/snytkine/api-tester-cli/issues/62)
+* add unique runID to identify each test-suite execution ([79c5c3c](https://github.com/snytkine/api-tester-cli/commit/79c5c3c9ed4664beec6b6b2046c767850d1d488e)), closes [#18](https://github.com/snytkine/api-tester-cli/issues/18) [#18](https://github.com/snytkine/api-tester-cli/issues/18)
+* adding auth details to report if auth was used in specific test. auth credentials are masked ([3d9394b](https://github.com/snytkine/api-tester-cli/commit/3d9394b39eb283376fd1ee9f73e31292ce63473e))
+* Implemented version check feature to check for latest version and show link to new version in report ([#55](https://github.com/snytkine/api-tester-cli/issues/55)) ([31b284d](https://github.com/snytkine/api-tester-cli/commit/31b284d455b98bd213585e9afdbd26514d9250a7))
+
+
+### Bug Fixes
+
+* block dependent test and session capture when depends-on parent fails ([056606e](https://github.com/snytkine/api-tester-cli/commit/056606ebd40da093a0c5fb641231b33c1a32e830)), closes [#56](https://github.com/snytkine/api-tester-cli/issues/56)
+
+
+### Documentation
+
+* use https for cmdrest.com documentation links in README ([7ee2f92](https://github.com/snytkine/api-tester-cli/commit/7ee2f92596c7aa66b5e170dea655075606667424))
+
 ## [0.5.0](https://github.com/snytkine/api-tester-cli/compare/v0.4.1...v0.5.0) (2026-07-04)
 
 
