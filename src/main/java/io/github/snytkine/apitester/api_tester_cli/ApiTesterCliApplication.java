@@ -16,6 +16,7 @@
  */
 package io.github.snytkine.apitester.api_tester_cli;
 
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.AuthType;
 import io.github.snytkine.apitester.api_tester_cli.model.BodyType;
@@ -65,11 +66,17 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusInAsse
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringContainsAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.ValueTypeAssertion;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.ScriptHook;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.WebHook;
 import java.util.Map;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.boot.Banner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 /**
  * Entry point for the API Tester CLI application.
@@ -78,8 +85,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * (constructors, fields, methods) in the GraalVM native image. Without this, Jackson cannot
  * deserialize YAML test-suite files into model records at native-image runtime because the static
  * analysis does not see the reflective instantiation that Jackson performs dynamically.
+ *
+ * <p>{@link EnableConfigurationProperties} registers {@link VersionCheckProperties} as a bean; no
+ * manual reflection hint is required for it under GraalVM native-image — Spring Boot's own
+ * configuration-properties AOT processing generates the necessary hints automatically.
  */
 @SpringBootApplication
+@EnableConfigurationProperties(VersionCheckProperties.class)
 @RegisterReflectionForBinding({
     ArrayContainsAllAssertion.class,
     ArrayContainsAssertion.class,
@@ -100,6 +112,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     GreaterThanAssertion.class,
     GreaterThanOrEqualAssertion.class,
     HasHeaderAssertion.class,
+    Hook.class,
+    HookPhase.class,
+    Hooks.class,
     HttpMethod.class,
     IsNullAssertion.class,
     JsonMatchAssertion.class,
@@ -120,6 +135,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     RequestDeserializer.class,
     ResponseTimeAssertion.class,
     RestClientConfig.class,
+    ScriptHook.class,
     StartsWithAssertion.class,
     StatusCodeAssertion.class,
     StatusInAssertion.class,
@@ -130,6 +146,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     TestRunResult.class,
     TestSuite.class,
     ValueTypeAssertion.class,
+    WebHook.class,
 })
 public class ApiTesterCliApplication {
 

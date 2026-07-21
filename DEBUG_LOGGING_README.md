@@ -1,12 +1,12 @@
 # Debug Logging
 
 The API Tester CLI suppresses all log output by default to keep the terminal output clean. File-based
-logging can be activated at runtime by setting two environment variables — no configuration file
-changes or rebuilds required.
+logging can be activated at runtime by setting two variables — no configuration file changes or
+rebuilds required.
 
 ## Activating logging
 
-Set both variables before running the CLI:
+Provide both variables through **either** the OS environment **or** a `.env` file:
 
 | Variable | Required | Description |
 |---|---|---|
@@ -15,6 +15,19 @@ Set both variables before running the CLI:
 
 **Both variables must be set.** If either is absent, logging is not activated and the application
 runs normally with no log output.
+
+### Where the variables can come from
+
+- **Exported OS environment variables** — honoured from application startup, so they also capture any
+  log output produced before a command runs.
+- **A `.env` file** — the same file the CLI already reads for `run-suite`, resolved from `--env-file`,
+  then the current working directory, then the suite file's directory. These are loaded when the
+  `run-suite` command executes, so logging is activated at that point and captures the suite run
+  (loading, hooks, HTTP calls, assertions, reporting).
+
+When a variable is set in both places, the OS environment value wins (the same precedence the CLI
+applies to all `.env` variables). Whichever source activates logging first configures the single log
+file for the run.
 
 ### Examples
 
@@ -27,6 +40,16 @@ CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=/tmp/api-tester-logs \
 export CLI_LOG_LEVEL=DEBUG
 export CLI_LOG_DIR=/tmp/api-tester-logs
 java -jar api-tester-cli.jar run-suite --suite=my-suite.yml
+
+# Via a .env file (no export needed)
+cat > .env <<'ENV'
+CLI_LOG_LEVEL=DEBUG
+CLI_LOG_DIR=/tmp/api-tester-logs
+ENV
+java -jar api-tester-cli.jar run-suite --suite=my-suite.yml
+
+# Via an explicit --env-file
+java -jar api-tester-cli.jar run-suite --suite=my-suite.yml --env-file=./config/staging.env
 
 # Native binary
 CLI_LOG_LEVEL=INFO CLI_LOG_DIR=./logs ./api-tester-cli run-suite --suite=my-suite.yml
@@ -81,7 +104,9 @@ normally with no log file and no error message:
 In all of these cases the CLI continues to run and produce its normal output. If you expect a log
 file and do not find one, check:
 
-1. Both variables are exported and visible to the process (`printenv | grep CLI_LOG`).
+1. Both variables are visible to the process — either exported (`printenv | grep CLI_LOG`) or present
+   in the `.env` file the run actually uses (check `--env-file`, the current working directory, then
+   the suite's directory).
 2. `CLI_LOG_LEVEL` is spelled correctly and is one of the five accepted values.
 3. The process has write permission on `CLI_LOG_DIR` (or its parent, if the directory needs to be
    created).

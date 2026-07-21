@@ -77,18 +77,35 @@ public class ResponseResolver {
      * Resolves a {@link RestClient.ResponseSpec} into an {@link ApiResponse} using the minimum
      * extraction level dictated by the assertion list.
      *
-     * <p>The response body is read at most once. All HTTP status codes (including 4xx and 5xx) are
-     * captured rather than thrown as exceptions.
-     *
      * @param responseSpec the response spec to consume
      * @param assertions the assertions that will be evaluated against the result
      * @return a fully populated {@link ApiResponse}
      */
     public ApiResponse resolve(RestClient.ResponseSpec responseSpec, List<Assertion> assertions) {
+        return resolve(responseSpec, assertions, false);
+    }
+
+    /**
+     * Resolves a {@link RestClient.ResponseSpec} into an {@link ApiResponse}, optionally forcing full
+     * (body-reading) resolution regardless of the assertion list.
+     *
+     * <p>The response body is read at most once. All HTTP status codes (including 4xx and 5xx) are
+     * captured rather than thrown as exceptions. {@code forceFull} must be set when the caller needs
+     * the response body for reasons the assertion list does not reflect — for example {@code
+     * saved-session} captures that read {@code response.body.*} on a test whose only assertion is a
+     * {@link StatusCodeAssertion}.
+     *
+     * @param responseSpec the response spec to consume
+     * @param assertions the assertions that will be evaluated against the result
+     * @param forceFull when {@code true}, always read and parse the body even if the assertions alone
+     *     would not require it
+     * @return a fully populated {@link ApiResponse}
+     */
+    public ApiResponse resolve(RestClient.ResponseSpec responseSpec, List<Assertion> assertions, boolean forceFull) {
         // Suppress Spring's default error-throwing for all status codes.
         RestClient.ResponseSpec spec = responseSpec.onStatus(status -> true, (req, res) -> {});
 
-        if (determineLevel(assertions) == ResponseResolutionLevel.STATUS_ONLY) {
+        if (!forceFull && determineLevel(assertions) == ResponseResolutionLevel.STATUS_ONLY) {
             long startNs = System.nanoTime();
             ResponseEntity<Void> entity = spec.toBodilessEntity();
             long responseTimeMs = (System.nanoTime() - startNs) / 1_000_000;

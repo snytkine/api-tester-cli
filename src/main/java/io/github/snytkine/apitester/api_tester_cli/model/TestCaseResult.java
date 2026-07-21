@@ -45,6 +45,14 @@ import org.jspecify.annotations.Nullable;
  * TestResult#ERROR} outcomes where the response was received before the failure occurred. It is
  * {@code null} for {@link TestResult#SKIPPED} outcomes (no request sent) and for {@link
  * TestResult#ERROR} outcomes where the request never completed.
+ *
+ * <p>The {@code failedParentName} field marks a special {@link TestResult#FAILED} outcome: a test
+ * that was failed solely because one of its {@code depends-on} parent tests failed. When non-null it
+ * holds the name of that failed parent test, and the test's own request was never dispatched (so
+ * {@code requestInfo} and {@code apiResponse} are {@code null}). Reports render this case distinctly
+ * — instead of request/response/failed-assertion details they show only the message returned by
+ * {@link #parentFailureMessage(String)}. It is {@code null} for every other outcome, including a
+ * FAILED test whose own assertions failed.
  */
 public record TestCaseResult(
         /** Name of the test case as declared in the suite YAML. */
@@ -83,4 +91,49 @@ public record TestCaseResult(
          * was received before the failure; always {@code null} for {@link TestResult#SKIPPED} and
          * for {@link TestResult#ERROR} cases where the request never completed.
          */
-        @Nullable ApiResponse apiResponse) {}
+        @Nullable ApiResponse apiResponse,
+
+        /**
+         * The name of the failed {@code depends-on} parent test when this test was failed only
+         * because that parent failed; {@code null} for every other outcome (including a test whose
+         * own assertions failed). See the class JavaDoc for how reports render this case.
+         */
+        @Nullable String failedParentName) {
+
+    /**
+     * Backward-compatible convenience constructor for callers that do not produce a
+     * {@code depends-on} parent-failure result. Delegates to the canonical constructor with {@code
+     * failedParentName} set to {@code null}.
+     *
+     * @param name name of the test case as declared in the suite YAML
+     * @param result four-way terminal status of this test case execution
+     * @param passedAssertions number of assertions that passed for this test case
+     * @param failures individual failures collected during assertion evaluation
+     * @param skipReason the skip reason, non-null only when {@code result} is {@link
+     *     TestResult#SKIPPED}
+     * @param requestInfo the fully-resolved HTTP request that was dispatched, or {@code null}
+     * @param apiResponse the HTTP response received for this test case, or {@code null}
+     */
+    public TestCaseResult(
+            String name,
+            TestResult result,
+            int passedAssertions,
+            List<AssertionFailure> failures,
+            @Nullable String skipReason,
+            @Nullable ExecutedRequestInfo requestInfo,
+            @Nullable ApiResponse apiResponse) {
+        this(name, result, passedAssertions, failures, skipReason, requestInfo, apiResponse, null);
+    }
+
+    /**
+     * Builds the human-readable message shown for a {@code depends-on} parent-failure result, in
+     * both the terminal failure block (as the {@code Error} value) and the HTML report (inside the
+     * "Failed parent test" expandable block).
+     *
+     * @param failedParentName the name of the failed parent test; must not be {@code null}
+     * @return the message {@code This test depends on a failed parent test "<name>".}
+     */
+    public static String parentFailureMessage(String failedParentName) {
+        return "This test depends on a failed parent test \"" + failedParentName + "\".";
+    }
+}

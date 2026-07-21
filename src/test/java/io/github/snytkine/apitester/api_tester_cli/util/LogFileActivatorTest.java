@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,6 +53,7 @@ class LogFileActivatorTest {
     @BeforeEach
     void saveRootLoggerState() {
         savedRootLevel = rootLogger().getLevel();
+        LogFileActivator.resetForTesting();
     }
 
     @AfterEach
@@ -59,6 +61,7 @@ class LogFileActivatorTest {
         ch.qos.logback.classic.Logger root = rootLogger();
         root.detachAndStopAllAppenders();
         root.setLevel(savedRootLevel);
+        LogFileActivator.resetForTesting();
     }
 
     // --- No-op cases ---
@@ -219,6 +222,71 @@ class LogFileActivatorTest {
     @Test
     void validLevelsSetContainsExactlyFiveStandardSlf4jLevels() {
         assertThat(LogFileActivator.VALID_LEVELS).containsExactlyInAnyOrder("TRACE", "DEBUG", "INFO", "WARN", "ERROR");
+    }
+
+    // --- activateFromEnv (.env / --env-file sourced values) ---
+
+    @Test
+    void activateFromEnvWithBothVariablesCreatesLogFile(@TempDir Path tempDir) {
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "DEBUG", "CLI_LOG_DIR", tempDir.toString()));
+
+        assertThat(rootLogger().getLevel()).isEqualTo(Level.DEBUG);
+        assertThat(logFilesIn(tempDir)).hasSize(1);
+    }
+
+    @Test
+    void activateFromEnvIsCaseInsensitiveOnLevel(@TempDir Path tempDir) {
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "warn", "CLI_LOG_DIR", tempDir.toString()));
+
+        assertThat(rootLogger().getLevel()).isEqualTo(Level.WARN);
+    }
+
+    @Test
+    void activateFromEnvWithNullMapIsNoOp() {
+        LogFileActivator.activateFromEnv(null);
+
+        assertThat(rootLogger().getLevel()).isEqualTo(savedRootLevel);
+    }
+
+    @Test
+    void activateFromEnvWithMissingLevelIsNoOp(@TempDir Path tempDir) {
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_DIR", tempDir.toString()));
+
+        assertThat(rootLogger().getLevel()).isEqualTo(savedRootLevel);
+        assertThat(logFilesIn(tempDir)).isEmpty();
+    }
+
+    @Test
+    void activateFromEnvWithMissingDirIsNoOp() {
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "DEBUG"));
+
+        assertThat(rootLogger().getLevel()).isEqualTo(savedRootLevel);
+    }
+
+    // --- One-time activation guard (startup vs run-suite must not both activate) ---
+
+    @Test
+    void secondActivationIsSuppressedByGuard(@TempDir Path first, @TempDir Path second) {
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "DEBUG", "CLI_LOG_DIR", first.toString()));
+        // A second attempt (e.g. run-suite after startup already activated) must not create a new file.
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "ERROR", "CLI_LOG_DIR", second.toString()));
+
+        assertThat(logFilesIn(first)).hasSize(1);
+        assertThat(logFilesIn(second)).isEmpty();
+        // The first (successful) activation wins: level stays DEBUG, not the second call's ERROR.
+        assertThat(rootLogger().getLevel()).isEqualTo(Level.DEBUG);
+    }
+
+    @Test
+    void failedFirstAttemptDoesNotConsumeGuard(@TempDir Path validDir) {
+        // An invalid level does not activate and must not block a later valid activation.
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "BOGUS", "CLI_LOG_DIR", validDir.toString()));
+        assertThat(logFilesIn(validDir)).isEmpty();
+
+        LogFileActivator.activateFromEnv(Map.of("CLI_LOG_LEVEL", "INFO", "CLI_LOG_DIR", validDir.toString()));
+
+        assertThat(logFilesIn(validDir)).hasSize(1);
+        assertThat(rootLogger().getLevel()).isEqualTo(Level.INFO);
     }
 
     // --- Helpers ---

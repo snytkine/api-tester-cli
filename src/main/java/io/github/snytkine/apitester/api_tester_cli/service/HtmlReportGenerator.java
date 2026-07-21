@@ -17,10 +17,13 @@
 package io.github.snytkine.apitester.api_tester_cli.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.io.IOException;
@@ -32,6 +35,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
@@ -70,6 +74,13 @@ public class HtmlReportGenerator {
     /** Matches a complete {@code <style>…</style>} block, capturing the inner content. */
     private static final Pattern STYLE_PATTERN = Pattern.compile("(?s)(<style[^>]*>)(.*?)(</style>)");
 
+    /**
+     * Displayed in place of a real username/password in the report. The raw credentials in {@link
+     * io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo#auth()} must never reach
+     * the rendered HTML.
+     */
+    private static final String MASKED_VALUE = "*****";
+
     static {
         ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
         resolver.setPrefix("templates/");
@@ -84,14 +95,43 @@ public class HtmlReportGenerator {
 
     private final ObjectMapper jsonMapper = new ObjectMapper();
     private final String appVersion;
+    private final LatestVersionHolder latestVersionHolder;
+    private final VersionCheckProperties versionCheckProperties;
 
     /**
-     * Constructs the generator with the application build properties.
+     * Constructs the generator with the application build properties and the version-check
+     * collaborators used to render the upgrade-available banner.
      *
      * @param buildProperties Spring Boot build properties providing the application version
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any
+     * @param versionCheckProperties supplies the upgrade message template and upgrade-page URL
      */
-    public HtmlReportGenerator(BuildProperties buildProperties) {
+    public HtmlReportGenerator(
+            BuildProperties buildProperties,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties) {
         this.appVersion = buildProperties.getVersion();
+        this.latestVersionHolder = latestVersionHolder;
+        this.versionCheckProperties = versionCheckProperties;
+    }
+
+    /**
+     * Renders the supplied test-run result and suite metadata into an HTML report and writes it to
+     * {@code outputPath}, using the supplied {@link ReportOptions} to control JS and minification.
+     *
+     * <p>Convenience overload equivalent to {@link #generate(TestRunResult, TestSuite, Path,
+     * ReportOptions, String)} with a {@code null} run identifier, so no {@code runID} line is
+     * rendered in the report header.
+     *
+     * @param result the aggregated outcome of the test run
+     * @param suite the test suite that was executed
+     * @param outputPath the file path where the HTML report will be written
+     * @param options rendering options controlling JS formatter and HTML minification
+     * @throws IOException if template rendering or file I/O fails
+     */
+    public void generate(TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options)
+            throws IOException {
+        generate(result, suite, outputPath, options, null);
     }
 
     /**
@@ -105,13 +145,19 @@ public class HtmlReportGenerator {
      * @param suite the test suite that was executed
      * @param outputPath the file path where the HTML report will be written
      * @param options rendering options controlling JS formatter and HTML minification
+     * @param runID the unique identifier of this suite execution (see {@link
+     *     io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext#getRunID()}); when
+     *     non-null and non-blank it is rendered as a {@code runID: <value>} line in the report header
+     *     directly above the "Generated" timestamp; when {@code null} or blank the line is omitted
      * @throws IOException if template rendering or file I/O fails
      */
-    public void generate(TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options)
+    public void generate(
+            TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options, @Nullable String runID)
             throws IOException {
         Context ctx = new Context();
         ctx.setVariable("suiteName", suite.name());
         ctx.setVariable("suiteDescription", suite.description());
+        ctx.setVariable("runID", runID != null && !runID.isBlank() ? runID : null);
         ctx.setVariable("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
         ctx.setVariable("passedCount", result.passedCount());
         ctx.setVariable("failedCount", result.failedCount());
@@ -127,6 +173,13 @@ public class HtmlReportGenerator {
                         .toList());
         ctx.setVariable("jsEnabled", options.jsEnabled());
         ctx.setVariable("appVersion", appVersion);
+
+        Optional<String> latestVersion = latestVersionHolder.get();
+        ctx.setVariable("upgradeAvailable", latestVersion.isPresent());
+        ctx.setVariable(
+                "upgradeMessage",
+                latestVersion.map(versionCheckProperties::resolveUpgradeMessage).orElse(null));
+        ctx.setVariable("upgradePageUrl", versionCheckProperties.upgradePageUrl());
 
         String html = HTML_ENGINE.process("suite-report", ctx);
         if (options.minifyEnabled()) {
@@ -150,23 +203,45 @@ public class HtmlReportGenerator {
      */
     private Map<String, Object> toTestMap(TestCaseResult tc, boolean compactJson) {
         Map<String, Object> map = new LinkedHashMap<>();
+        boolean parentFailure = tc.failedParentName() != null;
+        boolean isError = tc.result() == TestResult.ERROR;
         map.put("name", tc.name());
         map.put("result", tc.result().name());
         map.put("statusClass", tc.result().name().toLowerCase());
         map.put("passedAssertions", tc.passedAssertions());
-        map.put("failedAssertions", tc.failures().size());
+        // Neither a parent-failure test nor an errored test evaluated assertions of its own, so both
+        // report zero failed assertions and show no "Failed Assertions" block. A parent-failure test
+        // shows the "Failed parent test" block; an errored test (e.g. an HTTP I/O failure) shows the
+        // "Error" block. Only a genuinely FAILED test lists individual failed assertions.
+        map.put(
+                "failedAssertions",
+                (parentFailure || isError) ? 0 : tc.failures().size());
+        map.put("isParentFailure", parentFailure);
+        map.put(
+                "parentFailureMessage",
+                parentFailure ? TestCaseResult.parentFailureMessage(tc.failedParentName()) : null);
+        // An error is not an assertion outcome: its message lives in the failure descriptions and is
+        // rendered under an "Error" summary rather than "Failed Assertions".
+        map.put("isError", isError);
+        map.put("errorMessage", isError ? errorMessageFrom(tc.failures()) : null);
         map.put("skipReason", tc.skipReason());
         map.put("hasRequest", tc.requestInfo() != null);
         map.put(
                 "requestMethod",
                 tc.requestInfo() != null ? tc.requestInfo().method().name() : null);
         map.put("requestUrl", tc.requestInfo() != null ? tc.requestInfo().url() : null);
+        map.put("restClientId", tc.requestInfo() != null ? tc.requestInfo().restClientId() : null);
         map.put(
                 "requestBody",
                 tc.requestInfo() != null ? formatJsonString(tc.requestInfo().body(), compactJson) : null);
         map.put(
                 "requestHeaders",
                 headersToList(tc.requestInfo() != null ? tc.requestInfo().headers() : null));
+        RequestAuth auth = tc.requestInfo() != null ? tc.requestInfo().auth() : null;
+        map.put("hasAuth", auth != null);
+        map.put("authType", auth != null ? auth.type().name() : null);
+        map.put("authUsername", auth != null ? MASKED_VALUE : null);
+        map.put("authPassword", auth != null ? MASKED_VALUE : null);
         map.put("hasResponse", tc.apiResponse() != null);
         map.put("responseStatus", tc.apiResponse() != null ? tc.apiResponse().statusCode() : null);
         map.put("responseTimeMs", tc.apiResponse() != null ? tc.apiResponse().responseTimeMs() : null);
@@ -213,6 +288,27 @@ public class HtmlReportGenerator {
                     return m;
                 })
                 .toList();
+    }
+
+    /**
+     * Builds the human-readable error message shown under the "Error" summary for a test whose result
+     * is {@link TestResult#ERROR}.
+     *
+     * <p>For an errored test the failure entries carry the captured error text (e.g. an HTTP I/O
+     * failure message) in their {@link AssertionFailure#description()} field, with {@code expected},
+     * {@code actual}, and {@code error} all {@code null}. This joins the non-blank descriptions with
+     * newlines. When no usable text is present a generic fallback is returned so the block is never
+     * empty.
+     *
+     * @param failures the errored test's failure entries; typically a single entry
+     * @return the joined error text, or {@code "An unexpected error occurred."} when none is available
+     */
+    private static String errorMessageFrom(List<AssertionFailure> failures) {
+        String joined = failures.stream()
+                .map(AssertionFailure::description)
+                .filter(d -> d != null && !d.isBlank())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return joined.isBlank() ? "An unexpected error occurred." : joined;
     }
 
     /**

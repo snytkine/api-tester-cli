@@ -68,6 +68,7 @@ public class TestSuiteLoader {
                 defaultedClients(testSuite.restClients()),
                 testSuite.variables(),
                 testSuite.tests(),
+                testSuite.hooks(),
                 filePath,
                 templateContent);
     }
@@ -112,7 +113,7 @@ public class TestSuiteLoader {
      *       correctly.
      * </ol>
      *
-     * <p>The Thymeleaf context exposes four top-level variables:
+     * <p>The Thymeleaf context exposes five top-level variables:
      *
      * <ul>
      *   <li>{@code cli} — command-line variables from {@code context.cli()}
@@ -121,6 +122,9 @@ public class TestSuiteLoader {
      *       Step 1 result in Step 2; accessed in templates as {@code [[${suite.my_var}]]}
      *   <li>{@code test} — test-case variables from {@code context.test()} (empty for suite-level
      *       resolution)
+     *   <li>{@code session} — always an empty map here; {@code [[${session.*}]]} references resolve
+     *       to empty string at load time and are filled in later by the engine, which re-processes
+     *       the template per test with the suite-wide captured {@code session} values
      * </ul>
      *
      * @param filePath absolute path to the test-suite YAML file
@@ -136,7 +140,12 @@ public class TestSuiteLoader {
         // The resulting variables map (resolved from cli/env) becomes suite for Step 2.
         String step1Yaml = FileLoader.parseFile(
                 templateContent,
-                Map.of("cli", context.cli(), "env", context.env(), "suite", Map.of(), "test", context.test()));
+                Map.of(
+                        "cli", context.cli(),
+                        "env", context.env(),
+                        "suite", Map.of(),
+                        "test", context.test(),
+                        "session", Map.of()));
         TestSuite step1TestSuite = yamlMapper.readValue(step1Yaml, TestSuite.class);
         Map<String, String> resolvedVariables =
                 step1TestSuite.variables() != null ? new LinkedHashMap<>(step1TestSuite.variables()) : Map.of();
@@ -145,7 +154,12 @@ public class TestSuiteLoader {
         // expressions like [[${suite.api_base_url}]] in test cases are resolved.
         String step2Yaml = FileLoader.parseFile(
                 templateContent,
-                Map.of("cli", context.cli(), "env", context.env(), "suite", resolvedVariables, "test", context.test()));
+                Map.of(
+                        "cli", context.cli(),
+                        "env", context.env(),
+                        "suite", resolvedVariables,
+                        "test", context.test(),
+                        "session", Map.of()));
 
         TestSuite processedTestSuite = yamlMapper.readValue(step2Yaml, TestSuite.class);
         return new TestSuite(
@@ -155,6 +169,7 @@ public class TestSuiteLoader {
                 defaultedClients(processedTestSuite.restClients()),
                 resolvedVariables,
                 processedTestSuite.tests(),
+                processedTestSuite.hooks(),
                 filePath,
                 templateContent);
     }

@@ -289,4 +289,102 @@ class FailureTableRendererTest {
                 .filter(l -> l.contains("Schema") || l.contains("missing"))
                 .forEach(line -> assertThat(line).contains(FailureTableRenderer.ERROR_COLOR));
     }
+
+    // ---------------------------------------------------------------------------
+    // renderParentFailure (depends-on parent-failure)
+    // ---------------------------------------------------------------------------
+
+    private static String renderParentFailure(String testName, String message, boolean useColors, int width) {
+        StringWriter sw = new StringWriter();
+        new FailureTableRenderer().renderParentFailure(testName, message, useColors, width, new PrintWriter(sw));
+        return sw.toString();
+    }
+
+    @Test
+    void parentFailureShowsTestNameAndMessage() {
+        String out = renderParentFailure(
+                "get-widget", "This test depends on a failed parent test \"create-widget\".", false, 80);
+
+        assertThat(out).contains("get-widget");
+        assertThat(out).contains("This test depends on a failed parent test \"create-widget\".");
+    }
+
+    @Test
+    void parentFailureShowsErrorRowButNoAssertionExpectedActualRows() {
+        String out = renderParentFailure(
+                "get-widget", "This test depends on a failed parent test \"create-widget\".", false, 80);
+
+        assertThat(out).contains(FailureTableRenderer.ERROR_LABEL);
+        assertThat(out).doesNotContain("Assertion");
+        assertThat(out).doesNotContain("Expected");
+        assertThat(out).doesNotContain("Actual");
+    }
+
+    @Test
+    void parentFailureErrorRowIsRedWhenColorsEnabled() {
+        String out = renderParentFailure(
+                "get-widget", "This test depends on a failed parent test \"create-widget\".", true, 80);
+
+        String errorLine = java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("✗"))
+                .findFirst()
+                .orElse("");
+        assertThat(errorLine).isNotEmpty();
+        assertThat(errorLine).contains(FailureTableRenderer.ERROR_COLOR);
+    }
+
+    // ---------------------------------------------------------------------------
+    // renderError (test result ERROR — e.g. HTTP I/O failure such as connection refused)
+    // ---------------------------------------------------------------------------
+
+    private static String renderError(String testName, List<AssertionFailure> failures, boolean useColors, int width) {
+        StringWriter sw = new StringWriter();
+        new FailureTableRenderer().renderError(testName, failures, useColors, width, new PrintWriter(sw));
+        return sw.toString();
+    }
+
+    @Test
+    void errorShowsTestNameAndErrorTextButNoAssertionRow() {
+        String out = renderError(
+                "create-pet",
+                List.of(new AssertionFailure(
+                        "I/O error on POST request for \"http://localhost:9999/pets\": Connection refused",
+                        null,
+                        null,
+                        null)),
+                false,
+                80);
+
+        assertThat(out).contains("create-pet");
+        assertThat(out).contains(FailureTableRenderer.ERROR_LABEL);
+        assertThat(out).contains("Connection refused");
+        // The error text must never be rendered as a (green) Assertion row.
+        assertThat(out).doesNotContain("Assertion");
+        assertThat(out).doesNotContain("Expected");
+        assertThat(out).doesNotContain("Actual");
+    }
+
+    @Test
+    void errorRowIsRedWhenColorsEnabled() {
+        String out = renderError(
+                "create-pet", List.of(new AssertionFailure("Connection refused", null, null, null)), true, 80);
+
+        String errorLine = java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("✗"))
+                .findFirst()
+                .orElse("");
+        assertThat(errorLine).isNotEmpty();
+        assertThat(errorLine).contains(FailureTableRenderer.ERROR_COLOR);
+        // The assertion (green) colour must not be applied anywhere in an error table.
+        assertThat(out).doesNotContain(FailureTableRenderer.ASSERTION_COLOR);
+    }
+
+    @Test
+    void errorWithNullDescriptionRendersGracefully() {
+        String out = renderError("create-pet", List.of(new AssertionFailure(null, null, null, null)), false, 80);
+
+        assertThat(out).contains("create-pet");
+        assertThat(out).contains(FailureTableRenderer.ERROR_LABEL);
+        assertThat(out).doesNotContain("Assertion");
+    }
 }

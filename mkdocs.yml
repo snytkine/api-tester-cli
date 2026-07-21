@@ -23,6 +23,7 @@ nav:
   - Templating: templating.md
   - Assertions: assertions.md
   - HTML Execution Report: html-report.md
+  - Upgrade Notifications: version-check.md
   - Schema Support: schema-support.md
   - Environment Variables & Debugging: environment-variables.md
 

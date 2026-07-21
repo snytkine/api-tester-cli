@@ -1,0 +1,35 @@
+---
+name: "Stub Suite – depends-on run once"
+rest-client:
+  base-url: "http://stub.test"
+tests:
+- name: "create"
+  transient: true
+  request:
+    method: "GET"
+    url: "/create"
+  saved-session:
+  - name: "itemId"
+    path: "response.body.json.$.id"
+    required: true
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "getA"
+  depends-on:
+  - "create"
+  request:
+    method: "GET"
+    url: "/items/[[${session.itemId}]]?who=a"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "getB"
+  depends-on:
+  - "create"
+  request:
+    method: "GET"
+    url: "/items/[[${session.itemId}]]?who=b"
+  assertions:
+  - type: "status_code"
+    expected: 200

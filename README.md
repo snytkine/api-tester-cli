@@ -11,7 +11,7 @@
 
 The project can run as a regular JVM application or as a GraalVM native binary. The JVM build is easiest for development; the native build starts faster and runs without a JVM at runtime.
 
-**Full documentation:** [https://snytkine.github.io/api-tester-cli/test-suite-configuration/](https://snytkine.github.io/api-tester-cli/test-suite-configuration/)
+**Full documentation:** [https://cmdrest.com/docs](https://cmdrest.com/docs)
 
 ![TUI test run results](docs/tui-test-run-results.png)
 
@@ -22,10 +22,12 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
+- Supports lifecycle hooks — local scripts or outbound web calls fired at suite-execution phases (before/after all, before/after each test, and around report generation); script hooks are gated behind `--allow-scripts` / `APITESTER_ALLOW_SCRIPTS=true` (see [Lifecycle Hooks](https://cmdrest.com/docs/lifecycle-hooks))
 - Emits JSON results in non-interactive mode
 - Can show an interactive terminal UI when running in a compatible TTY
 - Can generate a self-contained single-page HTML execution report with `--report` (browser-side JSON formatting via optional inline JS)
 - Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
+- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](https://cmdrest.com/docs/version-check)); never blocks startup or a run and can be disabled via `apitester.version-check.enabled=false`
 
 ## Build And Run
 
@@ -84,6 +86,7 @@ Important behavior:
 - `--tag=smoke` runs only tests tagged `smoke`. Prefix with `!` to invert: `--tag="!slow"` runs all tests except those tagged `slow` (tests with no tags are always included under a negated filter).
 - `--ui` forces the interactive terminal UI.
 - `--no-ui` disables the UI and writes JSON results to stdout.
+- `--env-file=<path>` loads environment variables from an explicit file (which need not be named `.env`), letting you run the same suite against different environments (e.g. `--env-file=/path/to/staging.env`). See [The `.env` File](#the-env-file) for the full resolution order.
 - Relative file references inside the suite, such as body files or JSON schema files, are resolved relative to the suite file's directory.
 - Positional variables must not be written as `--key=value`; Spring Shell treats `--...` tokens as options instead of suite variables.
 
@@ -246,6 +249,9 @@ Each item in `tests` supports:
 - `variables`: per-test variables exposed as `test.<name>`
 - `request`: required HTTP request definition
 - `assertions`: ordered list of assertions
+- `saved-session`: optional list of response-value captures stored into the suite-wide `session` namespace (see [Chaining tests](#chaining-tests-session-capture-depends-on-and-transient))
+- `depends-on`: optional list of other test names that must run before this test
+- `transient`: optional boolean; when `true` the test runs **only** as another test's dependency, never standalone
 
 ### Request bodies
 
@@ -268,7 +274,7 @@ body:
 
 ## Thymeleaf Variable Namespaces
 
-The CLI currently exposes four variable namespaces during template resolution:
+The CLI exposes five variable namespaces during template resolution:
 
 | Namespace | Example | Source |
 |---|---|---|
@@ -276,6 +282,7 @@ The CLI currently exposes four variable namespaces during template resolution:
 | `env` | `[[${env.AUTH_TOKEN}]]` | Variables loaded from a `.env` file in the suite directory |
 | `suite` | `[[${suite.auth_token}]]` | Values resolved from the suite-level `variables` block |
 | `test` | `[[${test.users_path}]]` | Values from the current test case's `variables` block |
+| `session` | `[[${session.recordId}]]` | Values captured from earlier tests' responses via `saved-session` |
 
 The suite is resolved in two passes:
 
@@ -284,9 +291,70 @@ The suite is resolved in two passes:
 
 That means values like `[[${suite.base_url}]]` are the supported form for suite-level references in request URLs, headers, and assertions.
 
+The `session` namespace is different: like `test`, it is resolved **only during test execution** (when building a test's request URL, headers, and body — including bodies loaded from a `type: file`), never during the two suite-level passes above. It starts empty and is populated as tests run.
+
+## Chaining tests: session capture, `depends-on`, and `transient`
+
+A test can **capture values from its own response** into the suite-wide `session` namespace, and other tests can **depend on** it so it runs first and its captured values are available.
+
+### Capturing values with `saved-session`
+
+```yaml
+tests:
+  - name: "CreateRecord"
+    transient: true
+    request:
+      method: "POST"
+      url: "[[${suite.base_url}]]/records"
+      body:
+        type: "inline"
+        content: '{"label":"widget"}'
+    saved-session:
+      - name: "recordId"          # stored under session.recordId
+        path: "response.body.json.$.id"
+        type: "integer"           # optional: string | integer | double | boolean
+        required: true            # fail the test if nothing is extracted (and no default)
+      - name: "etag"
+        path: "response.headers.etag"
+    assertions:
+      - type: "status_code"
+        expected: 201
+
+  - name: "GetRecord"
+    depends-on: ["CreateRecord"]
+    request:
+      method: "GET"
+      url: "[[${suite.base_url}]]/records/[[${session.recordId}]]"
+    assertions:
+      - type: "status_code"
+        expected: 200
+```
+
+Each `saved-session` entry has:
+
+- `name` — key under which the value is stored (used later as `[[${session.<name>}]]`). Name uniqueness across tests is the user's responsibility; duplicates are overwritten last-write-wins.
+- `path` — a `response.*` expression (the same language used by assertions), e.g. `response.statusCode`, `response.headers.<h>`, `response.body.text`, or `response.body.json.$.<jsonpath>`.
+- `type` — optional coercion to `string`, `integer`, `double`, or `boolean`. A value that cannot be converted fails the test.
+- `default` — optional fallback used when the path extracts nothing; when set, the capture always resolves.
+- `required` — optional (default `false`); when `true` and no `default` is set, a missing/unextractable value fails the test.
+
+**Captured values must be primitives** (`string`, `integer`, `double`, `boolean`). Extracting an object or array is an error — you cannot store a JSON object/array in `session`.
+
+**Captures happen only after all of a test's assertions pass.** `saved-session` values are extracted and written to the `session` namespace only once the test succeeds. If any assertion fails, the test is marked failed and **none** of its `saved-session` values are stored — so a dependent test never runs against values captured from a failed parent (it is marked failed via the `depends-on` propagation described below).
+
+### `depends-on`
+
+`depends-on` lists other test names that must run before this test. Dependencies run in the listed order, resolved transitively (`A → B → C` runs `C`, then `B`, then `A`). A `depends-on` that names an unknown test, or that forms a cycle, is reported as a validation error before any test runs.
+
+**A depended-on test runs at most once per suite run.** If several tests depend on the same test, it executes a single time and its result — including its captured `session` values — is reused by every dependent (its request is not re-sent). If a dependency ends up failed or errored, each test that depends on it is automatically marked failed and its own request is not sent. Because such a test sends no request and evaluates no assertions of its own, it is reported as a distinct kind of failure: the terminal shows a single `Error` row reading `This test depends on a failed parent test "<name>".` (no assertion/expected/actual rows), and the HTML report shows a **Failed parent test** expandable block with the same message instead of Request, Response, or Failed Assertions sections.
+
+### `transient`
+
+A `transient: true` test runs **only** when another test depends on it — never as a standalone test. This is useful for setup steps (like `CreateRecord` above) that only exist to feed values into dependents. Transient tests also **do not fire `before-each` or `after-each` hooks** — those hooks fire for the dependent (non-transient) test that triggered them.
+
 ## The `.env` File
 
-The CLI looks for a `.env` file in the same directory as the suite YAML file and exposes those values through the `env` namespace.
+The CLI loads environment variables from a `.env`-style file and exposes those values through the `env` namespace.
 
 Example:
 
@@ -303,6 +371,22 @@ variables:
 ```
 
 This is the right place for secrets or machine-specific configuration that should not be committed into the suite itself.
+
+### Resolution Order
+
+The file that supplies the `env` namespace is resolved in the following order:
+
+1. **`--env-file=<path>` supplied** — that exact file is used. It need not be named `.env`, so you can keep per-environment files (e.g. `dev.env`, `staging.env`, `prod.env`) and swap them per invocation. If the path does not point to an existing regular file, the command **fails with an error and aborts** — this is the only case where a missing env file is treated as an error, because you asked for a specific file.
+2. **No `--env-file`** — the CLI looks for a `.env` file in the **current working directory**.
+3. **No `.env` in the current working directory** — the CLI falls back to a `.env` file in the **directory containing the suite YAML file** (the historical default).
+
+Cases 2 and 3 fail **silently**: if no `.env` is found anywhere the run proceeds with only the process/system environment variables. System environment variables always take precedence over same-named entries in the env file.
+
+Example — run the same suite against staging:
+
+```bash
+rs --suite=/path/to/suite.yml --env-file=/path/to/staging.env
+```
 
 ## Supported Assertions
 
@@ -407,7 +491,7 @@ For IDE-wide mappings that apply without modifying individual files:
 
 > **Note:** Some IDEs require a third-party YAML plugin to enable schema-based validation and autocompletion. If hints do not appear after wiring the schema, check whether a YAML or JSON Schema plugin is installed and enabled.
 
-For a full walkthrough see [Schema Support](https://snytkine.github.io/api-tester-cli/schema-support/).
+For a full walkthrough see [Schema Support](https://cmdrest.com/docs/schema-support).
 
 ## Checking The Version
 
@@ -467,6 +551,9 @@ by underscores.
   - Expandable **Request** section (method, URL, headers, body)
   - Expandable **Response** section (status code, response time, headers, pretty-printed body)
   - Expandable **Failed Assertions** section (description, expected vs actual, error message)
+  - Expandable **Error** section for a test whose result is `ERROR` (e.g. an HTTP I/O failure such
+    as a connection refused because the target service is not running), showing the captured error
+    text. An error is not an assertion outcome, so it is never listed under **Failed Assertions**
 
 The report is fully self-contained (all CSS embedded, no CDN dependencies) and opens in any
 browser without an internet connection. By default a small inline JavaScript formatter is
@@ -475,18 +562,17 @@ Set `REPORT_NO_MINIFY=true` to skip HTML minification. Both flags can be set in 
 environment or in the suite's `.env` file.
 
 For full documentation, including a behaviour matrix for these options, see
-[HTML Execution Report](https://snytkine.github.io/api-tester-cli/html-report/).
+[HTML Execution Report](https://cmdrest.com/docs/html-report).
 
 ## Debug Logging
 
-File-based logging is controlled by environment variables rather than a command-line flag.
-
-Set both variables before launching the CLI:
+File-based logging is controlled by two variables rather than a command-line flag. Provide both
+through **either** the OS environment **or** a `.env` file (including one passed with `--env-file`):
 
 - `CLI_LOG_LEVEL`: one of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`
 - `CLI_LOG_DIR`: directory where log files should be written
 
-Example:
+Example (exported environment):
 
 ```bash
 CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=./logs \
@@ -494,7 +580,17 @@ CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=./logs \
   --suite ./src/test/resources/test-suite-1.yml
 ```
 
-When either variable is missing or invalid, the CLI runs normally without creating a log file.
+Example (via a `.env` file, no export needed):
+
+```bash
+printf 'CLI_LOG_LEVEL=DEBUG\nCLI_LOG_DIR=./logs\n' > .env
+java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+  --suite ./src/test/resources/test-suite-1.yml
+```
+
+Exported OS variables are honoured from startup; `.env`/`--env-file` values are honoured when the
+`run-suite` command loads them (the OS environment wins if a variable is set in both). When either
+variable is missing or invalid, the CLI runs normally without creating a log file.
 
 For more detail, see [DEBUG_LOGGING_README.md](./DEBUG_LOGGING_README.md).
 

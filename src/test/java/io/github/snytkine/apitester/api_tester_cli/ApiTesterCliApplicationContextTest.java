@@ -35,9 +35,11 @@ import org.springframework.context.ApplicationContext;
  * spring.shell.command.version.enabled=false}.
  *
  * <p>The test runs in non-interactive mode ({@code DISABLE_INTERACTIVE_MODE=true}) so the shell
- * runner does not block on an interactive JLine terminal during the test run.
+ * runner does not block on an interactive JLine terminal during the test run. The background
+ * version check is disabled ({@code apitester.version-check.enabled=false}) so this test never
+ * makes a real outbound network call to GitHub.
  */
-@SpringBootTest(properties = "DISABLE_INTERACTIVE_MODE=true")
+@SpringBootTest(properties = {"DISABLE_INTERACTIVE_MODE=true", "apitester.version-check.enabled=false"})
 class ApiTesterCliApplicationContextTest {
 
     @Autowired

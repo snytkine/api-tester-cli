@@ -24,31 +24,40 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
+import io.github.snytkine.apitester.api_tester_cli.exception.HookFailedException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.service.HtmlReportGenerator;
+import io.github.snytkine.apitester.api_tester_cli.service.LatestVersionHolder;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.HookRunner;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.env.MockEnvironment;
@@ -68,6 +77,17 @@ class RunSuiteCommandTest {
     private RunSuiteCommand command;
     private RunSuiteCommand commandWithUi;
 
+    private static VersionCheckProperties noOpVersionCheckProperties() {
+        return new VersionCheckProperties(
+                false,
+                "https://example.invalid",
+                "https://example.invalid",
+                1,
+                1,
+                1,
+                "Version {latestVersion} is available.");
+    }
+
     @BeforeEach
     void setUp() {
         mockEngine = mock(TestEngine.class);
@@ -78,6 +98,9 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
+                mock(HookRunner.class),
                 null,
                 new MockEnvironment());
         commandWithUi = new RunSuiteCommand(
@@ -86,6 +109,9 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
+                mock(HookRunner.class),
                 mock(ViewComponentBuilder.class),
                 new MockEnvironment());
     }
@@ -143,6 +169,8 @@ class RunSuiteCommandTest {
                 null,
                 null,
                 null,
+                null,
+                false,
                 buildContext("api_base_url=https://api.example.com", "admin_system=IBM"));
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
@@ -161,7 +189,7 @@ class RunSuiteCommandTest {
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, null, null, null, buildContext());
+        command.runSuite(suite, false, false, null, null, null, null, false, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -179,15 +207,15 @@ class RunSuiteCommandTest {
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, true, false, null, null, null, buildContext());
+        command.runSuite(suite, true, false, null, null, null, null, false, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
 
     @Test
     void runSuiteThrowsWhenFileDoesNotExist() {
-        assertThatThrownBy(() ->
-                        command.runSuite("/nonexistent/path/suite.yml", false, false, null, null, null, buildContext()))
+        assertThatThrownBy(() -> command.runSuite(
+                        "/nonexistent/path/suite.yml", false, false, null, null, null, null, false, buildContext()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Test suite file not found");
     }
@@ -208,7 +236,7 @@ class RunSuiteCommandTest {
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", tempDir.toString());
         try {
-            command.runSuite(null, false, false, null, null, null, buildContext());
+            command.runSuite(null, false, false, null, null, null, null, false, buildContext());
             verify(mockEngine).runConfigurationSuite(any(), any(), any());
         } finally {
             System.setProperty("user.dir", originalUserDir);
@@ -228,7 +256,7 @@ class RunSuiteCommandTest {
         String originalUserDir = System.getProperty("user.dir");
         System.setProperty("user.dir", tempDir.toString());
         try {
-            command.runSuite(null, false, false, null, null, null, ctx);
+            command.runSuite(null, false, false, null, null, null, null, false, ctx);
             verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
             assertThat(output.toString()).contains("test-suite.yml is not found in current directory");
         } finally {
@@ -243,7 +271,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(2, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, "smoke", null, null, buildContext());
+        command.runSuite(suite, false, false, "smoke", null, null, null, false, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -263,7 +291,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, "nonexistent-tag", null, null, ctx);
+        command.runSuite(suite, false, false, "nonexistent-tag", null, null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("No tests found with tag");
@@ -276,7 +304,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, null, "smoke test one", null, buildContext());
+        command.runSuite(suite, false, false, null, "smoke test one", null, null, false, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -295,7 +323,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, null, "nonexistent test name", null, ctx);
+        command.runSuite(suite, false, false, null, "nonexistent test name", null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("No test found with name");
@@ -312,7 +340,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, "smoke", "smoke test one", null, ctx);
+        command.runSuite(suite, false, false, "smoke", "smoke test one", null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("cannot be used together");
@@ -325,7 +353,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, "regression", null, null, buildContext());
+        command.runSuite(suite, false, false, "regression", null, null, null, false, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -344,7 +372,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(2, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, "!smoke", null, null, buildContext());
+        command.runSuite(suite, false, false, "!smoke", null, null, null, false, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -366,7 +394,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, "!slow", null, null, ctx);
+        command.runSuite(suite, false, false, "!slow", null, null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("All tests excluded by negated tag filter");
@@ -384,7 +412,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        commandWithUi.runSuite(suite, false, true, "!slow", null, null, ctx);
+        commandWithUi.runSuite(suite, false, true, "!slow", null, null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
     }
@@ -408,10 +436,10 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, null, null, tempDir.toString(), ctx);
+        command.runSuite(suite, false, false, null, null, tempDir.toString(), null, false, ctx);
 
         ArgumentCaptor<Path> pathCaptor = ArgumentCaptor.forClass(Path.class);
-        verify(mockReportGenerator).generate(any(), any(), pathCaptor.capture(), any());
+        verify(mockReportGenerator).generate(any(), any(), pathCaptor.capture(), any(), any());
         String generatedFileName = pathCaptor.getValue().getFileName().toString();
         assertThat(generatedFileName).matches("test-suite_.+_\\d{14}\\.html");
         assertThat(output.toString()).contains("Test report generated at");
@@ -447,9 +475,9 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), ctx);
+        commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), null, false, ctx);
 
-        verify(mockReportGenerator).generate(any(), any(), any(), any());
+        verify(mockReportGenerator).generate(any(), any(), any(), any(), any());
         assertThat(output.toString()).contains("Report written to");
     }
 
@@ -466,9 +494,9 @@ class RunSuiteCommandTest {
                 Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, null, null, null, buildContext());
+        command.runSuite(suite, false, false, null, null, null, null, false, buildContext());
 
-        verify(mockReportGenerator, never()).generate(any(), any(), any(), any());
+        verify(mockReportGenerator, never()).generate(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -478,7 +506,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(4, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, "", null, null, buildContext());
+        command.runSuite(suite, false, false, "", null, null, null, false, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -492,7 +520,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(4, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        command.runSuite(suite, false, false, null, "", null, buildContext());
+        command.runSuite(suite, false, false, null, "", null, null, false, buildContext());
 
         ArgumentCaptor<TestSuite> suiteCaptor = ArgumentCaptor.forClass(TestSuite.class);
         verify(mockEngine).runConfigurationSuite(suiteCaptor.capture(), any(), any());
@@ -512,7 +540,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        command.runSuite(suite, false, false, null, null, null, ctx);
+        command.runSuite(suite, false, false, null, null, null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
         assertThat(output.toString()).contains("Duplicate test name");
@@ -531,7 +559,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        commandWithUi.runSuite(suite, false, true, null, null, null, ctx);
+        commandWithUi.runSuite(suite, false, true, null, null, null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
     }
@@ -547,7 +575,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        commandWithUi.runSuite(suite, false, true, "nonexistent-tag", null, null, ctx);
+        commandWithUi.runSuite(suite, false, true, "nonexistent-tag", null, null, null, false, ctx);
 
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
     }
@@ -574,7 +602,7 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        commandWithUi.runSuite(suite, false, true, null, null, null, ctx);
+        commandWithUi.runSuite(suite, false, true, null, null, null, null, false, ctx);
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -592,9 +620,9 @@ class RunSuiteCommandTest {
                 new PrintWriter(output),
                 null);
 
-        commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), ctx);
+        commandWithUi.runSuite(suite, false, true, null, null, tempDir.toString(), null, false, ctx);
 
-        verify(mockReportGenerator, never()).generate(any(), any(), any(), any());
+        verify(mockReportGenerator, never()).generate(any(), any(), any(), any(), any());
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
     }
 
@@ -606,7 +634,7 @@ class RunSuiteCommandTest {
         TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
 
-        commandWithUi.runSuite(suite, true, false, null, null, null, buildContext());
+        commandWithUi.runSuite(suite, true, false, null, null, null, null, false, buildContext());
 
         verify(mockEngine).runConfigurationSuite(any(), any(), any());
     }
@@ -620,6 +648,9 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
+                mock(HookRunner.class),
                 null,
                 env);
     }
@@ -764,6 +795,9 @@ class RunSuiteCommandTest {
                 mockEngine,
                 new DotEnvLoader(),
                 mockReportGenerator,
+                new LatestVersionHolder(),
+                noOpVersionCheckProperties(),
+                mock(HookRunner.class),
                 null,
                 env,
                 recorder);
@@ -774,7 +808,8 @@ class RunSuiteCommandTest {
         AtomicInteger exitCode = new AtomicInteger(0);
         RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
 
-        cmd.runSuite(tempDir.resolve("missing.yml").toString(), true, false, null, null, null, buildContext());
+        cmd.runSuite(
+                tempDir.resolve("missing.yml").toString(), true, false, null, null, null, null, false, buildContext());
 
         assertThat(exitCode.get()).isEqualTo(2); // EXIT_OPTIONS_ERROR
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
@@ -787,7 +822,7 @@ class RunSuiteCommandTest {
         String suite =
                 Path.of(getClass().getResource("/test-suite-1.yml").toURI()).toString();
 
-        cmd.runSuite(suite, true, false, "smoke", "Some Test", null, buildContext());
+        cmd.runSuite(suite, true, false, "smoke", "Some Test", null, null, false, buildContext());
 
         assertThat(exitCode.get()).isEqualTo(2); // EXIT_OPTIONS_ERROR
         verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
@@ -802,9 +837,240 @@ class RunSuiteCommandTest {
         TestRunResult failing = new TestRunResult(0, 1, 0, 0, List.of(), Map.of());
         when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(failing);
 
-        cmd.runSuite(suite, true, false, null, null, null, buildContext());
+        cmd.runSuite(suite, true, false, null, null, null, null, false, buildContext());
 
         assertThat(exitCode.get()).isEqualTo(1); // EXIT_TEST_FAILURE
+    }
+
+    // ---- --env-file option and env-file resolution order ----
+
+    @Test
+    void envFileOptionLoadsVariablesFromExplicitFile() throws Exception {
+        Path envFile = tempDir.resolve("staging.env");
+        Files.writeString(envFile, "ENV_MARKER=from_staging\n");
+        String suite =
+                Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        command.runSuite(suite, false, false, null, null, null, envFile.toString(), false, buildContext());
+
+        ArgumentCaptor<SuiteRunContext> ctxCaptor = ArgumentCaptor.forClass(SuiteRunContext.class);
+        verify(mockEngine).runConfigurationSuite(any(), ctxCaptor.capture(), any());
+        assertThat(ctxCaptor.getValue().env()).containsEntry("ENV_MARKER", "from_staging");
+    }
+
+    @Test
+    void envFileOptionWithMissingFileThrowsInInteractiveMode() {
+        String suite;
+        try {
+            suite = Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        String missing = tempDir.resolve("does-not-exist.env").toString();
+
+        assertThatThrownBy(
+                        () -> command.runSuite(suite, false, false, null, null, null, missing, false, buildContext()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Env file specified via --env-file not found");
+    }
+
+    @Test
+    void envFileOptionWithMissingFileSignalsOptionsErrorInNonInteractiveMode() throws Exception {
+        AtomicInteger exitCode = new AtomicInteger(0);
+        RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
+        String suite =
+                Path.of(getClass().getResource("/test-suite-2.yml").toURI()).toString();
+        String missing = tempDir.resolve("does-not-exist.env").toString();
+
+        cmd.runSuite(suite, true, false, null, null, null, missing, false, buildContext());
+
+        assertThat(exitCode.get()).isEqualTo(2); // EXIT_OPTIONS_ERROR
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void cwdDotEnvWinsOverSuiteDirDotEnv() throws Exception {
+        Path cwdDir = Files.createDirectory(tempDir.resolve("cwd"));
+        Files.writeString(cwdDir.resolve(".env"), "ENV_SOURCE=cwd\n");
+        Path suiteDir = Files.createDirectory(tempDir.resolve("suitedir"));
+        Files.writeString(suiteDir.resolve(".env"), "ENV_SOURCE=suitedir\n");
+        Path suitePath = suiteDir.resolve("test-suite.yml");
+        Files.copy(Path.of(getClass().getResource("/test-suite-2.yml").toURI()), suitePath);
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", cwdDir.toString());
+        try {
+            command.runSuite(suitePath.toString(), false, false, null, null, null, null, false, buildContext());
+        } finally {
+            System.setProperty("user.dir", originalUserDir);
+        }
+
+        ArgumentCaptor<SuiteRunContext> ctxCaptor = ArgumentCaptor.forClass(SuiteRunContext.class);
+        verify(mockEngine).runConfigurationSuite(any(), ctxCaptor.capture(), any());
+        assertThat(ctxCaptor.getValue().env()).containsEntry("ENV_SOURCE", "cwd");
+    }
+
+    @Test
+    void suiteDirDotEnvUsedWhenNoCwdDotEnv() throws Exception {
+        Path cwdDir = Files.createDirectory(tempDir.resolve("cwd")); // no .env here
+        Path suiteDir = Files.createDirectory(tempDir.resolve("suitedir"));
+        Files.writeString(suiteDir.resolve(".env"), "ENV_SOURCE=suitedir\n");
+        Path suitePath = suiteDir.resolve("test-suite.yml");
+        Files.copy(Path.of(getClass().getResource("/test-suite-2.yml").toURI()), suitePath);
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", cwdDir.toString());
+        try {
+            command.runSuite(suitePath.toString(), false, false, null, null, null, null, false, buildContext());
+        } finally {
+            System.setProperty("user.dir", originalUserDir);
+        }
+
+        ArgumentCaptor<SuiteRunContext> ctxCaptor = ArgumentCaptor.forClass(SuiteRunContext.class);
+        verify(mockEngine).runConfigurationSuite(any(), ctxCaptor.capture(), any());
+        assertThat(ctxCaptor.getValue().env()).containsEntry("ENV_SOURCE", "suitedir");
+    }
+
+    @Test
+    void noDotEnvAnywhereProceedsWithSystemEnvOnly() throws Exception {
+        Path cwdDir = Files.createDirectory(tempDir.resolve("cwd")); // no .env
+        Path suiteDir = Files.createDirectory(tempDir.resolve("suitedir")); // no .env
+        Path suitePath = suiteDir.resolve("test-suite.yml");
+        Files.copy(Path.of(getClass().getResource("/test-suite-2.yml").toURI()), suitePath);
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+
+        String originalUserDir = System.getProperty("user.dir");
+        System.setProperty("user.dir", cwdDir.toString());
+        try {
+            command.runSuite(suitePath.toString(), false, false, null, null, null, null, false, buildContext());
+        } finally {
+            System.setProperty("user.dir", originalUserDir);
+        }
+
+        // No custom marker exists, but system env is still present and the run proceeds.
+        ArgumentCaptor<SuiteRunContext> ctxCaptor = ArgumentCaptor.forClass(SuiteRunContext.class);
+        verify(mockEngine).runConfigurationSuite(any(), ctxCaptor.capture(), any());
+        assertThat(ctxCaptor.getValue().env()).doesNotContainKey("ENV_SOURCE");
+    }
+
+    @Test
+    void bareSuiteFilenameWithNoDirectoryDoesNotThrowNpe() throws Exception {
+        // A bare filename (no directory component) makes suitePath.getParent() null; the command
+        // must resolve the env source dir via toAbsolutePath() instead of dereferencing that null.
+        Path realCwd = Path.of("").toAbsolutePath();
+        Path bareSuite = realCwd.resolve("bare-suite-" + java.util.UUID.randomUUID() + ".yml");
+        Files.copy(Path.of(getClass().getResource("/test-suite-2.yml").toURI()), bareSuite);
+        TestRunResult fakeResult = new TestRunResult(1, 0, 0L, 0L, List.of(), Map.of());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(fakeResult);
+        try {
+            command.runSuite(
+                    bareSuite.getFileName().toString(), false, false, null, null, null, null, false, buildContext());
+            verify(mockEngine).runConfigurationSuite(any(), any(), any());
+        } finally {
+            Files.deleteIfExists(bareSuite);
+        }
+    }
+
+    // ---- Lifecycle hooks: opt-in gate and fatal before-all ----
+
+    private static TestRunResult passingResult() {
+        return new TestRunResult(
+                1,
+                0,
+                0L,
+                0L,
+                List.of(new TestCaseResult("t1", TestResult.PASSED, 0, List.of(), null, null, null)),
+                Map.of());
+    }
+
+    private Path writeScriptHookSuite(Path dir, String scriptPath) throws Exception {
+        String yaml = "name: hook-suite\n"
+                + "rest-client:\n  base-url: http://svc.test\n"
+                + "tests:\n"
+                + "  - name: t1\n    variables: {}\n    request:\n      method: GET\n      url: /ok\n    assertions: []\n"
+                + "hooks:\n  before-all:\n    - type: script\n      path: \""
+                + scriptPath
+                + "\"\n";
+        Path suite = dir.resolve("hook-suite.yml");
+        Files.writeString(suite, yaml);
+        return suite;
+    }
+
+    private Path writeNoHookSuite(Path dir) throws Exception {
+        String yaml = "name: no-hooks\n"
+                + "rest-client:\n  base-url: http://svc.test\n"
+                + "tests:\n  - name: t1\n    variables: {}\n    request:\n      method: GET\n      url: /ok\n"
+                + "    assertions: []\n";
+        Path suite = dir.resolve("no-hooks.yml");
+        Files.writeString(suite, yaml);
+        return suite;
+    }
+
+    private static Path execScript(Path dir, String name) throws Exception {
+        Path s = dir.resolve(name);
+        Files.writeString(s, "#!/bin/sh\nexit 0\n");
+        Files.setPosixFilePermissions(
+                s,
+                EnumSet.of(
+                        PosixFilePermission.OWNER_READ,
+                        PosixFilePermission.OWNER_WRITE,
+                        PosixFilePermission.OWNER_EXECUTE));
+        return s;
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void scriptHookSuiteAbortsWithoutAllowScripts() throws Exception {
+        Path suite = writeScriptHookSuite(tempDir, tempDir.resolve("seed.sh").toString());
+
+        command.runSuite(suite.toString(), false, false, null, null, null, null, false, buildContext());
+
+        verify(mockEngine, never()).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void scriptHookSuiteRunsWithAllowScriptsFlag() throws Exception {
+        Path script = execScript(tempDir, "seed.sh");
+        Path suite = writeScriptHookSuite(tempDir, script.toString());
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(passingResult());
+
+        command.runSuite(suite.toString(), false, false, null, null, null, null, true, buildContext());
+
+        verify(mockEngine).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    @DisabledOnOs(OS.WINDOWS)
+    void scriptHookSuiteRunsWithAllowScriptsEnvVar() throws Exception {
+        Path script = execScript(tempDir, "seed.sh");
+        Path suite = writeScriptHookSuite(tempDir, script.toString());
+        Files.writeString(tempDir.resolve(".env"), "APITESTER_ALLOW_SCRIPTS=true\n");
+        when(mockEngine.runConfigurationSuite(any(), any(), any())).thenReturn(passingResult());
+
+        command.runSuite(suite.toString(), false, false, null, null, null, null, false, buildContext());
+
+        verify(mockEngine).runConfigurationSuite(any(), any(), any());
+    }
+
+    @Test
+    void beforeAllHookFailureExitsWithCodeThreeInNonInteractiveMode() throws Exception {
+        AtomicInteger exitCode = new AtomicInteger(-1);
+        RunSuiteCommand cmd = nonInteractiveCommand(exitCode);
+        Path suite = writeNoHookSuite(tempDir);
+        when(mockEngine.runConfigurationSuite(any(), any(), any()))
+                .thenThrow(new HookFailedException("Error executing hook x: boom"));
+
+        cmd.runSuite(suite.toString(), true, false, null, null, null, null, false, buildContext());
+
+        assertThat(exitCode.get()).isEqualTo(3);
     }
 
     private CommandContext buildContext(String... argValues) {

@@ -20,10 +20,14 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.github.snytkine.apitester.api_tester_cli.config.InteractiveModeRunnerConfiguration;
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.event.NoOpProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
+import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
+import io.github.snytkine.apitester.api_tester_cli.exception.HookFailedException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.TestEngine;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.HookRunMetadata;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
 import io.github.snytkine.apitester.api_tester_cli.model.SuiteRunContext;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
@@ -31,14 +35,21 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import io.github.snytkine.apitester.api_tester_cli.service.HtmlReportGenerator;
+import io.github.snytkine.apitester.api_tester_cli.service.LatestVersionHolder;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteLoader;
 import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.AsyncHookHandles;
+import io.github.snytkine.apitester.api_tester_cli.service.hooks.HookRunner;
 import io.github.snytkine.apitester.api_tester_cli.ui.ErrorBox;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
 import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
 import io.github.snytkine.apitester.api_tester_cli.util.DotEnvLoader;
+import io.github.snytkine.apitester.api_tester_cli.util.LogFileActivator;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
@@ -78,12 +89,21 @@ public class RunSuiteCommand {
     /** Process exit code for a command-options / pre-execution validation error. */
     static final int EXIT_OPTIONS_ERROR = 2;
 
+    /** Process exit code when a fatal {@code before-all} lifecycle hook fails. */
+    static final int EXIT_HOOK_FAILURE = 3;
+
+    /** Environment variable that, when {@code true}, permits script hooks to run without the flag. */
+    static final String ALLOW_SCRIPTS_ENV = "APITESTER_ALLOW_SCRIPTS";
+
     private final TestSuiteLoader testSuiteLoader;
     private final TestSuiteValidator testSuiteValidator;
     private final ObjectMapper jsonMapper;
     private final TestEngine testEngine;
     private final DotEnvLoader dotEnvLoader;
     private final HtmlReportGenerator htmlReportGenerator;
+    private final LatestVersionHolder latestVersionHolder;
+    private final VersionCheckProperties versionCheckProperties;
+    private final HookRunner hookRunner;
 
     @Nullable private final ViewComponentBuilder viewComponentBuilder;
 
@@ -114,6 +134,10 @@ public class RunSuiteCommand {
      * @param testEngine executes the loaded test cases
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any, for
+     *     the terminal-UI upgrade notice
+     * @param versionCheckProperties supplies the upgrade message template
+     * @param hookRunner dispatches command-side lifecycle-hook phases (validation-failed, report)
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      * @param environment the application environment, read at runtime to detect non-interactive mode
      *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
@@ -125,6 +149,9 @@ public class RunSuiteCommand {
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
             HtmlReportGenerator htmlReportGenerator,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties,
+            HookRunner hookRunner,
             @Nullable ViewComponentBuilder viewComponentBuilder,
             Environment environment) {
         this(
@@ -133,6 +160,9 @@ public class RunSuiteCommand {
                 testEngine,
                 dotEnvLoader,
                 htmlReportGenerator,
+                latestVersionHolder,
+                versionCheckProperties,
+                hookRunner,
                 viewComponentBuilder,
                 environment,
                 System::exit);
@@ -149,6 +179,10 @@ public class RunSuiteCommand {
      * @param testEngine executes the loaded test cases
      * @param dotEnvLoader loads environment variables from the suite directory's {@code .env} file
      * @param htmlReportGenerator renders the post-run HTML report when {@code --report} is supplied
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any, for
+     *     the terminal-UI upgrade notice
+     * @param versionCheckProperties supplies the upgrade message template
+     * @param hookRunner dispatches command-side lifecycle-hook phases (validation-failed, report)
      * @param viewComponentBuilder Spring Shell TUI factory; {@code null} disables interactive UI
      * @param environment the application environment, read at runtime to detect non-interactive mode
      *     via {@link InteractiveModeRunnerConfiguration#DISABLE_INTERACTIVE_MODE}
@@ -161,6 +195,9 @@ public class RunSuiteCommand {
             TestEngine testEngine,
             DotEnvLoader dotEnvLoader,
             HtmlReportGenerator htmlReportGenerator,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties,
+            HookRunner hookRunner,
             @Nullable ViewComponentBuilder viewComponentBuilder,
             Environment environment,
             IntConsumer exitHandler) {
@@ -169,6 +206,9 @@ public class RunSuiteCommand {
         this.testEngine = testEngine;
         this.dotEnvLoader = dotEnvLoader;
         this.htmlReportGenerator = htmlReportGenerator;
+        this.latestVersionHolder = latestVersionHolder;
+        this.versionCheckProperties = versionCheckProperties;
+        this.hookRunner = hookRunner;
         this.jsonMapper = new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT);
         this.viewComponentBuilder = viewComponentBuilder;
         this.environment = environment;
@@ -187,6 +227,24 @@ public class RunSuiteCommand {
     boolean isNonInteractive() {
         return "true"
                 .equalsIgnoreCase(environment.getProperty(InteractiveModeRunnerConfiguration.DISABLE_INTERACTIVE_MODE));
+    }
+
+    /**
+     * Resolves the terminal-UI upgrade notice, if the background version check has found a newer
+     * release than the one currently running.
+     *
+     * <p>Delegates the {@code {latestVersion}} placeholder substitution to {@link
+     * VersionCheckProperties#resolveUpgradeMessage(String)} — the same method used by {@link
+     * HtmlReportGenerator} — so the terminal UI and HTML report can never disagree on the resolved
+     * text.
+     *
+     * @return the resolved upgrade message, or {@code null} when no newer version is known
+     */
+    @Nullable private String resolveUpgradeMessage() {
+        return latestVersionHolder
+                .get()
+                .map(versionCheckProperties::resolveUpgradeMessage)
+                .orElse(null);
     }
 
     /**
@@ -230,6 +288,14 @@ public class RunSuiteCommand {
      * @param reportDir when non-null, the directory path where the HTML execution report will be
      *     written; the filename is auto-generated as
      *     {@code test-suite_<name>_yyyyMMddHHmmss.html}
+     * @param envFile when non-null, the path to an explicit env file to load variables from; the file
+     *     need not be named {@code .env}. It must refer to an existing regular file, otherwise the
+     *     command aborts with an options error. When {@code null} the loader falls back to looking for
+     *     a {@code .env} file in the current working directory first, then in the directory containing
+     *     the suite YAML file
+     * @param allowScripts when {@code true}, permits the suite's script lifecycle hooks to run; when
+     *     the suite declares script hooks and neither this flag nor {@code APITESTER_ALLOW_SCRIPTS=true}
+     *     is set, the run aborts before any hook or test executes
      * @param context Spring Shell command context; positional arguments are extracted from it as CLI
      *     variables forwarded to the Thymeleaf template engine
      * @throws IllegalArgumentException if {@code suite} does not refer to an existing file
@@ -271,6 +337,20 @@ public class RunSuiteCommand {
                                     + " The filename is auto-generated as"
                                     + " test-suite_<name>_yyyyMMddHHmmss.html.")
                     @Nullable String reportDir,
+            @Option(
+                            longName = "env-file",
+                            description = "Path to an explicit env file to load variables from."
+                                    + " The file need not be named .env. When supplied it must exist,"
+                                    + " otherwise the command aborts. When omitted, .env is looked up"
+                                    + " in the current working directory first, then in the suite"
+                                    + " file's directory.")
+                    @Nullable String envFile,
+            @Option(
+                            longName = "allow-scripts",
+                            description = "Permit the suite's script lifecycle hooks to run."
+                                    + " Required (or APITESTER_ALLOW_SCRIPTS=true) when the suite"
+                                    + " declares script hooks; otherwise the run aborts.")
+                    boolean allowScripts,
             CommandContext context)
             throws Exception {
 
@@ -305,9 +385,60 @@ public class RunSuiteCommand {
         boolean useUi = !nonInteractive && viewComponentBuilder != null && TtyDetector.shouldUseUi(forceUi, noUi);
 
         Map<String, String> cliVars = buildCliVariables(context.parsedInput().arguments());
-        Map<String, String> envVars = dotEnvLoader.loadDotEnv(suitePath.getParent());
+
+        // Resolve the source of env-file variables:
+        //   1. --env-file supplied  -> use exactly that file; a missing file is a loud error.
+        //   2. otherwise            -> .env in the current working directory, if present.
+        //   3. otherwise            -> .env in the suite file's directory (the historical default).
+        Map<String, String> envVars;
+        // The resolved .env file path (when one actually exists), passed to hooks as env_file.
+        Path resolvedEnvFile = null;
+        if (envFile != null) {
+            Path explicitEnvPath = Path.of(envFile);
+            if (!Files.isRegularFile(explicitEnvPath)) {
+                if (nonInteractive) {
+                    log.debug("Options error (exit {}): env file not found: {}", EXIT_OPTIONS_ERROR, envFile);
+                    exitHandler.accept(EXIT_OPTIONS_ERROR);
+                    return;
+                }
+                throw new IllegalArgumentException("Env file specified via --env-file not found: " + envFile);
+            }
+            Path absoluteEnvPath = explicitEnvPath.toAbsolutePath();
+            resolvedEnvFile = absoluteEnvPath;
+            envVars = dotEnvLoader.loadDotEnv(
+                    absoluteEnvPath.getParent(), absoluteEnvPath.getFileName().toString());
+        } else {
+            Path cwd = Path.of(System.getProperty("user.dir"));
+            Path envSourceDir = Files.exists(cwd.resolve(".env"))
+                    ? cwd
+                    : suitePath.toAbsolutePath().getParent();
+            Path candidate = envSourceDir.resolve(".env");
+            resolvedEnvFile = Files.exists(candidate) ? candidate : null;
+            envVars = dotEnvLoader.loadDotEnv(envSourceDir);
+        }
         SuiteRunContext suiteRunContext = SuiteRunContext.of(envVars, cliVars);
+
+        // Activate file logging from the merged environment so CLI_LOG_LEVEL / CLI_LOG_DIR supplied
+        // through a .env file or --env-file take effect — not just exported OS variables. The merged
+        // envVars already overlays the OS environment on top of the .env file, so precedence is
+        // preserved. This is a no-op when startup activation already configured logging from the OS
+        // environment (the first successful activation wins).
+        LogFileActivator.activateFromEnv(envVars);
+
         TestSuite testSuite = testSuiteLoader.load(suitePath, suiteRunContext);
+
+        // Opt-in gate: a suite declaring script hooks runs them only when --allow-scripts is passed
+        // or APITESTER_ALLOW_SCRIPTS=true is set (in the OS env or the suite's .env, both merged into
+        // envVars). Gate failure aborts before any hook (including suite-validation-failed) or test.
+        Hooks suiteHooks = testSuite.hooks();
+        if (suiteHooks != null && suiteHooks.hasAnyScriptHook() && !scriptsAllowed(allowScripts, envVars)) {
+            reportOptionsError(
+                    List.of("This suite declares script lifecycle hooks, which are disabled by default."
+                            + " Re-run with --allow-scripts or set " + ALLOW_SCRIPTS_ENV + "=true to enable them."),
+                    nonInteractive,
+                    context);
+            return;
+        }
 
         boolean tagFilterActive = tag != null && !tag.isBlank();
         boolean testNameFilterActive = testName != null && !testName.isBlank();
@@ -364,6 +495,28 @@ public class RunSuiteCommand {
             }
         }
 
+        // Compute the report file path up front (before the engine runs) so after-all and
+        // report-phase hooks can receive report_path. The file itself is written later, only if a
+        // result is produced.
+        Path reportPath = null;
+        if (reportDir != null) {
+            String safeName = suiteToRun.name().replaceAll("[^a-zA-Z0-9_-]", "_");
+            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            reportPath = Path.of(reportDir).resolve("test-suite_" + safeName + "_" + timestamp + ".html");
+        }
+
+        // Attach run metadata to the context (preserving runID) and build the command-side hook
+        // context used for validation-failed and report-phase hooks.
+        HookRunMetadata hookMetadata = new HookRunMetadata(
+                useUi,
+                reportDir,
+                reportPath,
+                tagFilterActive ? tag : null,
+                testNameFilterActive ? testName : null,
+                resolvedEnvFile);
+        suiteRunContext = suiteRunContext.withHookRunMetadata(hookMetadata);
+        HookRunner.HookInvocationContext hookCtx = buildHookContext(suiteToRun, suiteRunContext);
+
         TestRunResult result = null;
         if (useUi) {
             LinkedBlockingQueue<TestProgressEvent> queue = new LinkedBlockingQueue<>();
@@ -374,12 +527,13 @@ public class RunSuiteCommand {
                     TtyDetector.getTerminalWidth(),
                     context.outputWriter(),
                     tagFilterActive ? tag : null,
-                    testNameFilterActive ? testName : null);
+                    testNameFilterActive ? testName : null,
+                    resolveUpgradeMessage(),
+                    suiteRunContext.getRunID());
             controller.start();
-            List<String> validationErrors = new ArrayList<>();
-            validationErrors.addAll(testSuiteValidator.validate(suiteToRun));
-            validationErrors.addAll(testSuiteValidator.validateRestClients(suiteToRun));
+            List<String> validationErrors = collectValidationErrors(suiteToRun);
             if (!validationErrors.isEmpty()) {
+                runValidationFailedHooks(suiteToRun, hookCtx, uiListener);
                 uiListener.onProgress(new TestProgressEvent.ValidationFailed(validationErrors));
             } else if (tagFilterActive && suiteToRun.tests().isEmpty()) {
                 String emptyMsg = negatedTagFilter
@@ -387,14 +541,17 @@ public class RunSuiteCommand {
                         : "No tests found with tag: \"" + tag + "\"";
                 uiListener.onProgress(new TestProgressEvent.ValidationFailed(List.of(emptyMsg)));
             } else {
-                result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, uiListener);
+                try {
+                    result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, uiListener);
+                } catch (HookFailedException e) {
+                    uiListener.onProgress(new TestProgressEvent.ValidationFailed(List.of(e.getMessage())));
+                }
             }
             controller.await();
         } else {
-            List<String> validationErrors = new ArrayList<>();
-            validationErrors.addAll(testSuiteValidator.validate(suiteToRun));
-            validationErrors.addAll(testSuiteValidator.validateRestClients(suiteToRun));
+            List<String> validationErrors = collectValidationErrors(suiteToRun);
             if (!validationErrors.isEmpty()) {
+                runValidationFailedHooks(suiteToRun, hookCtx, NoOpProgressListener.INSTANCE);
                 reportOptionsError(validationErrors, nonInteractive, context);
                 return;
             }
@@ -405,33 +562,59 @@ public class RunSuiteCommand {
                 reportOptionsError(List.of(emptyMsg), nonInteractive, context);
                 return;
             }
-            result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
+            try {
+                result = testEngine.runConfigurationSuite(suiteToRun, suiteRunContext, NoOpProgressListener.INSTANCE);
+            } catch (HookFailedException e) {
+                if (nonInteractive) {
+                    log.debug("Before-all hook failure (exit {}): {}", EXIT_HOOK_FAILURE, e.getMessage());
+                    exitHandler.accept(EXIT_HOOK_FAILURE);
+                    return;
+                }
+                context.outputWriter().println(e.getMessage());
+                context.outputWriter().flush();
+                return;
+            }
         }
 
         if (result != null) {
             result = result.withAppliedOptions(appliedOptions);
         }
 
-        Path reportPath = null;
+        boolean reportWritten = false;
         if (reportDir != null && result != null) {
-            String safeName = suiteToRun.name().replaceAll("[^a-zA-Z0-9_-]", "_");
-            String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-            String fileName = "test-suite_" + safeName + "_" + timestamp + ".html";
-            reportPath = Path.of(reportDir).resolve(fileName);
             ReportOptions reportOptions = ReportOptions.fromEnv(envVars);
-            htmlReportGenerator.generate(result, suiteToRun, reportPath, reportOptions);
+            try (AsyncHookHandles reportHooks = new AsyncHookHandles()) {
+                hookRunner.runPhase(
+                        HookPhase.BEFORE_REPORT,
+                        phaseHooks(suiteHooks, HookPhase.BEFORE_REPORT),
+                        hookCtx,
+                        null,
+                        null,
+                        NoOpProgressListener.INSTANCE,
+                        reportHooks);
+                htmlReportGenerator.generate(result, suiteToRun, reportPath, reportOptions, suiteRunContext.getRunID());
+                reportWritten = true;
+                hookRunner.runPhase(
+                        HookPhase.AFTER_REPORT,
+                        phaseHooks(suiteHooks, HookPhase.AFTER_REPORT),
+                        hookCtx,
+                        null,
+                        null,
+                        NoOpProgressListener.INSTANCE,
+                        reportHooks);
+            }
         }
 
         // Output mode: concise human-readable summary to stdout when --no-ui is passed or in
         // non-interactive mode.
         if (!useUi && result != null) {
-            context.outputWriter().println(buildConciseSummary(result, reportPath));
+            context.outputWriter().println(buildConciseSummary(result, reportWritten ? reportPath : null));
             context.outputWriter().flush();
         }
 
         // In UI mode the concise summary is suppressed, but the user still needs to know where
         // the report landed — print just that line after the TUI table completes.
-        if (useUi && reportPath != null) {
+        if (useUi && reportWritten) {
             context.outputWriter().println("Report written to " + reportPath.toAbsolutePath());
             context.outputWriter().flush();
         }
@@ -444,6 +627,94 @@ public class RunSuiteCommand {
                 exitHandler.accept(exitCode);
             }
         }
+    }
+
+    /**
+     * Returns whether script lifecycle hooks are permitted to run: either the {@code --allow-scripts}
+     * flag was passed, or {@code APITESTER_ALLOW_SCRIPTS} is {@code true} (case-insensitive) in the
+     * merged environment (OS environment overlaid on the suite's {@code .env}).
+     *
+     * @param allowScriptsFlag the {@code --allow-scripts} command flag
+     * @param envVars the merged environment variables
+     * @return {@code true} when script hooks may run
+     */
+    static boolean scriptsAllowed(boolean allowScriptsFlag, Map<String, String> envVars) {
+        return allowScriptsFlag || "true".equalsIgnoreCase(envVars.getOrDefault(ALLOW_SCRIPTS_ENV, ""));
+    }
+
+    /**
+     * Collects all pre-execution validation errors for {@code suite}: duplicate test names, invalid
+     * rest-client declarations, invalid {@code depends-on} declarations (unknown references and
+     * cycles), and invalid lifecycle hooks.
+     *
+     * @param suite the suite to validate
+     * @return a mutable, possibly-empty list of error messages
+     */
+    private List<String> collectValidationErrors(TestSuite suite) {
+        List<String> errors = new ArrayList<>();
+        errors.addAll(testSuiteValidator.validate(suite));
+        errors.addAll(testSuiteValidator.validateRestClients(suite));
+        errors.addAll(testSuiteValidator.validateDependencies(suite));
+        errors.addAll(testSuiteValidator.validateHooks(suite));
+        return errors;
+    }
+
+    /**
+     * Runs the suite's {@code suite-validation-failed} hooks, awaiting any async ones before
+     * returning. Failures are warnings only and never change the outcome.
+     *
+     * @param suite the suite whose hooks to run
+     * @param hookCtx the run-level hook context
+     * @param listener receives the hook progress events
+     */
+    private void runValidationFailedHooks(
+            TestSuite suite, HookRunner.HookInvocationContext hookCtx, TestProgressListener listener) {
+        try (AsyncHookHandles handles = new AsyncHookHandles()) {
+            hookRunner.runPhase(
+                    HookPhase.SUITE_VALIDATION_FAILED,
+                    phaseHooks(suite.hooks(), HookPhase.SUITE_VALIDATION_FAILED),
+                    hookCtx,
+                    null,
+                    null,
+                    listener,
+                    handles);
+        }
+    }
+
+    /**
+     * Builds the run-level {@link HookRunner.HookInvocationContext} for command-side hook phases.
+     *
+     * @param suite the suite being run (already filtered)
+     * @param context the run context carrying the runID and hook metadata
+     * @return the immutable hook invocation context
+     */
+    private static HookRunner.HookInvocationContext buildHookContext(TestSuite suite, SuiteRunContext context) {
+        HookRunMetadata meta = context.hookRunMetadata();
+        Path suiteDir = suite.filePath() != null ? suite.filePath().getParent() : null;
+        return new HookRunner.HookInvocationContext(
+                suite.name(),
+                context.getRunID(),
+                meta.interactive(),
+                meta.reportDir(),
+                meta.reportPath(),
+                meta.tagFilter(),
+                meta.testNameFilter(),
+                meta.envFilePath(),
+                suiteDir,
+                context.env(),
+                suite.restClientsById());
+    }
+
+    /**
+     * Returns the hooks declared for {@code phase}, or an empty list when the suite has no {@code
+     * hooks} block.
+     *
+     * @param hooks the suite's hooks block, or {@code null}
+     * @param phase the phase whose hooks are requested
+     * @return a non-null list of hooks for the phase
+     */
+    private static List<Hook> phaseHooks(@Nullable Hooks hooks, HookPhase phase) {
+        return hooks != null ? hooks.forPhase(phase) : List.of();
     }
 
     /**

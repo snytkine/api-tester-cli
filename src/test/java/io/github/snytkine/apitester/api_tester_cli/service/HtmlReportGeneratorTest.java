@@ -18,11 +18,14 @@ package io.github.snytkine.apitester.api_tester_cli.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.snytkine.apitester.api_tester_cli.config.VersionCheckProperties;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
+import io.github.snytkine.apitester.api_tester_cli.model.AuthType;
 import io.github.snytkine.apitester.api_tester_cli.model.ExecutedRequestInfo;
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
+import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
@@ -48,7 +51,21 @@ class HtmlReportGeneratorTest {
         return new BuildProperties(props);
     }
 
-    private final HtmlReportGenerator generator = new HtmlReportGenerator(buildProperties());
+    private static VersionCheckProperties versionCheckProperties() {
+        return new VersionCheckProperties(
+                true,
+                "https://api.github.com/repos/snytkine/api-tester-cli/releases/latest",
+                "https://github.com/snytkine/api-tester-cli/releases/latest",
+                10,
+                3,
+                5,
+                "Version {latestVersion} is available.");
+    }
+
+    private final LatestVersionHolder latestVersionHolder = new LatestVersionHolder();
+
+    private final HtmlReportGenerator generator =
+            new HtmlReportGenerator(buildProperties(), latestVersionHolder, versionCheckProperties());
 
     @Test
     void generateWritesSelfContainedHtmlFile() throws Exception {
@@ -62,6 +79,136 @@ class HtmlReportGeneratorTest {
         String html = Files.readString(outputPath);
         assertThat(html).startsWith("<!DOCTYPE html>");
         assertThat(html).contains("<style>");
+    }
+
+    @Test
+    void generateRendersRunIdLineAboveGeneratedWhenRunIdSupplied() throws Exception {
+        String runId = "11111111-2222-3333-4444-555555555555";
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), runId);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("runID: ");
+        assertThat(html).contains(runId);
+        // The runID line must precede the "Generated:" line inside the header tile.
+        assertThat(html.indexOf("runID: ")).isLessThan(html.indexOf("Generated:"));
+    }
+
+    @Test
+    void generateOmitsRunIdLineWhenRunIdNull() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), null);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateOmitsRunIdLineWhenRunIdBlank() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), "   ");
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateFourArgOverloadOmitsRunIdLine() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateOmitsUpgradeBannerWhenNoNewerVersionKnown() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        // The CSS rule for ".upgrade-banner" is always present in <style>; only the rendered
+        // element (identifiable by the class *attribute*) should be absent.
+        assertThat(html).doesNotContain("class=\"upgrade-banner\"");
+    }
+
+    @Test
+    void generateIncludesUpgradeBannerWhenNewerVersionKnown() throws Exception {
+        latestVersionHolder.set("9.9.9");
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("class=\"upgrade-banner\"");
+        assertThat(html).contains("Version 9.9.9 is available.");
+        assertThat(html).contains("https://github.com/snytkine/api-tester-cli/releases/latest");
+    }
+
+    @Test
+    void generateOmitsAuthenticationBlockWhenNoAuthCaptured() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("Authentication");
+    }
+
+    @Test
+    void generateShowsMaskedCredentialsAndNeverTheRawValues() throws Exception {
+        TestCaseResult withAuth = new TestCaseResult(
+                "Get secured pets",
+                TestResult.PASSED,
+                1,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(
+                        HttpMethod.GET,
+                        "/api/pets",
+                        null,
+                        null,
+                        new RequestAuth(AuthType.BASIC, "realuser", "s3cr3t"),
+                        "default"),
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
+        TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withAuth), Map.of());
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Authentication");
+        assertThat(html).contains("BASIC");
+        assertThat(html).contains("*****");
+        assertThat(html).doesNotContain("realuser");
+        assertThat(html).doesNotContain("s3cr3t");
+    }
+
+    @Test
+    void generateShowsRestClientId() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Rest Client");
+        assertThat(html).contains("default");
+    }
+
+    @Test
+    void generateShowsTheFullCombinedUrlVerbatim() throws Exception {
+        TestCaseResult withCombinedUrl = new TestCaseResult(
+                "Get objects",
+                TestResult.PASSED,
+                1,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(HttpMethod.GET, "http://stub.test/objects", null, null, null, "default"),
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
+        TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withCombinedUrl), Map.of());
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("http://stub.test/objects");
     }
 
     @Test
@@ -276,6 +423,84 @@ class HtmlReportGeneratorTest {
         assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
     }
 
+    @Test
+    void parentFailureShowsFailedParentBlockAndHidesRequestResponseAndAssertions() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult parentFailure = new TestCaseResult(
+                "get-widget",
+                TestResult.FAILED,
+                0,
+                List.of(new AssertionFailure(TestCaseResult.parentFailureMessage("create-widget"), null, null, null)),
+                null,
+                null,
+                null,
+                "create-widget");
+        TestRunResult result = new TestRunResult(0L, 1L, 0L, 0L, List.of(parentFailure), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        // The new "Failed parent test" expandable block with the parent-failure message is shown.
+        // Thymeleaf HTML-escapes the quotes around the parent name (&quot;), which is expected.
+        assertThat(html).contains("Failed parent test");
+        assertThat(html).contains("This test depends on a failed parent test &quot;create-widget&quot;.");
+        // No Request/Response/Failed-Assertions sections for a test that never sent a request.
+        assertThat(html).doesNotContain("<summary>Request</summary>");
+        assertThat(html).doesNotContain("<summary>Response</summary>");
+        assertThat(html).doesNotContain("<summary>Failed Assertions</summary>");
+        // The failed-assertion count badge is suppressed (no assertions of its own ran).
+        assertThat(html).doesNotContain("failed</span>");
+    }
+
+    @Test
+    void errorResultShowsErrorBlockNotFailedAssertions() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult errored = new TestCaseResult(
+                "create-pet",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure(
+                        "I/O error on POST request for \"http://localhost:9999/pets\": Connection refused",
+                        null,
+                        null,
+                        null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0L, 0L, 0L, 1L, List.of(errored), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        // The error is shown under an "Error" summary, carrying the captured I/O error text.
+        assertThat(html).contains("<summary>Error</summary>");
+        assertThat(html).contains("Connection refused");
+        // It must NOT appear under "Failed Assertions" — an error is not an assertion outcome.
+        assertThat(html).doesNotContain("<summary>Failed Assertions</summary>");
+        // No "N failed" assertion-count badge is shown for an errored test.
+        assertThat(html).doesNotContain("failed</span>");
+    }
+
+    @Test
+    void errorResultWithBlankMessageShowsGenericFallback() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult errored = new TestCaseResult(
+                "create-pet",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure(null, null, null, null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0L, 0L, 0L, 1L, List.of(errored), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        assertThat(html).contains("<summary>Error</summary>");
+        assertThat(html).contains("An unexpected error occurred.");
+    }
+
     private static TestSuite buildTestSuite() {
         return new TestSuite(
                 "Pet Store API", "Integration tests for the pet store", null, null, null, List.of(), null, null);
@@ -288,7 +513,8 @@ class HtmlReportGeneratorTest {
                 3,
                 List.of(),
                 null,
-                new ExecutedRequestInfo(HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null),
+                new ExecutedRequestInfo(
+                        HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null, null, "default"),
                 new ApiResponse(
                         200,
                         Map.of("Content-Type", "application/json"),
@@ -301,7 +527,7 @@ class HtmlReportGeneratorTest {
                 1,
                 List.of(new AssertionFailure("status_code equals 201", "201", "400", "Expected 201 but was 400")),
                 null,
-                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}"),
+                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}", null, "default"),
                 new ApiResponse(
                         400,
                         Map.of("Content-Type", "application/json"),

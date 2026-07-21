@@ -1,0 +1,12 @@
+---
+name: "Suite with absolute request URL overriding rest-client base-url"
+rest-client:
+  base-url: "http://stub.test"
+tests:
+- name: "GET with absolute url"
+  request:
+    method: "GET"
+    url: "http://other-host.test/objects"
+  assertions:
+  - type: "status_code"
+    expected: 200

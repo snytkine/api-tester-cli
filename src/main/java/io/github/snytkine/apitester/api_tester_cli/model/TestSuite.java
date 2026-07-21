@@ -20,6 +20,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,6 +45,9 @@ import org.jspecify.annotations.Nullable;
  * <p>{@code templateContent} holds the raw YAML file content as read from disk before any
  * Thymeleaf processing. It is populated by {@code TestSuiteLoader} and is not part of the YAML
  * schema — Jackson skips it during deserialization ({@code @JsonIgnore}).
+ *
+ * <p>{@code hooks} holds the optional top-level {@code hooks} block (lifecycle script/web hooks);
+ * it is {@code null} when the suite declares none.
  */
 public record TestSuite(
         String name,
@@ -52,11 +56,38 @@ public record TestSuite(
         @Nullable @JsonProperty("rest-clients") List<RestClientConfig> restClients,
         @Nullable Map<String, String> variables,
         List<TestCase> tests,
+        @Nullable @JsonProperty("hooks") Hooks hooks,
         @Nullable @JsonSerialize(using = ToStringSerializer.class) Path filePath,
         @JsonIgnore @Nullable String templateContent) {
 
     /** The id under which the default REST client is registered. */
     public static final String DEFAULT_REST_CLIENT_ID = "default";
+
+    /**
+     * Convenience constructor for a suite with no {@code hooks} block, delegating to the canonical
+     * constructor with {@code hooks = null}. Retained so existing call sites (and tests) that predate
+     * the hooks feature continue to compile unchanged.
+     *
+     * @param name suite name
+     * @param description optional suite description
+     * @param restClient optional singular rest-client config
+     * @param restClients optional plural rest-clients list
+     * @param variables optional resolved suite-level variables
+     * @param tests the test cases
+     * @param filePath the suite file path, or {@code null}
+     * @param templateContent the raw YAML template, or {@code null}
+     */
+    public TestSuite(
+            String name,
+            @Nullable String description,
+            @Nullable RestClientConfig restClient,
+            @Nullable List<RestClientConfig> restClients,
+            @Nullable Map<String, String> variables,
+            List<TestCase> tests,
+            @Nullable Path filePath,
+            @Nullable String templateContent) {
+        this(name, description, restClient, restClients, variables, tests, null, filePath, templateContent);
+    }
 
     /**
      * Returns a new {@link TestSuite} that is identical to this one except that the {@code tests}
@@ -72,7 +103,7 @@ public record TestSuite(
      */
     public TestSuite withFilteredTests(List<TestCase> filteredTests) {
         return new TestSuite(
-                name, description, restClient, restClients, variables, filteredTests, filePath, templateContent);
+                name, description, restClient, restClients, variables, filteredTests, hooks, filePath, templateContent);
     }
 
     /**

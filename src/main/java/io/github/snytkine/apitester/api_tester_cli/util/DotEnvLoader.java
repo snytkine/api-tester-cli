@@ -42,12 +42,11 @@ public class DotEnvLoader {
     public DotEnvLoader() {}
 
     /**
-     * Loads variables from a {@code .env} file in {@code directory} and merges them with the
-     * process's system environment variables.
+     * Loads variables from a file literally named {@code .env} in {@code directory} and merges them
+     * with the process's system environment variables.
      *
-     * <p>The {@code .env} file is loaded first; system environment variables are then overlaid on
-     * top, so a system variable with the same name as a {@code .env} entry always wins. If no
-     * {@code .env} file exists, only system environment variables are returned.
+     * <p>This is a convenience overload of {@link #loadDotEnv(Path, String)} that always uses the
+     * conventional {@code .env} filename.
      *
      * <p>This method is thread-safe; each invocation creates its own {@link Dotenv} instance with no
      * shared mutable state.
@@ -56,8 +55,30 @@ public class DotEnvLoader {
      * @return an immutable map containing the merged variables
      */
     public Map<String, String> loadDotEnv(Path directory) {
+        return loadDotEnv(directory, ".env");
+    }
+
+    /**
+     * Loads variables from a file named {@code filename} in {@code directory} and merges them with
+     * the process's system environment variables.
+     *
+     * <p>The env file is loaded first; system environment variables are then overlaid on top, so a
+     * system variable with the same name as an env-file entry always wins. If no such file exists,
+     * only system environment variables are returned — the loader itself never treats a missing file
+     * as an error (via {@code ignoreIfMissing()}); enforcing that an explicitly requested file must
+     * exist is a caller-side (CLI boundary) concern.
+     *
+     * <p>This method is thread-safe; each invocation creates its own {@link Dotenv} instance with no
+     * shared mutable state.
+     *
+     * @param directory the directory in which to look for the env file
+     * @param filename the name of the env file to load (e.g. {@code .env} or {@code staging.env})
+     * @return an immutable map containing the merged variables
+     */
+    public Map<String, String> loadDotEnv(Path directory, String filename) {
         Dotenv dotenv = Dotenv.configure()
                 .directory(directory.toString())
+                .filename(filename)
                 .ignoreIfMissing()
                 .load();
         return dotenv.entries().stream()

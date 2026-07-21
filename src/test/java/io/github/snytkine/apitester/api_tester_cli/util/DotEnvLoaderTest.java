@@ -64,4 +64,31 @@ class DotEnvLoaderTest {
 
         assertThat(result).containsAllEntriesOf(System.getenv());
     }
+
+    @Test
+    void loadDotEnvWithExplicitFilenameLoadsNonDotEnvFile() throws IOException {
+        Files.writeString(tempDir.resolve("staging.env"), "STAGE=staging\nBASE_URL=https://staging.example.com\n");
+
+        Map<String, String> result = loader.loadDotEnv(tempDir, "staging.env");
+
+        assertThat(result).containsEntry("STAGE", "staging").containsEntry("BASE_URL", "https://staging.example.com");
+    }
+
+    @Test
+    void loadDotEnvWithExplicitFilenameIgnoresDotEnvFile() throws IOException {
+        // A plain .env file in the same directory must not leak in when an explicit filename is used.
+        Files.writeString(tempDir.resolve(".env"), "FROM_DOT_ENV=yes\n");
+        Files.writeString(tempDir.resolve("custom.env"), "FROM_CUSTOM=yes\n");
+
+        Map<String, String> result = loader.loadDotEnv(tempDir, "custom.env");
+
+        assertThat(result).containsEntry("FROM_CUSTOM", "yes").doesNotContainKey("FROM_DOT_ENV");
+    }
+
+    @Test
+    void loadDotEnvWithMissingExplicitFilenameReturnsSystemEnvironmentVariables() {
+        Map<String, String> result = loader.loadDotEnv(tempDir, "nonexistent.env");
+
+        assertThat(result).containsKey("PATH");
+    }
 }

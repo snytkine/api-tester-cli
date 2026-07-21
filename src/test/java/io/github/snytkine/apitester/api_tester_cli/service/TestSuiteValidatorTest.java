@@ -185,4 +185,74 @@ class TestSuiteValidatorTest {
 
         assertThat(errors).contains("Test 'login' references unknown rest-client id: 'billing'");
     }
+
+    /**
+     * Builds a test case with a {@code depends-on} list and no captures.
+     *
+     * @param name the test name
+     * @param deps the names of tests this one depends on
+     * @return a test case declaring the given dependencies
+     */
+    private static TestCase tcDep(String name, String... deps) {
+        return new TestCase(
+                name,
+                null,
+                null,
+                null,
+                Map.of(),
+                new BodylessRequest(HttpMethod.GET, "/", null, null, null),
+                List.of(),
+                null,
+                List.of(deps),
+                false);
+    }
+
+    @Test
+    void noDependencyErrorsWhenAllReferencesResolve() {
+        List<String> errors = validator.validateDependencies(
+                suite(tcDep("create"), tcDep("read", "create"), tcDep("update", "read")));
+
+        assertThat(errors).isEmpty();
+    }
+
+    @Test
+    void detectsUnknownDependencyReference() {
+        List<String> errors = validator.validateDependencies(suite(tcDep("read", "create")));
+
+        assertThat(errors).containsExactly("Test 'read' depends-on unknown test: 'create'");
+    }
+
+    @Test
+    void detectsSelfCycle() {
+        List<String> errors = validator.validateDependencies(suite(tcDep("loop", "loop")));
+
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get(0)).contains("Circular depends-on dependency detected: loop -> loop");
+    }
+
+    @Test
+    void detectsTransitiveCycle() {
+        List<String> errors = validator.validateDependencies(suite(tcDep("a", "b"), tcDep("b", "c"), tcDep("c", "a")));
+
+        assertThat(errors).hasSize(1);
+        assertThat(errors.get(0)).startsWith("Circular depends-on dependency detected:");
+        assertThat(errors.get(0)).contains("a").contains("b").contains("c");
+    }
+
+    @Test
+    void unknownReferenceIsReportedBeforeCycleDetection() {
+        // 'b' is undefined; the dangling edge must be reported as unknown, not as a cycle.
+        List<String> errors = validator.validateDependencies(suite(tcDep("a", "b")));
+
+        assertThat(errors).containsExactly("Test 'a' depends-on unknown test: 'b'");
+    }
+
+    @Test
+    void sharedDependencyIsNotACycle() {
+        // Both 'b' and 'c' depend on 'a'; a diamond is acyclic.
+        List<String> errors = validator.validateDependencies(
+                suite(tcDep("a"), tcDep("b", "a"), tcDep("c", "a"), tcDep("d", "b", "c")));
+
+        assertThat(errors).isEmpty();
+    }
 }

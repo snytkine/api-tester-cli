@@ -24,6 +24,7 @@
     }
     header h1 { font-size: 1.5rem; margin-bottom: 6px; }
     header .description { opacity: .85; margin-bottom: 8px; }
+    header .run-id { font-size: .85rem; opacity: .7; }
     header .generated { font-size: .85rem; opacity: .7; }
 
     /* Stats */
@@ -256,6 +257,33 @@
     .failure-actual   { background: #fff5f5; }
     .error-msg { margin-top: 6px; color: #666; font-style: italic; font-size: .85rem; }
 
+    /* Error block (test result ERROR — e.g. an HTTP I/O failure, not an assertion) */
+    .error-detail {
+      border-left: 3px solid #6a1a6a;
+      background: #faf5fb;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-family: monospace;
+      font-size: .85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #6a1a6a;
+    }
+
+    /* Upgrade-available banner */
+    .upgrade-banner {
+      margin-top: 20px;
+      padding: 10px 16px;
+      background: #eef6ff;
+      border: 1px solid #bcdcff;
+      border-radius: 6px;
+      text-align: center;
+      font-size: .85rem;
+      color: #2c5282;
+    }
+    .upgrade-banner p { margin: 0 0 4px; font-weight: 600; }
+    .upgrade-banner a { color: #2c5282; }
+
     /* Footer */
     footer {
       margin-top: 28px;
@@ -289,6 +317,7 @@
   <header>
     <h1 th:text="${suiteName}">Suite Name</h1>
     <p class="description" th:if="${suiteDescription}" th:text="${suiteDescription}">Description</p>
+    <p class="run-id" th:if="${runID}">runID: <span th:text="${runID}">00000000-0000-0000-0000-000000000000</span></p>
     <p class="generated">Generated: <span th:text="${generatedAt}">2026-01-01 00:00</span></p>
   </header>
 
@@ -339,12 +368,33 @@
             <span class="method" th:text="${t.requestMethod}">GET</span>
             <span class="url" th:text="${t.requestUrl}">/api</span>
           </div>
+          <div class="meta-grid">
+            <span class="meta-key">Rest Client</span>
+            <span th:text="${t.restClientId}">default</span>
+          </div>
           <div th:if="${!t.requestHeaders.empty}">
             <p class="section-label">Headers</p>
             <div class="headers-grid">
               <div class="header-row" th:each="h : ${t.requestHeaders}">
                 <span class="header-name" th:text="${h.name}">Name</span>
                 <span class="header-value" th:text="${h.value}">Value</span>
+              </div>
+            </div>
+          </div>
+          <div th:if="${t.hasAuth}">
+            <p class="section-label">Authentication</p>
+            <div class="headers-grid">
+              <div class="header-row">
+                <span class="header-name">Type</span>
+                <span class="header-value" th:text="${t.authType}">BASIC</span>
+              </div>
+              <div class="header-row">
+                <span class="header-name">Username</span>
+                <span class="header-value" th:text="${t.authUsername}">*****</span>
+              </div>
+              <div class="header-row">
+                <span class="header-name">Password</span>
+                <span class="header-value" th:text="${t.authPassword}">*****</span>
               </div>
             </div>
           </div>
@@ -410,8 +460,27 @@
         </div>
       </details>
 
+      <details th:if="${t.isError}">
+        <summary>Error</summary>
+        <div class="detail-content">
+          <div class="error-detail" th:text="${t.errorMessage}">error message</div>
+        </div>
+      </details>
+
+      <details th:if="${t.isParentFailure}">
+        <summary>Failed parent test</summary>
+        <div class="detail-content">
+          <div class="error-msg" th:text="${t.parentFailureMessage}">This test depends on a failed parent test.</div>
+        </div>
+      </details>
+
     </article>
   </section>
+
+  <div th:if="${upgradeAvailable}" class="upgrade-banner">
+    <p th:text="${upgradeMessage}">Version X.Y.Z is available.</p>
+    <a th:href="${upgradePageUrl}" th:text="${upgradePageUrl}">upgrade link</a>
+  </div>
 
   <footer>
     <p>Powered by Api Tester CLI version <span th:text="${appVersion}">dev</span></p>

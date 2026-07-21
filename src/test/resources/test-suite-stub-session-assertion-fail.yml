@@ -1,0 +1,22 @@
+---
+name: "Stub Suite – capture skipped on assertion failure"
+rest-client:
+  base-url: "http://stub.test"
+tests:
+- name: "create item"
+  request:
+    method: "GET"
+    url: "/create"
+  saved-session:
+  - name: "itemId"
+    path: "response.body.json.$.id"
+  assertions:
+  - type: "status_code"
+    expected: 201
+- name: "fetch item"
+  request:
+    method: "GET"
+    url: "/items/[[${session.itemId}]]"
+  assertions:
+  - type: "status_code"
+    expected: 200
