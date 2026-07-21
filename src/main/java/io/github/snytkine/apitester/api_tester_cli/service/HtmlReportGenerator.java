@@ -202,11 +202,18 @@ public class HtmlReportGenerator {
      */
     private Map<String, Object> toTestMap(TestCaseResult tc, boolean compactJson) {
         Map<String, Object> map = new LinkedHashMap<>();
+        boolean parentFailure = tc.failedParentName() != null;
         map.put("name", tc.name());
         map.put("result", tc.result().name());
         map.put("statusClass", tc.result().name().toLowerCase());
         map.put("passedAssertions", tc.passedAssertions());
-        map.put("failedAssertions", tc.failures().size());
+        // A parent-failure test ran no assertions of its own, so it reports zero failed assertions
+        // and no "Failed Assertions" block; the "Failed parent test" block is shown instead.
+        map.put("failedAssertions", parentFailure ? 0 : tc.failures().size());
+        map.put("isParentFailure", parentFailure);
+        map.put(
+                "parentFailureMessage",
+                parentFailure ? TestCaseResult.parentFailureMessage(tc.failedParentName()) : null);
         map.put("skipReason", tc.skipReason());
         map.put("hasRequest", tc.requestInfo() != null);
         map.put(

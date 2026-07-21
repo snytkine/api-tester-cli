@@ -423,6 +423,35 @@ class HtmlReportGeneratorTest {
         assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
     }
 
+    @Test
+    void parentFailureShowsFailedParentBlockAndHidesRequestResponseAndAssertions() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult parentFailure = new TestCaseResult(
+                "get-widget",
+                TestResult.FAILED,
+                0,
+                List.of(new AssertionFailure(TestCaseResult.parentFailureMessage("create-widget"), null, null, null)),
+                null,
+                null,
+                null,
+                "create-widget");
+        TestRunResult result = new TestRunResult(0L, 1L, 0L, 0L, List.of(parentFailure), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        // The new "Failed parent test" expandable block with the parent-failure message is shown.
+        // Thymeleaf HTML-escapes the quotes around the parent name (&quot;), which is expected.
+        assertThat(html).contains("Failed parent test");
+        assertThat(html).contains("This test depends on a failed parent test &quot;create-widget&quot;.");
+        // No Request/Response/Failed-Assertions sections for a test that never sent a request.
+        assertThat(html).doesNotContain("<summary>Request</summary>");
+        assertThat(html).doesNotContain("<summary>Response</summary>");
+        assertThat(html).doesNotContain("<summary>Failed Assertions</summary>");
+        // The failed-assertion count badge is suppressed (no assertions of its own ran).
+        assertThat(html).doesNotContain("failed</span>");
+    }
+
     private static TestSuite buildTestSuite() {
         return new TestSuite(
                 "Pet Store API", "Integration tests for the pet store", null, null, null, List.of(), null, null);

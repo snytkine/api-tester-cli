@@ -249,6 +249,9 @@ Each item in `tests` supports:
 - `variables`: per-test variables exposed as `test.<name>`
 - `request`: required HTTP request definition
 - `assertions`: ordered list of assertions
+- `saved-session`: optional list of response-value captures stored into the suite-wide `session` namespace (see [Chaining tests](#chaining-tests-session-capture-depends-on-and-transient))
+- `depends-on`: optional list of other test names that must run before this test
+- `transient`: optional boolean; when `true` the test runs **only** as another test's dependency, never standalone
 
 ### Request bodies
 
@@ -271,7 +274,7 @@ body:
 
 ## Thymeleaf Variable Namespaces
 
-The CLI currently exposes four variable namespaces during template resolution:
+The CLI exposes five variable namespaces during template resolution:
 
 | Namespace | Example | Source |
 |---|---|---|
@@ -279,6 +282,7 @@ The CLI currently exposes four variable namespaces during template resolution:
 | `env` | `[[${env.AUTH_TOKEN}]]` | Variables loaded from a `.env` file in the suite directory |
 | `suite` | `[[${suite.auth_token}]]` | Values resolved from the suite-level `variables` block |
 | `test` | `[[${test.users_path}]]` | Values from the current test case's `variables` block |
+| `session` | `[[${session.recordId}]]` | Values captured from earlier tests' responses via `saved-session` |
 
 The suite is resolved in two passes:
 
@@ -286,6 +290,67 @@ The suite is resolved in two passes:
 2. The resolved suite variables are then exposed through `suite.*` while the full file is processed again.
 
 That means values like `[[${suite.base_url}]]` are the supported form for suite-level references in request URLs, headers, and assertions.
+
+The `session` namespace is different: like `test`, it is resolved **only during test execution** (when building a test's request URL, headers, and body — including bodies loaded from a `type: file`), never during the two suite-level passes above. It starts empty and is populated as tests run.
+
+## Chaining tests: session capture, `depends-on`, and `transient`
+
+A test can **capture values from its own response** into the suite-wide `session` namespace, and other tests can **depend on** it so it runs first and its captured values are available.
+
+### Capturing values with `saved-session`
+
+```yaml
+tests:
+  - name: "CreateRecord"
+    transient: true
+    request:
+      method: "POST"
+      url: "[[${suite.base_url}]]/records"
+      body:
+        type: "inline"
+        content: '{"label":"widget"}'
+    saved-session:
+      - name: "recordId"          # stored under session.recordId
+        path: "response.body.json.$.id"
+        type: "integer"           # optional: string | integer | double | boolean
+        required: true            # fail the test if nothing is extracted (and no default)
+      - name: "etag"
+        path: "response.headers.etag"
+    assertions:
+      - type: "status_code"
+        expected: 201
+
+  - name: "GetRecord"
+    depends-on: ["CreateRecord"]
+    request:
+      method: "GET"
+      url: "[[${suite.base_url}]]/records/[[${session.recordId}]]"
+    assertions:
+      - type: "status_code"
+        expected: 200
+```
+
+Each `saved-session` entry has:
+
+- `name` — key under which the value is stored (used later as `[[${session.<name>}]]`). Name uniqueness across tests is the user's responsibility; duplicates are overwritten last-write-wins.
+- `path` — a `response.*` expression (the same language used by assertions), e.g. `response.statusCode`, `response.headers.<h>`, `response.body.text`, or `response.body.json.$.<jsonpath>`.
+- `type` — optional coercion to `string`, `integer`, `double`, or `boolean`. A value that cannot be converted fails the test.
+- `default` — optional fallback used when the path extracts nothing; when set, the capture always resolves.
+- `required` — optional (default `false`); when `true` and no `default` is set, a missing/unextractable value fails the test.
+
+**Captured values must be primitives** (`string`, `integer`, `double`, `boolean`). Extracting an object or array is an error — you cannot store a JSON object/array in `session`.
+
+**Captures happen only after all of a test's assertions pass.** `saved-session` values are extracted and written to the `session` namespace only once the test succeeds. If any assertion fails, the test is marked failed and **none** of its `saved-session` values are stored — so a dependent test never runs against values captured from a failed parent (it is marked failed via the `depends-on` propagation described below).
+
+### `depends-on`
+
+`depends-on` lists other test names that must run before this test. Dependencies run in the listed order, resolved transitively (`A → B → C` runs `C`, then `B`, then `A`). A `depends-on` that names an unknown test, or that forms a cycle, is reported as a validation error before any test runs.
+
+**A depended-on test runs at most once per suite run.** If several tests depend on the same test, it executes a single time and its result — including its captured `session` values — is reused by every dependent (its request is not re-sent). If a dependency ends up failed or errored, each test that depends on it is automatically marked failed and its own request is not sent. Because such a test sends no request and evaluates no assertions of its own, it is reported as a distinct kind of failure: the terminal shows a single `Error` row reading `This test depends on a failed parent test "<name>".` (no assertion/expected/actual rows), and the HTML report shows a **Failed parent test** expandable block with the same message instead of Request, Response, or Failed Assertions sections.
+
+### `transient`
+
+A `transient: true` test runs **only** when another test depends on it — never as a standalone test. This is useful for setup steps (like `CreateRecord` above) that only exist to feed values into dependents. Transient tests also **do not fire `before-each` or `after-each` hooks** — those hooks fire for the dependent (non-transient) test that triggered them.
 
 ## The `.env` File
 

@@ -289,4 +289,47 @@ class FailureTableRendererTest {
                 .filter(l -> l.contains("Schema") || l.contains("missing"))
                 .forEach(line -> assertThat(line).contains(FailureTableRenderer.ERROR_COLOR));
     }
+
+    // ---------------------------------------------------------------------------
+    // renderParentFailure (depends-on parent-failure)
+    // ---------------------------------------------------------------------------
+
+    private static String renderParentFailure(String testName, String message, boolean useColors, int width) {
+        StringWriter sw = new StringWriter();
+        new FailureTableRenderer().renderParentFailure(testName, message, useColors, width, new PrintWriter(sw));
+        return sw.toString();
+    }
+
+    @Test
+    void parentFailureShowsTestNameAndMessage() {
+        String out = renderParentFailure(
+                "get-widget", "This test depends on a failed parent test \"create-widget\".", false, 80);
+
+        assertThat(out).contains("get-widget");
+        assertThat(out).contains("This test depends on a failed parent test \"create-widget\".");
+    }
+
+    @Test
+    void parentFailureShowsErrorRowButNoAssertionExpectedActualRows() {
+        String out = renderParentFailure(
+                "get-widget", "This test depends on a failed parent test \"create-widget\".", false, 80);
+
+        assertThat(out).contains(FailureTableRenderer.ERROR_LABEL);
+        assertThat(out).doesNotContain("Assertion");
+        assertThat(out).doesNotContain("Expected");
+        assertThat(out).doesNotContain("Actual");
+    }
+
+    @Test
+    void parentFailureErrorRowIsRedWhenColorsEnabled() {
+        String out = renderParentFailure(
+                "get-widget", "This test depends on a failed parent test \"create-widget\".", true, 80);
+
+        String errorLine = java.util.Arrays.stream(out.split("\n"))
+                .filter(l -> l.contains("✗"))
+                .findFirst()
+                .orElse("");
+        assertThat(errorLine).isNotEmpty();
+        assertThat(errorLine).contains(FailureTableRenderer.ERROR_COLOR);
+    }
 }

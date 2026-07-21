@@ -28,6 +28,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.ScriptHook;
@@ -91,6 +92,31 @@ class PureJavaTestEngineDependsOnTest {
                 Map.of(),
                 new BodylessRequest(HttpMethod.GET, url, null, null, null),
                 List.of(),
+                savedSession,
+                dependsOn,
+                transientCase);
+    }
+
+    /**
+     * Like {@link #tc} but with a single {@code status_code} assertion and optional {@code
+     * saved-session} captures, used to exercise a parent test that fails on an assertion rather than a
+     * session capture.
+     */
+    private static TestCase tcWithStatusAssertion(
+            String name,
+            String url,
+            List<String> dependsOn,
+            boolean transientCase,
+            int expectedStatus,
+            List<SavedSession> savedSession) {
+        return new TestCase(
+                name,
+                null,
+                null,
+                null,
+                Map.of(),
+                new BodylessRequest(HttpMethod.GET, url, null, null, null),
+                List.of(new StatusCodeAssertion(expectedStatus)),
                 savedSession,
                 dependsOn,
                 transientCase);
@@ -198,10 +224,42 @@ class PureJavaTestEngineDependsOnTest {
         assertThat(result.results().get(0).result()).isEqualTo(TestResult.FAILED);
         assertThat(result.results().get(1).name()).isEqualTo("main");
         assertThat(result.results().get(1).result()).isEqualTo(TestResult.FAILED);
+        // The dependent is marked as a parent-failure result: it names the failed parent and carries
+        // the parent-failure message (not a copy of the parent's own assertion/capture error).
+        assertThat(result.results().get(1).failedParentName()).isEqualTo("create");
         assertThat(result.results().get(1).failures().get(0).description())
-                .startsWith("Parent test 'create' failed with error")
-                .contains("Failed to extract session parameter 'x'");
+                .isEqualTo("This test depends on a failed parent test \"create\".");
+        // The dependency itself failed on its own error, not as a parent-failure.
+        assertThat(result.results().get(0).failedParentName()).isNull();
         // The dependent's request was never dispatched.
+        assertThat(factory.count("/get")).isZero();
+    }
+
+    @Test
+    void nonTransientParentFailingAnAssertionBlocksDependentFromRunning() {
+        // Mirrors the real-world case: a normal (non-transient) parent at file position 0 has a
+        // saved-session capture AND fails its status_code assertion (server returns 200, test expects
+        // 201). A later test depends on it and must be marked a parent-failure without sending its own
+        // request — and, per the assertion-then-capture ordering, nothing is written to the session.
+        CountingStubFactory factory = new CountingStubFactory();
+        factory.stub("/create", 200, "{\"id\":\"abc123\"}", "application/json");
+        factory.stub("/get", 200, "{}", "application/json");
+        PureJavaTestEngine engine = engineWith(factory);
+        SavedSession capture = new SavedSession("createdId", "response.body.json.$.id", null, null, false);
+        TestCase create = tcWithStatusAssertion("create", "/create", null, false, 201, List.of(capture));
+        TestCase main = tc("main", "/get", List.of("create"), false, null);
+
+        TestRunResult result = run(engine, suite(create, main));
+
+        assertThat(result.failedCount()).isEqualTo(2);
+        // Parent failed on its own assertion.
+        assertThat(result.results().get(0).name()).isEqualTo("create");
+        assertThat(result.results().get(0).result()).isEqualTo(TestResult.FAILED);
+        assertThat(result.results().get(0).failedParentName()).isNull();
+        // Dependent was blocked and marked a parent-failure; its request was never dispatched.
+        assertThat(result.results().get(1).name()).isEqualTo("main");
+        assertThat(result.results().get(1).result()).isEqualTo(TestResult.FAILED);
+        assertThat(result.results().get(1).failedParentName()).isEqualTo("create");
         assertThat(factory.count("/get")).isZero();
     }
 

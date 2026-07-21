@@ -20,6 +20,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import java.time.Instant;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Sealed event hierarchy representing milestones during a test suite run.
@@ -79,6 +80,10 @@ public sealed interface TestProgressEvent
      *     tests; used to display "{@code N passed}" in the Result column on pass
      * @param failures all assertion failures when {@code status} is {@link TestStatus#FAIL} or
      *     {@link TestStatus#ERROR}; empty list otherwise
+     * @param failedParentName the name of the failed {@code depends-on} parent test when this test
+     *     was failed only because that parent failed; {@code null} for every other outcome. The
+     *     terminal UI uses this to render a single {@code Error} row (the parent-failure message)
+     *     instead of the usual assertion/expected/actual rows
      */
     record TestCompleted(
             String uniqueId,
@@ -87,8 +92,34 @@ public sealed interface TestProgressEvent
             TestStatus status,
             long durationMs,
             int assertionCount,
-            List<AssertionFailure> failures)
-            implements TestProgressEvent {}
+            List<AssertionFailure> failures,
+            @Nullable String failedParentName)
+            implements TestProgressEvent {
+
+        /**
+         * Backward-compatible convenience constructor for the common case that is not a {@code
+         * depends-on} parent-failure. Delegates to the canonical constructor with {@code
+         * failedParentName} set to {@code null}.
+         *
+         * @param uniqueId the token carried by the corresponding {@link TestStarted} event
+         * @param testIndex zero-based position of the test case in the suite's test list
+         * @param testName the {@code name} field from the test case YAML
+         * @param status the terminal status of the test case
+         * @param durationMs elapsed time in milliseconds from {@link TestStarted} to this event
+         * @param assertionCount total number of assertions that were evaluated
+         * @param failures all assertion failures for a failing/errored test; empty otherwise
+         */
+        public TestCompleted(
+                String uniqueId,
+                int testIndex,
+                String testName,
+                TestStatus status,
+                long durationMs,
+                int assertionCount,
+                List<AssertionFailure> failures) {
+            this(uniqueId, testIndex, testName, status, durationMs, assertionCount, failures, null);
+        }
+    }
 
     /**
      * Fired once after all test cases have completed (or failed). The UI render loop uses this as its

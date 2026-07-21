@@ -147,6 +147,41 @@ final class FailureTableRenderer {
     }
 
     /**
+     * Renders a bordered table for a single {@code depends-on} parent-failure test to {@code output}.
+     *
+     * <p>Unlike {@link #render}, this test sent no request and evaluated no assertions of its own: it
+     * was failed solely because a parent test it depends on failed. The table therefore shows only two
+     * rows — a {@code Test Name} row and a single {@link #ERROR_LABEL} row carrying {@code message} —
+     * with no {@code Assertion}, {@code Expected}, or {@code Actual} rows.
+     *
+     * <p>When {@code useColors} is {@code true}, the {@code Test Name} row receives reverse-video and
+     * the {@code Error} row bright-red, applied post-render via {@link #applyRowColors(String)}.
+     *
+     * @param testName the name of the failed test case
+     * @param message the parent-failure message to show as the {@code Error} value (see {@link
+     *     io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult#parentFailureMessage(String)})
+     * @param useColors {@code true} to apply ANSI colours to the {@code Test Name} and {@code Error} rows
+     * @param width terminal column count used to size the value column
+     * @param output the writer to which rendered output is appended
+     */
+    void renderParentFailure(String testName, String message, boolean useColors, int width, PrintWriter output) {
+        int valueCellWidth = Math.max(4, width - 2 - LABEL_COL_WIDTH - 1);
+        StringBuilder sb = new StringBuilder();
+
+        appendBorderRow(sb, '┏', '━', '┯', '┓', valueCellWidth);
+        appendContentRow(sb, "Test Name", testName, valueCellWidth);
+        appendBorderRow(sb, '┣', '━', '┿', '┫', valueCellWidth);
+        appendContentRow(sb, ERROR_LABEL, message, valueCellWidth);
+        appendBorderRow(sb, '┗', '━', '┷', '┛', valueCellWidth);
+
+        String rendered = sb.toString();
+        if (useColors) {
+            rendered = applyRowColors(rendered);
+        }
+        output.println(rendered);
+    }
+
+    /**
      * Applies per-row ANSI colour escapes to an already-rendered table string, including
      * word-wrapped continuation lines.
      *

@@ -18,6 +18,7 @@ package io.github.snytkine.apitester.api_tester_cli.ui;
 
 import io.github.snytkine.apitester.api_tester_cli.event.TestProgressEvent;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
+import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -923,7 +924,18 @@ public final class TerminalUiController {
         drawCenteredBox("Failed Tests", ANSI_RED);
         FailureTableRenderer renderer = new FailureTableRenderer();
         for (TestProgressEvent.TestCompleted tc : failures) {
-            renderer.render(tc.testName(), tc.failures(), useColors, terminalWidth, output);
+            if (tc.failedParentName() != null) {
+                // A depends-on parent-failure test sent no request: render a single Error row with the
+                // parent-failure message instead of the usual assertion/expected/actual rows.
+                renderer.renderParentFailure(
+                        tc.testName(),
+                        TestCaseResult.parentFailureMessage(tc.failedParentName()),
+                        useColors,
+                        terminalWidth,
+                        output);
+            } else {
+                renderer.render(tc.testName(), tc.failures(), useColors, terminalWidth, output);
+            }
         }
     }
 

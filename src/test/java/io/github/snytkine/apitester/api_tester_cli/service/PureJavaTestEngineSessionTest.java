@@ -66,6 +66,31 @@ class PureJavaTestEngineSessionTest {
     }
 
     @Test
+    void sessionValueIsNotCapturedWhenAssertionFails() throws Exception {
+        // 'create item' returns a usable id but its status_code assertion (expects 201, gets 200)
+        // fails, so the 'itemId' capture must NOT be written to the session namespace. The later
+        // independent 'fetch item' test references [[${session.itemId}]] in its URL; because the
+        // value was never captured, the expression resolves to empty and the URL stays "/items/".
+        var factory = new StubClientHttpRequestFactory()
+                .stub("/create", 200, "{\"id\":\"abc123\"}", "application/json")
+                .stub("/items/", 200, "{}", "application/json");
+        var engine = engineWith(factory);
+        Path path = Path.of(getClass()
+                .getResource("/test-suite-stub-session-assertion-fail.yml")
+                .toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult result = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        // The capturing test failed on its assertion.
+        assertThat(result.results().get(0).result()).isEqualTo(TestResult.FAILED);
+        // The later test ran against an empty session value, proving nothing was captured.
+        assertThat(result.results().get(1).requestInfo().url()).endsWith("/items/");
+        assertThat(result.results().get(1).requestInfo().url()).doesNotContain("abc123");
+    }
+
+    @Test
     void requiredCaptureMissingFailsThatTest() throws Exception {
         // The create response has no 'id' field, so the required capture fails the first test.
         var factory = new StubClientHttpRequestFactory()

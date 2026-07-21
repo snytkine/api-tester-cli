@@ -421,8 +421,9 @@ public class PureJavaTestEngine implements TestEngine {
      * <ol>
      *   <li><b>Failure propagation</b> — if any {@code depends-on} dependency already ended {@link
      *       TestResult#FAILED} or {@link TestResult#ERROR} (looked up in {@code outcomes}), this test is
-     *       recorded {@code FAILED} with {@code "Parent test '<dep>' failed with error <parent_error>"}
-     *       and neither hooks nor request run.
+     *       recorded {@code FAILED} as a parent-failure result (its {@link
+     *       TestCaseResult#failedParentName()} set to the failed parent's name, message from {@link
+     *       TestCaseResult#parentFailureMessage(String)}) and neither hooks nor request run.
      *   <li><b>before-each hooks</b> — run only when the test is neither skipped nor {@link
      *       TestCase#transientCase() transient}. A transient test fires no per-test hooks: those belong
      *       to the dependent test that triggered it. A blocking before-each failure records {@code ERROR}
@@ -481,11 +482,11 @@ public class PureJavaTestEngine implements TestEngine {
                 if (depOutcome != null
                         && (depOutcome.result() == TestResult.FAILED || depOutcome.result() == TestResult.ERROR)) {
                     long durationMs = System.currentTimeMillis() - testStart;
-                    String msg = "Parent test '" + depName + "' failed with error " + depOutcome.errorMessage();
+                    String msg = TestCaseResult.parentFailureMessage(depName);
                     List<AssertionFailure> failure = List.of(new AssertionFailure(msg, null, null, null));
-                    results.add(new TestCaseResult(label, TestResult.FAILED, 0, failure, null, null, null));
+                    results.add(new TestCaseResult(label, TestResult.FAILED, 0, failure, null, null, null, depName));
                     listener.onProgress(new TestProgressEvent.TestCompleted(
-                            uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, 0, failure));
+                            uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, 0, failure, depName));
                     log.debug("Test case '{}' failed: dependency '{}' failed: {}", config.name(), depName, msg);
                     return new TestOutcome(TestResult.FAILED, msg);
                 }
@@ -754,8 +755,9 @@ public class PureJavaTestEngine implements TestEngine {
      *                       suite}, {@code test}, {@code session}); the {@code "test"} entry is
      *                       replaced per invocation with this test's vars
      * @param sessionVars    the suite-wide, mutable {@code session} namespace; read when resolving
-     *                       this test's template and written after the response is received with any
-     *                       {@code saved-session} captures declared by this test
+     *                       this test's template and written with any {@code saved-session} captures
+     *                       declared by this test only after all of its assertions have passed, so a
+     *                       failed test never contributes values to the namespace
      * @param requestCapture callback invoked with the fully-resolved {@link ExecutedRequestInfo}
      *                       immediately before the HTTP request is dispatched; always called for
      *                       non-skipped tests regardless of whether assertions later pass or fail,
@@ -884,12 +886,6 @@ public class PureJavaTestEngine implements TestEngine {
 
         responseCapture.accept(apiResponse);
 
-        // Capture saved-session values before evaluating assertions so the suite-wide 'session'
-        // namespace is populated for later tests regardless of whether this test's assertions pass.
-        // A required-but-missing value, a non-primitive extraction, or a failed type conversion
-        // raises a SessionCaptureException that the run loop records as a test failure.
-        SessionCapturer.capture(config.name(), config.savedSession(), apiResponse, sessionVars);
-
         // Evaluate one assertion at a time, collecting failures as AssertionFailedError instances.
         // Each evaluator stores structured AssertionFailedError entries (with message, expected,
         // actual) in the collector. The first new entry for each assertion is extracted to build an
@@ -915,6 +911,13 @@ public class PureJavaTestEngine implements TestEngine {
         if (!failures.isEmpty()) {
             throw new AssertionFailuresException(failures);
         }
+
+        // Capture saved-session values only after every assertion has passed, so a test whose
+        // assertions fail never leaks its extracted values into the suite-wide 'session' namespace
+        // for later (dependent) tests to consume. A required-but-missing value, a non-primitive
+        // extraction, or a failed type conversion raises a SessionCaptureException that the run loop
+        // records as a test failure.
+        SessionCapturer.capture(config.name(), config.savedSession(), apiResponse, sessionVars);
     }
 
     /**

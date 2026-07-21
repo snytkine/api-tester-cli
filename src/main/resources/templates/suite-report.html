@@ -447,6 +447,13 @@
         </div>
       </details>
 
+      <details th:if="${t.isParentFailure}">
+        <summary>Failed parent test</summary>
+        <div class="detail-content">
+          <div class="error-msg" th:text="${t.parentFailureMessage}">This test depends on a failed parent test.</div>
+        </div>
+      </details>
+
     </article>
   </section>
 
