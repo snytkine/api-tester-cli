@@ -147,6 +147,51 @@ final class FailureTableRenderer {
     }
 
     /**
+     * Renders a bordered table for a test that ended in {@link
+     * io.github.snytkine.apitester.api_tester_cli.event.TestStatus#ERROR} (e.g. an HTTP I/O failure
+     * such as a connection refused because the target service is not running) to {@code output}.
+     *
+     * <p>An error is <em>not</em> an assertion outcome: no assertion was evaluated. Unlike {@link
+     * #render}, which emits an {@code Assertion} row per failure, this method emits a single {@link
+     * #ERROR_LABEL} row per entry carrying the entry's {@link AssertionFailure#description()} — the
+     * captured error text — so the failure never appears as a (green) assertion row. No {@code
+     * Expected} or {@code Actual} rows are drawn.
+     *
+     * <p>When {@code useColors} is {@code true}, the {@code Test Name} row receives reverse-video and
+     * every {@code Error} row bright-red, applied post-render via {@link #applyRowColors(String)}.
+     *
+     * @param testName the name of the errored test case
+     * @param failures the collected error entries; each entry's {@link AssertionFailure#description()}
+     *     is rendered as an {@code Error} row. Typically a single entry; when empty only the {@code
+     *     Test Name} row is drawn
+     * @param useColors {@code true} to apply ANSI colours to the {@code Test Name} and {@code Error} rows
+     * @param width terminal column count used to size the value column
+     * @param output the writer to which rendered output is appended
+     */
+    void renderError(
+            String testName, List<AssertionFailure> failures, boolean useColors, int width, PrintWriter output) {
+        int valueCellWidth = Math.max(4, width - 2 - LABEL_COL_WIDTH - 1);
+        StringBuilder sb = new StringBuilder();
+
+        appendBorderRow(sb, '┏', '━', '┯', '┓', valueCellWidth);
+        appendContentRow(sb, "Test Name", testName, valueCellWidth);
+        appendBorderRow(sb, '┣', '━', '┿', '┫', valueCellWidth);
+        for (int i = 0; i < failures.size(); i++) {
+            if (i > 0) {
+                appendBorderRow(sb, '┠', '─', '┼', '┨', valueCellWidth);
+            }
+            appendContentRow(sb, ERROR_LABEL, nullToDisplay(failures.get(i).description()), valueCellWidth);
+        }
+        appendBorderRow(sb, '┗', '━', '┷', '┛', valueCellWidth);
+
+        String rendered = sb.toString();
+        if (useColors) {
+            rendered = applyRowColors(rendered);
+        }
+        output.println(rendered);
+    }
+
+    /**
      * Renders a bordered table for a single {@code depends-on} parent-failure test to {@code output}.
      *
      * <p>Unlike {@link #render}, this test sent no request and evaluated no assertions of its own: it

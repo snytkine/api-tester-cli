@@ -933,6 +933,11 @@ public final class TerminalUiController {
                         useColors,
                         terminalWidth,
                         output);
+            } else if (tc.status() == TestStatus.ERROR) {
+                // An errored test (e.g. an HTTP I/O failure such as connection refused) evaluated no
+                // assertions: render its captured error text as an Error row (red), never as a (green)
+                // Assertion row.
+                renderer.renderError(tc.testName(), tc.failures(), useColors, terminalWidth, output);
             } else {
                 renderer.render(tc.testName(), tc.failures(), useColors, terminalWidth, output);
             }

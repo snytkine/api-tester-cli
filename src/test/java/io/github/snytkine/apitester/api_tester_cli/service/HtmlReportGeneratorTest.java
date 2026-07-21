@@ -452,6 +452,55 @@ class HtmlReportGeneratorTest {
         assertThat(html).doesNotContain("failed</span>");
     }
 
+    @Test
+    void errorResultShowsErrorBlockNotFailedAssertions() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult errored = new TestCaseResult(
+                "create-pet",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure(
+                        "I/O error on POST request for \"http://localhost:9999/pets\": Connection refused",
+                        null,
+                        null,
+                        null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0L, 0L, 0L, 1L, List.of(errored), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        // The error is shown under an "Error" summary, carrying the captured I/O error text.
+        assertThat(html).contains("<summary>Error</summary>");
+        assertThat(html).contains("Connection refused");
+        // It must NOT appear under "Failed Assertions" — an error is not an assertion outcome.
+        assertThat(html).doesNotContain("<summary>Failed Assertions</summary>");
+        // No "N failed" assertion-count badge is shown for an errored test.
+        assertThat(html).doesNotContain("failed</span>");
+    }
+
+    @Test
+    void errorResultWithBlankMessageShowsGenericFallback() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult errored = new TestCaseResult(
+                "create-pet",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure(null, null, null, null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0L, 0L, 0L, 1L, List.of(errored), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        assertThat(html).contains("<summary>Error</summary>");
+        assertThat(html).contains("An unexpected error occurred.");
+    }
+
     private static TestSuite buildTestSuite() {
         return new TestSuite(
                 "Pet Store API", "Integration tests for the pet store", null, null, null, List.of(), null, null);

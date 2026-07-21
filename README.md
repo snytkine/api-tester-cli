@@ -551,6 +551,9 @@ by underscores.
   - Expandable **Request** section (method, URL, headers, body)
   - Expandable **Response** section (status code, response time, headers, pretty-printed body)
   - Expandable **Failed Assertions** section (description, expected vs actual, error message)
+  - Expandable **Error** section for a test whose result is `ERROR` (e.g. an HTTP I/O failure such
+    as a connection refused because the target service is not running), showing the captured error
+    text. An error is not an assertion outcome, so it is never listed under **Failed Assertions**
 
 The report is fully self-contained (all CSS embedded, no CDN dependencies) and opens in any
 browser without an internet connection. By default a small inline JavaScript formatter is

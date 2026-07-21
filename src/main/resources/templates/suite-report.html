@@ -257,6 +257,19 @@
     .failure-actual   { background: #fff5f5; }
     .error-msg { margin-top: 6px; color: #666; font-style: italic; font-size: .85rem; }
 
+    /* Error block (test result ERROR — e.g. an HTTP I/O failure, not an assertion) */
+    .error-detail {
+      border-left: 3px solid #6a1a6a;
+      background: #faf5fb;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-family: monospace;
+      font-size: .85rem;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #6a1a6a;
+    }
+
     /* Upgrade-available banner */
     .upgrade-banner {
       margin-top: 20px;
@@ -444,6 +457,13 @@
               <div class="error-msg" th:if="${f.error != null}" th:text="${f.error}">error</div>
             </li>
           </ul>
+        </div>
+      </details>
+
+      <details th:if="${t.isError}">
+        <summary>Error</summary>
+        <div class="detail-content">
+          <div class="error-detail" th:text="${t.errorMessage}">error message</div>
         </div>
       </details>
 

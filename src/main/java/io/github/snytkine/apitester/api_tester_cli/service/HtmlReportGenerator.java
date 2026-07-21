@@ -23,6 +23,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.AssertionFailure;
 import io.github.snytkine.apitester.api_tester_cli.model.ReportOptions;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCaseResult;
+import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import java.io.IOException;
@@ -203,17 +204,26 @@ public class HtmlReportGenerator {
     private Map<String, Object> toTestMap(TestCaseResult tc, boolean compactJson) {
         Map<String, Object> map = new LinkedHashMap<>();
         boolean parentFailure = tc.failedParentName() != null;
+        boolean isError = tc.result() == TestResult.ERROR;
         map.put("name", tc.name());
         map.put("result", tc.result().name());
         map.put("statusClass", tc.result().name().toLowerCase());
         map.put("passedAssertions", tc.passedAssertions());
-        // A parent-failure test ran no assertions of its own, so it reports zero failed assertions
-        // and no "Failed Assertions" block; the "Failed parent test" block is shown instead.
-        map.put("failedAssertions", parentFailure ? 0 : tc.failures().size());
+        // Neither a parent-failure test nor an errored test evaluated assertions of its own, so both
+        // report zero failed assertions and show no "Failed Assertions" block. A parent-failure test
+        // shows the "Failed parent test" block; an errored test (e.g. an HTTP I/O failure) shows the
+        // "Error" block. Only a genuinely FAILED test lists individual failed assertions.
+        map.put(
+                "failedAssertions",
+                (parentFailure || isError) ? 0 : tc.failures().size());
         map.put("isParentFailure", parentFailure);
         map.put(
                 "parentFailureMessage",
                 parentFailure ? TestCaseResult.parentFailureMessage(tc.failedParentName()) : null);
+        // An error is not an assertion outcome: its message lives in the failure descriptions and is
+        // rendered under an "Error" summary rather than "Failed Assertions".
+        map.put("isError", isError);
+        map.put("errorMessage", isError ? errorMessageFrom(tc.failures()) : null);
         map.put("skipReason", tc.skipReason());
         map.put("hasRequest", tc.requestInfo() != null);
         map.put(
@@ -278,6 +288,27 @@ public class HtmlReportGenerator {
                     return m;
                 })
                 .toList();
+    }
+
+    /**
+     * Builds the human-readable error message shown under the "Error" summary for a test whose result
+     * is {@link TestResult#ERROR}.
+     *
+     * <p>For an errored test the failure entries carry the captured error text (e.g. an HTTP I/O
+     * failure message) in their {@link AssertionFailure#description()} field, with {@code expected},
+     * {@code actual}, and {@code error} all {@code null}. This joins the non-blank descriptions with
+     * newlines. When no usable text is present a generic fallback is returned so the block is never
+     * empty.
+     *
+     * @param failures the errored test's failure entries; typically a single entry
+     * @return the joined error text, or {@code "An unexpected error occurred."} when none is available
+     */
+    private static String errorMessageFrom(List<AssertionFailure> failures) {
+        String joined = failures.stream()
+                .map(AssertionFailure::description)
+                .filter(d -> d != null && !d.isBlank())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return joined.isBlank() ? "An unexpected error occurred." : joined;
     }
 
     /**
