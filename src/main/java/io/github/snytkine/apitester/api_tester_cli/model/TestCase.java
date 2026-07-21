@@ -39,9 +39,9 @@ import org.jspecify.annotations.Nullable;
  * extract primitive values from this test's response into the suite-wide {@code session} namespace
  * for use by later tests. The optional {@code depends-on} field lists other test names that must run
  * (in the listed order, transitively) immediately before this test so their captured values are
- * available to it; a dependency is re-executed once per dependent test. The optional {@code
- * transient} field, when {@code true}, makes the test run <em>only</em> as another test's dependency
- * and never as a standalone test.
+ * available to it; a depended-on test is executed at most once per suite run and its result is reused
+ * by every test that depends on it. The optional {@code transient} field, when {@code true}, makes the
+ * test run <em>only</em> as another test's dependency and never as a standalone test.
  *
  * <p>All fields are deserialized from the YAML test-suite file via Jackson.
  */
@@ -94,8 +94,9 @@ public record TestCase(
         /**
          * Optional list of other test names this test depends on (YAML key {@code depends-on}). The
          * listed dependencies run — in order, resolved transitively — immediately before this test so
-         * their {@code session} captures are available to it. A dependency is re-executed once for
-         * each dependent test. May be {@code null} or empty.
+         * their {@code session} captures are available to it. A depended-on test runs at most once per
+         * suite run; its result (and captured session values) is reused by every dependent. May be
+         * {@code null} or empty.
          */
         @JsonProperty("depends-on") @Nullable List<String> dependsOn,
 

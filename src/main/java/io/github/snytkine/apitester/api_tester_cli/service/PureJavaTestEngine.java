@@ -63,10 +63,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.jspecify.annotations.Nullable;
@@ -103,9 +105,17 @@ import org.springframework.web.client.RestClient;
  * than stopping at the first failure.
  *
  * <p>
- * This class is a thread-safe Spring singleton: all per-invocation state is
- * confined to the call
- * stack of {@link #runConfigurationSuite(TestSuite)}.
+ * Execution order honours {@code depends-on} and {@code transient}: before any test runs, {@link
+ * #buildExecutionPlan} resolves an ordered plan in which each dependency precedes its dependents and
+ * every test appears at most once per suite run (run-once). A depended-on test's result — including any
+ * {@code saved-session} values — is reused by every dependent rather than re-executed; a failed
+ * dependency propagates failure to its dependents without sending their requests. Transient tests run
+ * only as another test's dependency and fire neither {@code before-each} nor {@code after-each} hooks.
+ *
+ * <p>
+ * This class is a thread-safe Spring singleton: all per-invocation state (the plan, the mutable {@code
+ * session} map, and the per-test outcome map used for failure propagation) is confined to the call
+ * stack of {@link #runConfigurationSuite(TestSuite, SuiteRunContext, TestProgressListener)}.
  */
 @Service
 public class PureJavaTestEngine implements TestEngine {
@@ -225,6 +235,13 @@ public class PureJavaTestEngine implements TestEngine {
 
         List<TestCase> tests = testSuite.tests();
 
+        // Resolve the depends-on / transient execution plan before any test runs. Each test that will
+        // actually execute is represented by exactly one ExecutionStep (run-once semantics): dependencies
+        // are ordered before their dependents, transient tests appear only when pulled in as a dependency,
+        // and a test named by several dependents appears a single time. The plan size is the exact number
+        // of result rows, so it drives the pre-allocated UI grid via SuiteStarted below.
+        List<ExecutionStep> plan = buildExecutionPlan(tests);
+
         try (AsyncHookHandles asyncHandles = new AsyncHookHandles()) {
             // before-all runs before SuiteStarted; a blocking failure aborts the run fatally.
             HookRunner.HookPhaseOutcome beforeAll = hookRunner.runPhase(
@@ -237,140 +254,33 @@ public class PureJavaTestEngine implements TestEngine {
             }
 
             Instant suiteStart = Instant.now();
-            listener.onProgress(new TestProgressEvent.SuiteStarted(testSuite.name(), tests.size(), suiteStart));
+            listener.onProgress(new TestProgressEvent.SuiteStarted(testSuite.name(), plan.size(), suiteStart));
 
             List<TestCaseResult> results = new ArrayList<>();
 
-            for (int i = 0; i < tests.size(); i++) {
-                TestCase config = tests.get(i);
-                String uniqueId = String.valueOf(i);
-                listener.onProgress(new TestProgressEvent.TestStarted(uniqueId, i, config.name()));
-                long testStart = System.currentTimeMillis();
-
-                boolean skipped = config.skip() != null && !config.skip().isBlank();
-
-                // before-each runs before the request is sent (skipped tests have no request).
-                // A blocking before-each failure marks this test an error and skips both the
-                // request and after-each; remaining tests still run.
-                if (!skipped && !beforeEachHooks.isEmpty()) {
-                    HookRunner.PerTestData beforeData = beforeEachPerTest(testSuite, config);
-                    HookRunner.HookPhaseOutcome be = hookRunner.runPhase(
-                            HookPhase.BEFORE_EACH, beforeEachHooks, hookCtx, beforeData, null, listener, asyncHandles);
-                    if (!be.allSucceeded()) {
-                        long durationMs = System.currentTimeMillis() - testStart;
-                        String msg = be.firstFailureMessage() != null
-                                ? be.firstFailureMessage()
-                                : "before-each hook returned non-zero status";
-                        List<AssertionFailure> failure = List.of(new AssertionFailure(msg, null, null, null));
-                        results.add(new TestCaseResult(config.name(), TestResult.ERROR, 0, failure, msg, null, null));
-                        listener.onProgress(new TestProgressEvent.TestCompleted(
-                                uniqueId, i, config.name(), TestStatus.ERROR, durationMs, 0, failure));
-                        log.debug("Test case '{}' errored: before-each hook failed: {}", config.name(), msg);
-                        continue;
-                    }
-                }
-
-                // Single-element holder: written by the requestCapture callback inside
-                // executeSingleTest (before retrieve()), read by all non-skip catch branches.
-                // Safe because it is created fresh per iteration and the callback fires
-                // synchronously on this thread — no sharing between concurrent iterations.
-                @Nullable ExecutedRequestInfo[] capturedRequest = new ExecutedRequestInfo[1];
-
-                // Single-element holder: written by the responseCapture callback inside
-                // executeSingleTest (after ApiResponse is received), read by all non-skip catch branches.
-                // Safe because it is created fresh per iteration and the callback fires
-                // synchronously on this thread — no sharing between concurrent iterations.
-                @Nullable ApiResponse[] capturedResponse = new ApiResponse[1];
-
-                try {
-                    executeSingleTest(
-                            restClients,
-                            defaultRestClient,
-                            testSuite,
-                            i,
-                            suiteDir,
-                            configMap,
-                            sessionVars,
-                            info -> capturedRequest[0] = info,
-                            resp -> capturedResponse[0] = resp);
-                    long durationMs = System.currentTimeMillis() - testStart;
-                    int totalAssertions = config.assertions().size();
-                    results.add(new TestCaseResult(
-                            config.name(),
-                            TestResult.PASSED,
-                            totalAssertions,
-                            List.of(),
-                            null,
-                            capturedRequest[0],
-                            capturedResponse[0]));
-                    listener.onProgress(new TestProgressEvent.TestCompleted(
-                            uniqueId, i, config.name(), TestStatus.PASS, durationMs, totalAssertions, List.of()));
-                } catch (SkipTestException e) {
-                    long durationMs = System.currentTimeMillis() - testStart;
-                    results.add(new TestCaseResult(
-                            config.name(), TestResult.SKIPPED, 0, List.of(), e.getMessage(), null, null));
-                    listener.onProgress(new TestProgressEvent.TestCompleted(
-                            uniqueId, i, config.name(), TestStatus.SKIP, durationMs, 0, List.of()));
-                    log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
-                } catch (SessionCaptureException e) {
-                    long durationMs = System.currentTimeMillis() - testStart;
-                    List<AssertionFailure> failure = List.of(new AssertionFailure(e.getMessage(), null, null, null));
-                    results.add(new TestCaseResult(
-                            config.name(),
-                            TestResult.FAILED,
-                            0,
-                            failure,
-                            null,
-                            capturedRequest[0],
-                            capturedResponse[0]));
-                    listener.onProgress(new TestProgressEvent.TestCompleted(
-                            uniqueId, i, config.name(), TestStatus.FAIL, durationMs, 0, failure));
-                    log.debug("Test case '{}' failed: session capture error: {}", config.name(), e.getMessage());
-                } catch (AssertionFailuresException e) {
-                    long durationMs = System.currentTimeMillis() - testStart;
-                    List<AssertionFailure> failures = e.failures();
-                    int totalAssertions = config.assertions().size();
-                    int passedAssertions = totalAssertions - failures.size();
-                    results.add(new TestCaseResult(
-                            config.name(),
-                            TestResult.FAILED,
-                            passedAssertions,
-                            failures,
-                            null,
-                            capturedRequest[0],
-                            capturedResponse[0]));
-                    listener.onProgress(new TestProgressEvent.TestCompleted(
-                            uniqueId, i, config.name(), TestStatus.FAIL, durationMs, totalAssertions, failures));
-                    log.debug("Test case '{}' failed with {} assertion failure(s)", config.name(), failures.size());
-                } catch (Throwable e) {
-                    long durationMs = System.currentTimeMillis() - testStart;
-                    results.add(new TestCaseResult(
-                            config.name(),
-                            TestResult.ERROR,
-                            0,
-                            List.of(new AssertionFailure(e.getMessage(), null, null, null)),
-                            null,
-                            capturedRequest[0],
-                            capturedResponse[0]));
-                    listener.onProgress(new TestProgressEvent.TestCompleted(
-                            uniqueId,
-                            i,
-                            config.name(),
-                            TestStatus.ERROR,
-                            durationMs,
-                            0,
-                            List.of(new AssertionFailure(e.getMessage(), null, null, null))));
-                    log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
-                }
-
-                // after-each runs after this test's assertions complete (not for skipped tests).
-                if (!skipped && !afterEachHooks.isEmpty()) {
-                    TestResult iterationResult = results.get(results.size() - 1).result();
-                    HookRunner.PerTestData afterData =
-                            afterEachPerTest(testSuite, config, capturedRequest[0], iterationResult);
-                    hookRunner.runPhase(
-                            HookPhase.AFTER_EACH, afterEachHooks, hookCtx, afterData, null, listener, asyncHandles);
-                }
+            // Execute the plan in order. Each step runs at most once; a per-name outcome map lets a
+            // dependent detect a failed dependency (failure propagation) and reuse already-captured
+            // session values without re-running the dependency. The map lives on this call stack only.
+            Map<String, TestOutcome> outcomes = new LinkedHashMap<>();
+            for (int rowIndex = 0; rowIndex < plan.size(); rowIndex++) {
+                ExecutionStep step = plan.get(rowIndex);
+                TestOutcome outcome = executePlanStep(
+                        step,
+                        rowIndex,
+                        restClients,
+                        defaultRestClient,
+                        testSuite,
+                        suiteDir,
+                        configMap,
+                        sessionVars,
+                        outcomes,
+                        beforeEachHooks,
+                        afterEachHooks,
+                        hookCtx,
+                        asyncHandles,
+                        listener,
+                        results);
+                outcomes.put(step.test().name(), outcome);
             }
 
             Map<TestResult, Long> counts =
@@ -385,7 +295,7 @@ public class PureJavaTestEngine implements TestEngine {
             // after-all runs after the last test, before SuiteCompleted, so the UI can render it
             // below the summary. Failures here are warnings only and never change the result.
             HookRunner.SummaryData summary =
-                    new HookRunner.SummaryData(tests.size(), passedCount, failedCount, errorCount, totalDurationMs);
+                    new HookRunner.SummaryData(plan.size(), passedCount, failedCount, errorCount, totalDurationMs);
             hookRunner.runPhase(HookPhase.AFTER_ALL, afterAllHooks, hookCtx, null, summary, listener, asyncHandles);
 
             listener.onProgress(new TestProgressEvent.SuiteCompleted(
@@ -393,6 +303,320 @@ public class PureJavaTestEngine implements TestEngine {
 
             return new TestRunResult(passedCount, failedCount, skippedCount, errorCount, results, Map.of());
         }
+    }
+
+    /**
+     * A single planned execution: the raw {@link TestCase} to run and the display label under which its
+     * result row and progress events are reported.
+     *
+     * <p>The label carries the triggering context: a test run standalone uses its plain name, while a
+     * test first reached as another test's dependency uses {@code "<name> (dependency of <dependent>)"}.
+     * Because dependencies run at most once, each executed test contributes exactly one step.
+     *
+     * @param test the raw (pre-template-resolution) test case to execute
+     * @param label the display label for the result row and {@link TestProgressEvent}s
+     */
+    private record ExecutionStep(TestCase test, String label) {}
+
+    /**
+     * The terminal outcome of one executed plan step, recorded per test name so a dependent test can
+     * detect a failed dependency (failure propagation).
+     *
+     * @param result the four-way terminal status of the execution
+     * @param errorMessage a human-readable failure message when {@code result} is {@link
+     *     TestResult#FAILED} or {@link TestResult#ERROR}; {@code null} otherwise
+     */
+    private record TestOutcome(TestResult result, @Nullable String errorMessage) {}
+
+    /**
+     * Resolves the ordered {@code depends-on} / {@code transient} execution plan for a suite run.
+     *
+     * <p>Semantics implemented here (see {@code depends-on-feature.md}):
+     *
+     * <ul>
+     *   <li><b>Transient tests</b> ({@link TestCase#transientCase()}) are never scheduled as standalone
+     *       top-level tests; they appear only when pulled in as another test's dependency.
+     *   <li><b>Dependencies run first</b>, in the order listed in {@link TestCase#dependsOn()}, resolved
+     *       transitively via depth-first post-order traversal.
+     *   <li><b>Run-once</b>: a {@code planned} set keyed by test name guarantees each test is scheduled
+     *       at most once per suite run, no matter how many tests depend on it (or whether it also appears
+     *       standalone). The first time a test is reached fixes its label — standalone if reached as a
+     *       top-level test, otherwise labeled with the first dependent that triggered it.
+     * </ul>
+     *
+     * <p>Every {@code depends-on} name is guaranteed to reference a test present in {@code tests}: {@link
+     * io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator#validateDependencies} runs
+     * on the same (possibly filtered) suite before execution and rejects unknown references and cycles.
+     * The {@code null} guard on a missing dependency is therefore defensive only.
+     *
+     * @param tests the suite's test cases in file order (already tag/name filtered when applicable)
+     * @return the ordered list of executions; its size is the exact number of result rows
+     */
+    private List<ExecutionStep> buildExecutionPlan(List<TestCase> tests) {
+        Map<String, TestCase> byName = new LinkedHashMap<>();
+        for (TestCase test : tests) {
+            byName.put(test.name(), test);
+        }
+        List<ExecutionStep> plan = new ArrayList<>();
+        Set<String> planned = new HashSet<>();
+        for (TestCase test : tests) {
+            if (test.transientCase()) {
+                // Transient tests never run standalone — only when depended upon.
+                continue;
+            }
+            addToPlan(test, null, byName, planned, plan);
+        }
+        return plan;
+    }
+
+    /**
+     * Recursively adds {@code test} and its transitive dependencies to {@code plan}, dependencies first.
+     *
+     * <p>Guarded by {@code planned} so each test is added at most once (run-once semantics). The first
+     * reach determines the label: {@code dependentName} is {@code null} for a top-level standalone reach
+     * and the triggering dependent's name when reached as a dependency. Cycles cannot occur — they are
+     * rejected by validation before execution — so the top-level {@code planned} guard is sufficient to
+     * terminate the recursion.
+     *
+     * @param test the test to schedule
+     * @param dependentName the name of the test that triggered this one as a dependency, or {@code null}
+     *     when scheduled as a standalone top-level test
+     * @param byName lookup of every test case in the run keyed by name
+     * @param planned the set of already-scheduled test names (mutated)
+     * @param plan the accumulating execution plan (mutated)
+     */
+    private void addToPlan(
+            TestCase test,
+            @Nullable String dependentName,
+            Map<String, TestCase> byName,
+            Set<String> planned,
+            List<ExecutionStep> plan) {
+        if (planned.contains(test.name())) {
+            return;
+        }
+        List<String> deps = test.dependsOn();
+        if (deps != null) {
+            for (String depName : deps) {
+                TestCase dep = byName.get(depName);
+                if (dep != null) {
+                    addToPlan(dep, test.name(), byName, planned, plan);
+                }
+            }
+        }
+        // Re-check after resolving dependencies (defensive; a well-formed, acyclic graph cannot have
+        // scheduled this test while resolving its own dependencies).
+        if (planned.add(test.name())) {
+            String label = dependentName == null ? test.name() : test.name() + " (dependency of " + dependentName + ")";
+            plan.add(new ExecutionStep(test, label));
+        }
+    }
+
+    /**
+     * Executes one {@link ExecutionStep}: fires its {@link TestProgressEvent}s, runs its lifecycle hooks
+     * (subject to the transient/skip rules below), sends its request, evaluates assertions, appends its
+     * {@link TestCaseResult} to {@code results}, and returns the terminal {@link TestOutcome}.
+     *
+     * <p>Ordering within a step:
+     *
+     * <ol>
+     *   <li><b>Failure propagation</b> — if any {@code depends-on} dependency already ended {@link
+     *       TestResult#FAILED} or {@link TestResult#ERROR} (looked up in {@code outcomes}), this test is
+     *       recorded {@code FAILED} with {@code "Parent test '<dep>' failed with error <parent_error>"}
+     *       and neither hooks nor request run.
+     *   <li><b>before-each hooks</b> — run only when the test is neither skipped nor {@link
+     *       TestCase#transientCase() transient}. A transient test fires no per-test hooks: those belong
+     *       to the dependent test that triggered it. A blocking before-each failure records {@code ERROR}
+     *       and skips the request and after-each.
+     *   <li><b>request + assertions + saved-session capture</b> via {@link #executeSingleTest}.
+     *   <li><b>after-each hooks</b> — same transient/skip gate as before-each.
+     * </ol>
+     *
+     * @param step the planned execution (test + display label)
+     * @param rowIndex the plan row index, used as the progress-event {@code uniqueId}/{@code testIndex}
+     * @param restClients the configured clients for this suite run, keyed by id
+     * @param defaultRestClient the default client
+     * @param testSuite the loaded suite (template content, rest-client configs)
+     * @param suiteDir the suite file's directory, or {@code null}
+     * @param configMap the suite-level variable namespaces
+     * @param sessionVars the suite-wide mutable {@code session} namespace
+     * @param outcomes per-test-name outcomes recorded so far (read for dependency-failure propagation)
+     * @param beforeEachHooks the suite's {@code before-each} hooks
+     * @param afterEachHooks the suite's {@code after-each} hooks
+     * @param hookCtx the run-level hook invocation context
+     * @param asyncHandles the async-hook lifecycle handle for this run
+     * @param listener the progress listener
+     * @param results the accumulating result list (mutated: exactly one row appended)
+     * @return the terminal outcome of this step, keyed later by the caller under the test's name
+     */
+    private TestOutcome executePlanStep(
+            ExecutionStep step,
+            int rowIndex,
+            Map<String, RestClient> restClients,
+            RestClient defaultRestClient,
+            TestSuite testSuite,
+            @Nullable Path suiteDir,
+            Map<String, Map<String, String>> configMap,
+            Map<String, String> sessionVars,
+            Map<String, TestOutcome> outcomes,
+            List<Hook> beforeEachHooks,
+            List<Hook> afterEachHooks,
+            HookRunner.HookInvocationContext hookCtx,
+            AsyncHookHandles asyncHandles,
+            TestProgressListener listener,
+            List<TestCaseResult> results) {
+        TestCase config = step.test();
+        String label = step.label();
+        String uniqueId = String.valueOf(rowIndex);
+        listener.onProgress(new TestProgressEvent.TestStarted(uniqueId, rowIndex, label));
+        long testStart = System.currentTimeMillis();
+
+        boolean skipped = config.skip() != null && !config.skip().isBlank();
+
+        // 1. Failure propagation: a dependent inherits the first failed/errored dependency's failure and
+        // its own request is never sent. Dependencies always precede dependents in the plan, so their
+        // outcomes are already recorded here.
+        if (config.dependsOn() != null) {
+            for (String depName : config.dependsOn()) {
+                TestOutcome depOutcome = outcomes.get(depName);
+                if (depOutcome != null
+                        && (depOutcome.result() == TestResult.FAILED || depOutcome.result() == TestResult.ERROR)) {
+                    long durationMs = System.currentTimeMillis() - testStart;
+                    String msg = "Parent test '" + depName + "' failed with error " + depOutcome.errorMessage();
+                    List<AssertionFailure> failure = List.of(new AssertionFailure(msg, null, null, null));
+                    results.add(new TestCaseResult(label, TestResult.FAILED, 0, failure, null, null, null));
+                    listener.onProgress(new TestProgressEvent.TestCompleted(
+                            uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, 0, failure));
+                    log.debug("Test case '{}' failed: dependency '{}' failed: {}", config.name(), depName, msg);
+                    return new TestOutcome(TestResult.FAILED, msg);
+                }
+            }
+        }
+
+        // Per-test hooks fire only for a non-skipped, non-transient test. A transient test's before/after
+        // -each hooks belong to the dependent test that triggered it, so they are suppressed here.
+        boolean runHooks = !skipped && !config.transientCase();
+
+        // 2. before-each runs before the request is sent. A blocking failure marks this test an error and
+        // skips both the request and after-each; remaining tests still run.
+        if (runHooks && !beforeEachHooks.isEmpty()) {
+            HookRunner.PerTestData beforeData = beforeEachPerTest(testSuite, config);
+            HookRunner.HookPhaseOutcome be = hookRunner.runPhase(
+                    HookPhase.BEFORE_EACH, beforeEachHooks, hookCtx, beforeData, null, listener, asyncHandles);
+            if (!be.allSucceeded()) {
+                long durationMs = System.currentTimeMillis() - testStart;
+                String msg = be.firstFailureMessage() != null
+                        ? be.firstFailureMessage()
+                        : "before-each hook returned non-zero status";
+                List<AssertionFailure> failure = List.of(new AssertionFailure(msg, null, null, null));
+                results.add(new TestCaseResult(label, TestResult.ERROR, 0, failure, msg, null, null));
+                listener.onProgress(new TestProgressEvent.TestCompleted(
+                        uniqueId, rowIndex, label, TestStatus.ERROR, durationMs, 0, failure));
+                log.debug("Test case '{}' errored: before-each hook failed: {}", config.name(), msg);
+                return new TestOutcome(TestResult.ERROR, msg);
+            }
+        }
+
+        // Single-element holders written by the capture callbacks inside executeSingleTest and read by
+        // the catch branches below. Safe because they are created fresh per step and the callbacks fire
+        // synchronously on this thread.
+        @Nullable ExecutedRequestInfo[] capturedRequest = new ExecutedRequestInfo[1];
+        @Nullable ApiResponse[] capturedResponse = new ApiResponse[1];
+
+        // 3. request + assertions + saved-session capture.
+        TestOutcome outcome;
+        try {
+            executeSingleTest(
+                    restClients,
+                    defaultRestClient,
+                    testSuite,
+                    config,
+                    rowIndex,
+                    suiteDir,
+                    configMap,
+                    sessionVars,
+                    info -> capturedRequest[0] = info,
+                    resp -> capturedResponse[0] = resp);
+            long durationMs = System.currentTimeMillis() - testStart;
+            int totalAssertions = config.assertions().size();
+            results.add(new TestCaseResult(
+                    label,
+                    TestResult.PASSED,
+                    totalAssertions,
+                    List.of(),
+                    null,
+                    capturedRequest[0],
+                    capturedResponse[0]));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    uniqueId, rowIndex, label, TestStatus.PASS, durationMs, totalAssertions, List.of()));
+            outcome = new TestOutcome(TestResult.PASSED, null);
+        } catch (SkipTestException e) {
+            long durationMs = System.currentTimeMillis() - testStart;
+            results.add(new TestCaseResult(label, TestResult.SKIPPED, 0, List.of(), e.getMessage(), null, null));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    uniqueId, rowIndex, label, TestStatus.SKIP, durationMs, 0, List.of()));
+            log.debug("Test case '{}' skipped: {}", config.name(), e.getMessage());
+            outcome = new TestOutcome(TestResult.SKIPPED, null);
+        } catch (SessionCaptureException e) {
+            long durationMs = System.currentTimeMillis() - testStart;
+            List<AssertionFailure> failure = List.of(new AssertionFailure(e.getMessage(), null, null, null));
+            results.add(new TestCaseResult(
+                    label, TestResult.FAILED, 0, failure, null, capturedRequest[0], capturedResponse[0]));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, 0, failure));
+            log.debug("Test case '{}' failed: session capture error: {}", config.name(), e.getMessage());
+            outcome = new TestOutcome(TestResult.FAILED, e.getMessage());
+        } catch (AssertionFailuresException e) {
+            long durationMs = System.currentTimeMillis() - testStart;
+            List<AssertionFailure> failures = e.failures();
+            int totalAssertions = config.assertions().size();
+            int passedAssertions = totalAssertions - failures.size();
+            results.add(new TestCaseResult(
+                    label,
+                    TestResult.FAILED,
+                    passedAssertions,
+                    failures,
+                    null,
+                    capturedRequest[0],
+                    capturedResponse[0]));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, totalAssertions, failures));
+            log.debug("Test case '{}' failed with {} assertion failure(s)", config.name(), failures.size());
+            outcome = new TestOutcome(TestResult.FAILED, firstFailureMessage(failures));
+        } catch (Throwable e) {
+            long durationMs = System.currentTimeMillis() - testStart;
+            List<AssertionFailure> failure = List.of(new AssertionFailure(e.getMessage(), null, null, null));
+            results.add(new TestCaseResult(
+                    label, TestResult.ERROR, 0, failure, null, capturedRequest[0], capturedResponse[0]));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    uniqueId, rowIndex, label, TestStatus.ERROR, durationMs, 0, failure));
+            log.error("Test case '{}' errored: {}", config.name(), e.getMessage(), e);
+            outcome = new TestOutcome(TestResult.ERROR, e.getMessage());
+        }
+
+        // 4. after-each runs after this test's assertions complete (same transient/skip gate).
+        if (runHooks && !afterEachHooks.isEmpty()) {
+            HookRunner.PerTestData afterData =
+                    afterEachPerTest(testSuite, config, capturedRequest[0], outcome.result());
+            hookRunner.runPhase(HookPhase.AFTER_EACH, afterEachHooks, hookCtx, afterData, null, listener, asyncHandles);
+        }
+
+        return outcome;
+    }
+
+    /**
+     * Builds the concise failure message stored on a failed test's {@link TestOutcome} for dependency
+     * propagation, using the first collected assertion failure (its {@code error} when present, else its
+     * {@code description}).
+     *
+     * @param failures the non-empty list of assertion failures; an empty list yields a generic message
+     * @return a short human-readable failure message
+     */
+    private static String firstFailureMessage(List<AssertionFailure> failures) {
+        if (failures.isEmpty()) {
+            return "assertion failed";
+        }
+        AssertionFailure first = failures.get(0);
+        return first.error() != null ? first.error() : first.description();
     }
 
     /**
@@ -503,8 +727,8 @@ public class PureJavaTestEngine implements TestEngine {
      * are resolved.
      * The resolved {@link TestCase} is then located in the re-parsed suite by matching
      * {@link TestCase#name()} rather than by position index. This is necessary because
-     * when a tag filter is active the index {@code i} refers to a position in the
-     * filtered list, while {@code templateContent} still holds the full original YAML;
+     * {@code rawConfig} originates from the (possibly filtered, possibly dependency-reordered)
+     * execution plan, while {@code templateContent} still holds the full original YAML;
      * looking up by name is always correct because
      * {@link io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator}
      * guarantees unique names.
@@ -521,8 +745,9 @@ public class PureJavaTestEngine implements TestEngine {
      *                          selects an unknown one
      * @param testSuite  the loaded test suite containing the raw YAML template and
      *                   test cases
-     * @param i          zero-based index of the test case to execute within
-     *                   {@code testSuite.tests()}
+     * @param rawConfig  the raw (pre-template-resolution) test case to execute, taken from the
+     *                   execution plan
+     * @param rowIndex   the plan row index of this execution, used only for log correlation
      * @param suiteDir   the directory of the suite file, or {@code null} if
      *                   unavailable
      * @param configMap      suite-level variable namespaces ({@code cli}, {@code env}, {@code
@@ -546,7 +771,8 @@ public class PureJavaTestEngine implements TestEngine {
             Map<String, RestClient> restClients,
             RestClient defaultRestClient,
             TestSuite testSuite,
-            int i,
+            TestCase rawConfig,
+            int rowIndex,
             @Nullable Path suiteDir,
             Map<String, Map<String, String>> configMap,
             Map<String, String> sessionVars,
@@ -554,19 +780,18 @@ public class PureJavaTestEngine implements TestEngine {
             Consumer<ApiResponse> responseCapture)
             throws IOException {
 
-        TestCase rawConfig = testSuite.tests().get(i);
         if (rawConfig.skip() != null && !rawConfig.skip().isBlank()) {
             throw new SkipTestException(rawConfig.skip());
         }
         log.debug(
                 "Test [{}] '{}': beginning execution, raw request {} {}",
-                i,
+                rowIndex,
                 rawConfig.name(),
                 rawConfig.request().method(),
                 rawConfig.request().url());
 
         Map<String, String> testVariables = Objects.requireNonNullElse(rawConfig.variables(), Map.of());
-        log.debug("Test [{}] '{}': {} test-level variable(s) found", i, rawConfig.name(), testVariables.size());
+        log.debug("Test [{}] '{}': {} test-level variable(s) found", rowIndex, rawConfig.name(), testVariables.size());
 
         Map<String, Map<String, String>> mutableConfigMap = new LinkedHashMap<>(configMap);
         mutableConfigMap.put("test", testVariables);
@@ -583,17 +808,17 @@ public class PureJavaTestEngine implements TestEngine {
         if (testSuite.templateContent() != null && (!testVariables.isEmpty() || !sessionVars.isEmpty())) {
             log.debug(
                     "Test [{}] '{}': re-parsing template with {} test variable(s)",
-                    i,
+                    rowIndex,
                     rawConfig.name(),
                     testVariables.size());
             String resolvedYaml = FileLoader.parseFile(testSuite.templateContent(), testConfigMap);
             TestSuite resolvedSuite = yamlMapper.readValue(resolvedYaml, TestSuite.class);
-            // Look up the resolved test case by name rather than by index.
-            // When the suite has been filtered (e.g. by --tag), the index i refers to a
-            // position in the filtered list, while templateContent still contains the full
-            // original YAML.  Using get(i) on the re-parsed (unfiltered) suite would fetch
-            // the wrong test case; a name-based lookup is always correct because
-            // TestSuiteValidator guarantees unique names.
+            // Look up the resolved test case by name rather than by position.
+            // rawConfig comes from the execution plan (filtered and/or dependency-reordered),
+            // while templateContent still contains the full original YAML. A positional lookup
+            // on the re-parsed (unfiltered, file-ordered) suite could fetch the wrong test case;
+            // a name-based lookup is always correct because TestSuiteValidator guarantees unique
+            // names.
             String targetName = rawConfig.name();
             config = resolvedSuite.tests().stream()
                     .filter(tc -> targetName.equals(tc.name()))
@@ -601,14 +826,14 @@ public class PureJavaTestEngine implements TestEngine {
                     .orElse(rawConfig);
             log.debug(
                     "Test [{}] '{}': resolved request {} {}",
-                    i,
+                    rowIndex,
                     config.name(),
                     config.request().method(),
                     config.request().url());
         } else {
             log.debug(
                     "Test [{}] '{}': skipping template re-parse ({})",
-                    i,
+                    rowIndex,
                     rawConfig.name(),
                     testSuite.templateContent() == null ? "no templateContent" : "no test variables");
             config = rawConfig;
@@ -616,7 +841,7 @@ public class PureJavaTestEngine implements TestEngine {
 
         log.debug(
                 "Test [{}] '{}': sending {} {}",
-                i,
+                rowIndex,
                 config.name(),
                 config.request().method(),
                 config.request().url());
@@ -646,7 +871,7 @@ public class PureJavaTestEngine implements TestEngine {
 
         log.debug(
                 "Test [{}] '{}': evaluating {} assertion(s)",
-                i,
+                rowIndex,
                 config.name(),
                 config.assertions().size());
 
@@ -655,7 +880,7 @@ public class PureJavaTestEngine implements TestEngine {
         boolean hasCaptures =
                 config.savedSession() != null && !config.savedSession().isEmpty();
         ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions(), hasCaptures);
-        log.debug("Test [{}] '{}': received status {}", i, config.name(), apiResponse.statusCode());
+        log.debug("Test [{}] '{}': received status {}", rowIndex, config.name(), apiResponse.statusCode());
 
         responseCapture.accept(apiResponse);
 

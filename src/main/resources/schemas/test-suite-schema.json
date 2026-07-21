@@ -198,6 +198,51 @@
           "items": {
             "$ref": "#/$defs/Assertion"
           }
+        },
+        "saved-session": {
+          "type": "array",
+          "description": "Response-value captures stored into the suite-wide 'session' namespace for use by later tests. Captured values must be primitives (string/integer/double/boolean); objects and arrays are not allowed.",
+          "items": {"$ref": "#/$defs/SavedSession"}
+        },
+        "depends-on": {
+          "type": "array",
+          "description": "Names of other tests that must run before this test. Dependencies run in the listed order, resolved transitively, and each depended-on test runs at most once per suite run (its result and captured session values are reused by every dependent).",
+          "items": {"type": "string"}
+        },
+        "transient": {
+          "type": "boolean",
+          "description": "When true, this test runs only as another test's dependency and never as a standalone test. Transient tests do not fire before-each or after-each hooks — those fire for the dependent test instead.",
+          "default": false
+        }
+      }
+    },
+    "SavedSession": {
+      "type": "object",
+      "description": "A single response-value capture stored into the 'session' namespace.",
+      "required": ["name", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Key under which the extracted value is stored in the 'session' namespace (referenced later as [[${session.<name>}]]). Uniqueness across tests is the user's responsibility; duplicates are overwritten last-write-wins."
+        },
+        "path": {
+          "type": "string",
+          "description": "A response.* path expression used to extract a primitive value from this test's response (e.g. response.statusCode, response.headers.etag, response.body.json.$.id)."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["string", "integer", "double", "boolean"],
+          "description": "Optional coercion of the extracted primitive to this type. A value that cannot be converted fails the test. When omitted, the value is stored as extracted."
+        },
+        "default": {
+          "type": "string",
+          "description": "Fallback value used when the path extracts nothing. When set, the capture always resolves and 'required' has no effect."
+        },
+        "required": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true and no 'default' is set, a missing/unextractable value fails the test."
         }
       }
     },
