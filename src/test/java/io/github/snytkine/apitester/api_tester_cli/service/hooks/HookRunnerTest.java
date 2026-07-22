@@ -155,7 +155,7 @@ class HookRunnerTest {
                 runner.buildScalarArgs(HookPhase.AFTER_ALL, hook, "after-all-1", withReport, null, summary);
         assertThat(args)
                 .containsEntry("report_dir", "/tmp/reports")
-                .containsEntry("report_path", "/tmp/reports/r.html")
+                .containsEntry("report_path", Path.of("/tmp/reports/r.html").toString())
                 .containsEntry("tag", "smoke")
                 .containsEntry("env_file", Path.of("/env/.env").toString())
                 .containsEntry("tests_total", "4")
