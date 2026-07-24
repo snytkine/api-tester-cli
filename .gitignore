@@ -45,6 +45,10 @@ api-tester-cli
 *.pem
 *.p12
 *.jks
+# Self-signed, non-secret SSL test fixtures are intentionally tracked.
+!src/test/resources/ssl/*.pem
+!src/test/resources/ssl/*.p12
+!src/test/resources/ssl/*.jks
 
 # ----------------------------------------
 # IntelliJ IDEA

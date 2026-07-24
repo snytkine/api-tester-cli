@@ -104,4 +104,21 @@ class RestClientConfigTest {
 
         assertThat(result.auth()).isNull();
     }
+
+    @Test
+    void withDefaultsPassesThroughSslWhenPresent() {
+        SslConfig ssl = new SslConfig(true, null, null);
+        RestClientConfig raw = new RestClientConfig(null, null, null, null, null, ssl);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.ssl()).isEqualTo(ssl);
+    }
+
+    @Test
+    void backwardsCompatibleConstructorLeavesSslNull() {
+        RestClientConfig raw = new RestClientConfig("id", "https://api.example.com", 1000, null, null);
+
+        assertThat(raw.ssl()).isNull();
+    }
 }

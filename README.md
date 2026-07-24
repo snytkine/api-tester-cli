@@ -18,7 +18,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 ## What It Does
 
 - Executes HTTP test suites described in YAML
-- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, and HTTP Basic Auth
+- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, HTTP Basic Auth, and custom SSL/TLS (self-signed certs, custom truststore, and mutual-TLS client certificates)
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
@@ -199,6 +199,7 @@ Each client supports:
 - `connect-timeout`: timeout in milliseconds; defaults to `30000`
 - `headers`: default headers added to every request using the client
 - `auth`: optional HTTP Basic Auth (client-level default)
+- `ssl`: optional custom SSL/TLS settings — skip certificate validation, a custom truststore, and/or a client keystore for mutual TLS (see below)
 
 Per-test headers override same-named client-level headers. Per-test authentication and explicit `Authorization` headers in request headers override client-level authentication. The per-request `rest-client` selector is ignored (a warning is logged) when the singular `rest-client` form is used.
 
@@ -238,6 +239,52 @@ Precedence (lowest to highest):
 1. Client-level `rest-client.auth` (applied as default to all requests using the client)
 2. Per-request `request.auth` (overrides client-level)
 3. Explicit `Authorization` header in `request.headers` (always wins)
+
+#### Custom SSL/TLS certificates
+
+Each client may declare an `ssl` block to test HTTPS endpoints that use self-signed
+certificates, a private certificate authority, or that require a client certificate
+(mutual TLS). All certificate/key file paths may be **absolute** or **relative to the
+test-suite file's directory**.
+
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
+  ssl:
+    # Trust a self-signed server certificate or a private CA:
+    truststore:
+      certificate: "certs/ca.pem"
+    # Present a client certificate for mutual TLS (mTLS):
+    keystore:
+      certificate: "certs/client.pem"
+      private-key: "certs/client.key"           # PKCS#8 PEM (.key)
+      password: "[[${env.KEYSTORE_PASSWORD}]]"  # only for an encrypted key
+```
+
+`ssl` properties:
+
+- `skip-certificate-validation`: when `true`, disable certificate **and** hostname
+  verification (allows self-signed certificates). When set, `truststore` and `keystore`
+  are ignored. Defaults to `false`. Use only against trusted, non-production endpoints.
+- `truststore.certificate`: path to a PEM certificate to trust (in addition to the JVM's
+  default trust anchors).
+- `keystore.certificate`: path to the PEM client certificate presented during the TLS
+  handshake.
+- `keystore.private-key`: optional path to the client's **PKCS#8** private key
+  (`-----BEGIN PRIVATE KEY-----` or, when encrypted, `-----BEGIN ENCRYPTED PRIVATE KEY-----`).
+  Required for the client to actually authenticate via mTLS. Legacy PKCS#1 keys
+  (`-----BEGIN RSA PRIVATE KEY-----`) are rejected — convert them with
+  `openssl pkcs8 -topk8 -in key.pem -out key-pkcs8.pem`.
+- `keystore.password`: passphrase that decrypts an encrypted private key. Only allowed
+  when `private-key` is set.
+
+**Best Practice:** never commit passwords. Keep `keystore.password` in a `.env` file or
+environment variable and reference it with `[[${env.KEYSTORE_PASSWORD}]]` so the suite
+file can be shared or committed to git safely.
+
+Invalid SSL configuration (missing/unreadable files, a password without a private key, a
+wrong key password, or an unsupported key format) fails the run up front, before any test
+executes.
 
 ### Test cases
 

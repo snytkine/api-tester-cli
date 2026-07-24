@@ -55,6 +55,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.hooks.ScriptHookExecu
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.WebHookExecutor;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
+import io.github.snytkine.apitester.api_tester_cli.util.SslContextFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -208,10 +209,10 @@ public class PureJavaTestEngine implements TestEngine {
     @Override
     public TestRunResult runConfigurationSuite(
             TestSuite testSuite, SuiteRunContext context, TestProgressListener listener) {
-        Map<String, RestClient> restClients = new LinkedHashMap<>();
-        testSuite.restClientsById().forEach((id, config) -> restClients.put(id, buildRestClient(config)));
-        RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
+        Map<String, RestClient> restClients = new LinkedHashMap<>();
+        testSuite.restClientsById().forEach((id, config) -> restClients.put(id, buildRestClient(config, suiteDir)));
+        RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
 
         // Suite-wide, mutable 'session' namespace. Values are captured from test responses (via
@@ -1016,30 +1017,45 @@ public class PureJavaTestEngine implements TestEngine {
      * <p>
      * If {@code config} carries a non-blank {@code baseUrl} it is set as the
      * client's default base
-     * URL. When a {@code connectTimeout} is present AND the injected factory is a
-     * {@link
+     * URL. When a {@code connectTimeout} and/or a custom {@code ssl} configuration
+     * is present AND the injected factory is a {@link
      * org.springframework.http.client.JdkClientHttpRequestFactory}, a new
-     * JDK-backed factory is
-     * created with that timeout; non-JDK factories (e.g. stub factories used in
-     * tests) are never
-     * replaced. When {@code headers} is non-null each entry is registered as a
+     * JDK-backed factory is created whose {@link java.net.http.HttpClient} carries
+     * both the connect timeout and the custom {@link javax.net.ssl.SSLContext};
+     * non-JDK factories (e.g. stub factories used in tests) are never replaced.
+     * When {@code headers} is non-null each entry is registered as a
      * default header applied
      * to every request built with this client.
      *
-     * @param config the suite-level REST client settings
+     * @param config   the suite-level REST client settings
+     * @param suiteDir the directory of the suite file, used to resolve relative
+     *                 SSL certificate/key paths; may be {@code null}
      * @return a fully configured {@link RestClient} ready for use
      */
-    private RestClient buildRestClient(RestClientConfig config) {
+    private RestClient buildRestClient(
+            RestClientConfig config, java.nio.file.@org.jspecify.annotations.Nullable Path suiteDir) {
         RestClient.Builder builder = RestClient.builder().requestFactory(requestFactory);
         if (StringUtils.hasText(config.baseUrl())) {
             builder.baseUrl(config.baseUrl());
         }
-        if (config.connectTimeout() != null
-                && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory) {
-            builder.requestFactory(new org.springframework.http.client.JdkClientHttpRequestFactory(
-                    java.net.http.HttpClient.newBuilder()
-                            .connectTimeout(Duration.ofMillis(config.connectTimeout()))
-                            .build()));
+        javax.net.ssl.SSLContext sslContext = SslContextFactory.create(config.ssl(), suiteDir);
+        boolean needsCustomHttpClient = (config.connectTimeout() != null || sslContext != null)
+                && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory;
+        if (needsCustomHttpClient) {
+            // Mirror the defaults of the application's default factory (HttpClientConfig) so that
+            // enabling a connect timeout or custom SSL does not silently change redirect/protocol
+            // behavior.
+            java.net.http.HttpClient.Builder httpClientBuilder = java.net.http.HttpClient.newBuilder()
+                    .version(java.net.http.HttpClient.Version.HTTP_2)
+                    .followRedirects(java.net.http.HttpClient.Redirect.NORMAL);
+            if (config.connectTimeout() != null) {
+                httpClientBuilder.connectTimeout(Duration.ofMillis(config.connectTimeout()));
+            }
+            if (sslContext != null) {
+                httpClientBuilder.sslContext(sslContext);
+            }
+            builder.requestFactory(
+                    new org.springframework.http.client.JdkClientHttpRequestFactory(httpClientBuilder.build()));
         }
         if (config.headers() != null) {
             config.headers().forEach((name, value) -> builder.defaultHeader(name, value));

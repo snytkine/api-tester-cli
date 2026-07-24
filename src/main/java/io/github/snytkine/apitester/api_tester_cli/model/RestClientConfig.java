@@ -34,8 +34,8 @@ import org.jspecify.annotations.Nullable;
  * single-entry {@code rest-clients} list that omits it.
  *
  * <p>Use {@link #withDefaults(RestClientConfig)} to obtain an instance where {@code baseUrl} and
- * {@code connectTimeout} are guaranteed non-null. {@code id}, {@code headers} and {@code auth} have
- * no defaults and remain {@code null} when absent from the YAML.
+ * {@code connectTimeout} are guaranteed non-null. {@code id}, {@code headers}, {@code auth} and
+ * {@code ssl} have no defaults and remain {@code null} when absent from the YAML.
  */
 public record RestClientConfig(
         /**
@@ -67,7 +67,15 @@ public record RestClientConfig(
          * {@code Authorization} headers take precedence. May be {@code null} when the {@code auth}
          * key is absent from the YAML.
          */
-        @JsonProperty("auth") @Nullable RequestAuth auth) {
+        @JsonProperty("auth") @Nullable RequestAuth auth,
+
+        /**
+         * Optional custom SSL/TLS settings (skip validation, custom truststore, and/or client
+         * keystore for mTLS) applied when building this client's {@link
+         * org.springframework.web.client.RestClient}. May be {@code null} when the {@code ssl} key is
+         * absent from the YAML.
+         */
+        @JsonProperty("ssl") @Nullable SslConfig ssl) {
 
     /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
     public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
@@ -76,14 +84,34 @@ public record RestClientConfig(
     public static final String DEFAULT_BASE_URL = "";
 
     /**
+     * Backwards-compatible constructor for a config with no {@code ssl} block, delegating to the
+     * canonical constructor with {@code ssl = null}. Retained so existing call sites (and tests) that
+     * predate the SSL feature continue to compile unchanged.
+     *
+     * @param id optional client id
+     * @param baseUrl base URL prepended to relative request URLs
+     * @param connectTimeout connection timeout in milliseconds
+     * @param headers optional default headers
+     * @param auth optional default authentication
+     */
+    public RestClientConfig(
+            @Nullable String id,
+            String baseUrl,
+            Integer connectTimeout,
+            @Nullable Map<String, String> headers,
+            @Nullable RequestAuth auth) {
+        this(id, baseUrl, connectTimeout, headers, auth, null);
+    }
+
+    /**
      * Returns a {@link RestClientConfig} with {@code baseUrl} and {@code connectTimeout} guaranteed
      * non-null.
      *
      * <p>If {@code raw} is {@code null}, a fully-defaulted instance is returned. Otherwise the
      * non-null fields of {@code raw} are preserved and only the missing scalar fields are filled in
-     * with their defaults. {@code id}, {@code headers} and {@code auth} are always passed through
-     * as-is: they are {@code null} when the respective keys were absent from the YAML and non-null
-     * otherwise.
+     * with their defaults. {@code id}, {@code headers}, {@code auth} and {@code ssl} are always
+     * passed through as-is: they are {@code null} when the respective keys were absent from the YAML
+     * and non-null otherwise.
      *
      * @param raw the config parsed from YAML, or {@code null} if the key was absent
      * @return a non-null {@link RestClientConfig} with {@code baseUrl} and {@code connectTimeout}
@@ -91,13 +119,14 @@ public record RestClientConfig(
      */
     public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
         if (raw == null) {
-            return new RestClientConfig(null, DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null, null);
+            return new RestClientConfig(null, DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null, null, null);
         }
         return new RestClientConfig(
                 raw.id(),
                 raw.baseUrl() != null ? raw.baseUrl() : DEFAULT_BASE_URL,
                 raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS,
                 raw.headers(),
-                raw.auth());
+                raw.auth(),
+                raw.ssl());
     }
 }

@@ -17,15 +17,20 @@
 package io.github.snytkine.apitester.api_tester_cli.service;
 
 import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
+import io.github.snytkine.apitester.api_tester_cli.model.KeystoreConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.RestClientConfig;
+import io.github.snytkine.apitester.api_tester_cli.model.SslConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.TestCase;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
+import io.github.snytkine.apitester.api_tester_cli.model.TruststoreConfig;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.ScriptHook;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.WebHook;
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.ScriptHookExecutor;
+import io.github.snytkine.apitester.api_tester_cli.util.SslConfigurationException;
+import io.github.snytkine.apitester.api_tester_cli.util.SslContextFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -220,6 +225,116 @@ public class TestSuiteValidator {
             }
         }
         return errors;
+    }
+
+    /**
+     * Validates the custom SSL/TLS configuration ({@code ssl}) of every rest-client in the suite,
+     * failing fast before any test runs.
+     *
+     * <p>For each client that declares an {@code ssl} block (and does not skip certificate
+     * validation, which makes truststore/keystore irrelevant), the following are enforced:
+     *
+     * <ul>
+     *   <li>{@code truststore.certificate}, {@code keystore.certificate} and, when present, {@code
+     *       keystore.private-key} must reference files that exist and are readable (paths resolved
+     *       absolute or relative to the suite directory);
+     *   <li>{@code keystore.password} may only be set when a non-blank {@code keystore.private-key}
+     *       is also present;
+     *   <li>the configuration must produce a usable {@link javax.net.ssl.SSLContext} — this catches
+     *       corrupt certificates, unsupported private-key formats and incorrect key passwords.
+     * </ul>
+     *
+     * <p>Certificate/key paths are validated against their template-resolved values, so this must
+     * run after {@code TestSuiteLoader} has processed the suite.
+     *
+     * @param suite the fully-loaded, template-resolved test suite; must not be {@code null}
+     * @return a non-null, possibly-empty list of error messages; empty means every SSL block is valid
+     */
+    public List<String> validateSsl(TestSuite suite) {
+        Path suiteDir = suite.filePath() != null ? suite.filePath().getParent() : null;
+        List<String> errors = new ArrayList<>();
+        for (Map.Entry<String, RestClientConfig> entry : suite.restClientsById().entrySet()) {
+            SslConfig ssl = entry.getValue().ssl();
+            if (ssl == null) {
+                continue;
+            }
+            String where = "rest-client '" + entry.getKey() + "'";
+            validateSslClient(where, ssl, suiteDir, errors);
+        }
+        return errors;
+    }
+
+    /**
+     * Validates the {@code ssl} block of a single rest-client.
+     *
+     * <p>When {@code skip-certificate-validation} is enabled, no file validation is performed because
+     * the truststore/keystore are ignored. Otherwise structural file checks run first; only when they
+     * pass is a full {@link javax.net.ssl.SSLContext} built to surface parse/password errors, so a
+     * missing file is never also reported as a build failure.
+     *
+     * @param where a location label for messages (e.g. {@code rest-client 'default'})
+     * @param ssl the client's SSL configuration
+     * @param suiteDir the suite directory for resolving relative paths, or {@code null}
+     * @param errors error accumulator (mutated)
+     */
+    private static void validateSslClient(String where, SslConfig ssl, Path suiteDir, List<String> errors) {
+        if (ssl.skip()) {
+            return;
+        }
+        int before = errors.size();
+        TruststoreConfig truststore = ssl.truststore();
+        if (truststore != null) {
+            validateSslFile(where + " ssl.truststore.certificate", truststore.certificate(), suiteDir, true, errors);
+        }
+        KeystoreConfig keystore = ssl.keystore();
+        if (keystore != null) {
+            validateSslFile(where + " ssl.keystore.certificate", keystore.certificate(), suiteDir, true, errors);
+            boolean hasPrivateKey =
+                    keystore.privateKey() != null && !keystore.privateKey().isBlank();
+            if (hasPrivateKey) {
+                validateSslFile(where + " ssl.keystore.private-key", keystore.privateKey(), suiteDir, true, errors);
+            }
+            if (keystore.password() != null && !hasPrivateKey) {
+                errors.add(where + ": ssl.keystore.password is only allowed when a non-blank"
+                        + " ssl.keystore.private-key is also configured");
+            }
+        }
+
+        // Only attempt to build the context when the structural checks for this client passed, so
+        // deeper parse/password errors are reported without duplicating a missing-file message.
+        if (errors.size() == before) {
+            try {
+                SslContextFactory.create(ssl, suiteDir);
+            } catch (SslConfigurationException e) {
+                errors.add(where + ": " + e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Validates that a configured SSL file path is present (when required), resolvable, exists and is
+     * readable.
+     *
+     * @param label a property label for messages
+     * @param rawPath the configured path value, or {@code null}
+     * @param suiteDir the suite directory for resolving relative paths, or {@code null}
+     * @param required whether a {@code null}/blank path is itself an error
+     * @param errors error accumulator (mutated)
+     */
+    private static void validateSslFile(
+            String label, String rawPath, Path suiteDir, boolean required, List<String> errors) {
+        if (rawPath == null || rawPath.isBlank()) {
+            if (required) {
+                errors.add(label + " is required");
+            }
+            return;
+        }
+        Path resolved = SslContextFactory.resolve(suiteDir, rawPath);
+        if (!Files.exists(resolved)) {
+            errors.add(label + " file does not exist: " + resolved);
+        } else if (!Files.isReadable(resolved)) {
+            errors.add(label + " file is not readable: " + resolved);
+        }
     }
 
     /**
