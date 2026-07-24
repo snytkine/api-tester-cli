@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpRequest;
@@ -56,6 +57,9 @@ public class StubClientHttpRequestFactory implements ClientHttpRequestFactory {
      * @param body response body text
      * @param contentType {@code Content-Type} header value for the response
      * @param delayMs milliseconds to sleep before returning the response; {@code 0} means no delay
+     * @param ioFailureMessage when non-null, the request fails with an {@link IOException} carrying
+     *     this message instead of returning a response; {@code status}, {@code body}, {@code
+     *     contentType} and {@code delayMs} are then ignored
      */
     public record Stub(
             Predicate<HttpMethod> methodPredicate,
@@ -63,7 +67,29 @@ public class StubClientHttpRequestFactory implements ClientHttpRequestFactory {
             int status,
             String body,
             String contentType,
-            long delayMs) {}
+            long delayMs,
+            @Nullable String ioFailureMessage) {
+
+        /**
+         * Convenience constructor for a stub that returns a response rather than failing.
+         *
+         * @param methodPredicate predicate applied to the incoming Spring {@link HttpMethod}
+         * @param uriPredicate predicate applied to the incoming {@link URI}
+         * @param status HTTP status code to return
+         * @param body response body text
+         * @param contentType {@code Content-Type} header value for the response
+         * @param delayMs milliseconds to sleep before returning the response
+         */
+        public Stub(
+                Predicate<HttpMethod> methodPredicate,
+                Predicate<URI> uriPredicate,
+                int status,
+                String body,
+                String contentType,
+                long delayMs) {
+            this(methodPredicate, uriPredicate, status, body, contentType, delayMs, null);
+        }
+    }
 
     private final List<Stub> stubs = new ArrayList<>();
 
@@ -124,6 +150,23 @@ public class StubClientHttpRequestFactory implements ClientHttpRequestFactory {
     }
 
     /**
+     * Registers a method-agnostic stub that simulates a transport failure: the request's {@code
+     * execute()} throws an {@link IOException} with {@code message} instead of returning a response,
+     * exactly as a refused connection, unknown host, or connection timeout would. Spring's {@code
+     * RestClient} wraps it in a {@code ResourceAccessException}.
+     *
+     * <p>Use this to exercise the implicit {@code base_server_response} assertion's failure path.
+     *
+     * @param uriSubstring substring that the request URI must contain
+     * @param message the {@link IOException} message the simulated transport failure carries
+     * @return {@code this} for chaining
+     */
+    public StubClientHttpRequestFactory stubIoFailure(String uriSubstring, String message) {
+        stubs.add(new Stub(m -> true, uri -> uri.toString().contains(uriSubstring), 0, "", "text/plain", 0, message));
+        return this;
+    }
+
+    /**
      * Returns a {@link ClientHttpRequest} whose {@link ClientHttpRequest#execute()} delivers the
      * first stub whose method and URI predicates match.
      *
@@ -150,6 +193,9 @@ public class StubClientHttpRequestFactory implements ClientHttpRequestFactory {
      * its own independent input stream over the body bytes.
      */
     private ClientHttpRequest buildRequest(URI uri, HttpMethod method, Stub stub) {
+        if (stub.ioFailureMessage() != null) {
+            return new FailingMockClientHttpRequest(method, uri, stub.ioFailureMessage());
+        }
         MockClientHttpResponse response =
                 new MockClientHttpResponse(stub.body().getBytes(StandardCharsets.UTF_8), stub.status());
         response.getHeaders().setContentType(MediaType.parseMediaType(stub.contentType()));
@@ -160,6 +206,26 @@ public class StubClientHttpRequestFactory implements ClientHttpRequestFactory {
         MockClientHttpRequest request = new MockClientHttpRequest(method, uri);
         request.setResponse(response);
         return request;
+    }
+
+    /**
+     * A {@link MockClientHttpRequest} subclass that throws an {@link IOException} instead of
+     * returning a response, simulating a connection that could never be established or completed.
+     * Spring's {@code RestClient} surfaces this as a {@code ResourceAccessException}.
+     */
+    private static class FailingMockClientHttpRequest extends MockClientHttpRequest {
+
+        private final String failureMessage;
+
+        FailingMockClientHttpRequest(HttpMethod method, URI uri, String failureMessage) {
+            super(method, uri);
+            this.failureMessage = failureMessage;
+        }
+
+        @Override
+        protected ClientHttpResponse executeInternal() throws IOException {
+            throw new IOException(failureMessage);
+        }
     }
 
     /**

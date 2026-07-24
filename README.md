@@ -439,6 +439,18 @@ rs --suite=/path/to/suite.yml --env-file=/path/to/staging.env
 
 Every assertion is declared inside a test case's `assertions` list. The `type` field selects the evaluator.
 
+### The implicit `base_server_response` assertion
+
+Every test case additionally carries one assertion you never declare: `base_server_response`. It asserts only that the request was dispatched and that *some* HTTP response came back before the rest-client's timeout elapsed — the status code, headers and body are irrelevant, so a `500` passes it just as a `200` does.
+
+It fails only when no response is obtained at all (connection refused, unknown host, TLS handshake failure, connection timeout). The test is then reported as **failed** — not errored — with this single failure, because none of the declared assertions could be evaluated:
+
+| Assertion | Expected | Actual |
+|---|---|---|
+| `base_server_response` | `service must respond within default timeout of 30 seconds` | `no response received: Connection refused` |
+
+The timeout in the expected text is the dispatching rest-client's `connect-timeout` in seconds (30 unless the suite overrides it). Since this assertion is always evaluated, reported assertion counts are one higher than the number declared in the YAML.
+
 | Type | Purpose | Minimal YAML example |
 |---|---|---|
 | `status_code` | Exact HTTP status match | `- type: "status_code"\n  expected: 200` |

@@ -28,6 +28,11 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
  *
  * <p>All permitted subtypes live in the same package ({@code model.assertions}) as required by the
  * Java sealed-type rules for the unnamed module.
+ *
+ * <p>{@link BaseServerResponseAssertion} is the one exception to the "listed in both places" rule:
+ * it is permitted but intentionally <em>not</em> registered in {@link JsonSubTypes}, because it is
+ * an implicit assertion injected by the engine rather than one declared in a suite file. Omitting
+ * it keeps {@code type: base_server_response} from being accepted in YAML.
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
 @JsonSubTypes({
@@ -72,6 +77,7 @@ public sealed interface Assertion
                 ArraySizeMinAssertion,
                 AssertFalseAssertion,
                 AssertTrueAssertion,
+                BaseServerResponseAssertion,
                 EndsWithAssertion,
                 GreaterThanAssertion,
                 GreaterThanOrEqualAssertion,

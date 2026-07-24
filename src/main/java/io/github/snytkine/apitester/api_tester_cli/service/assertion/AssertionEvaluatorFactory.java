@@ -28,6 +28,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMin
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertFalseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertTrueAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.BaseServerResponseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.EndsWithAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanOrEqualAssertion;
@@ -109,6 +110,7 @@ public class AssertionEvaluatorFactory {
             case ArraySizeMinAssertion a -> new ArraySizeMinAssertionEvaluator(a);
             case AssertFalseAssertion a -> new AssertFalseAssertionEvaluator(a);
             case AssertTrueAssertion a -> new AssertTrueAssertionEvaluator(a);
+            case BaseServerResponseAssertion a -> new BaseServerResponseAssertionEvaluator(a);
             case EndsWithAssertion a -> new EndsWithAssertionEvaluator(a);
             case GreaterThanAssertion a -> new GreaterThanAssertionEvaluator(a);
             case GreaterThanOrEqualAssertion a -> new GreaterThanOrEqualAssertionEvaluator(a);

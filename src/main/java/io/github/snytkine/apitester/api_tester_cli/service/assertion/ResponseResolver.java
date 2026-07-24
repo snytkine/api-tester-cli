@@ -19,6 +19,7 @@ package io.github.snytkine.apitester.api_tester_cli.service.assertion;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.BaseServerResponseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -61,14 +62,17 @@ public class ResponseResolver {
     /**
      * Determines the minimum {@link ResponseResolutionLevel} required by the given assertions.
      *
-     * <p>Returns {@link ResponseResolutionLevel#STATUS_ONLY} when every assertion is a {@link
-     * StatusCodeAssertion}; otherwise returns {@link ResponseResolutionLevel#FULL}.
+     * <p>Returns {@link ResponseResolutionLevel#STATUS_ONLY} when every assertion can be decided
+     * without reading the body — that is a {@link StatusCodeAssertion} or the implicit {@link
+     * BaseServerResponseAssertion} the engine adds to every test case; otherwise returns {@link
+     * ResponseResolutionLevel#FULL}.
      *
      * @param assertions the assertions to examine
      * @return the minimum resolution level needed
      */
     private ResponseResolutionLevel determineLevel(List<Assertion> assertions) {
-        return assertions.stream().allMatch(a -> a instanceof StatusCodeAssertion)
+        return assertions.stream()
+                        .allMatch(a -> a instanceof StatusCodeAssertion || a instanceof BaseServerResponseAssertion)
                 ? ResponseResolutionLevel.STATUS_ONLY
                 : ResponseResolutionLevel.FULL;
     }

@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 
 import io.github.snytkine.apitester.api_tester_cli.model.ApiResponse;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.BaseServerResponseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StatusCodeAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.StringMatchAssertion;
 import java.util.List;
@@ -58,6 +59,27 @@ class ResponseResolverTest {
         when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
 
         List<Assertion> assertions = List.of(new StatusCodeAssertion(200));
+        ApiResponse result = resolver.resolve(rawSpec, assertions);
+
+        assertThat(result.statusCode()).isEqualTo(200);
+        assertThat(result.body()).isNull();
+    }
+
+    @Test
+    void statusOnlyResolutionWhenOnlyImplicitBaseServerResponseAssertionPresent() {
+        when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+
+        ApiResponse result = resolver.resolve(rawSpec, List.of(new BaseServerResponseAssertion(30)));
+
+        assertThat(result.statusCode()).isEqualTo(200);
+        assertThat(result.body()).isNull();
+    }
+
+    @Test
+    void statusOnlyResolutionWhenImplicitAssertionAccompaniesStatusCodeAssertion() {
+        when(handledSpec.toBodilessEntity()).thenReturn(new ResponseEntity<>(HttpStatus.OK));
+
+        List<Assertion> assertions = List.of(new BaseServerResponseAssertion(30), new StatusCodeAssertion(200));
         ApiResponse result = resolver.resolve(rawSpec, assertions);
 
         assertThat(result.statusCode()).isEqualTo(200);
