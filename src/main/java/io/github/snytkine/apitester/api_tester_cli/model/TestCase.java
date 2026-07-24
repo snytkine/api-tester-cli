@@ -43,6 +43,11 @@ import org.jspecify.annotations.Nullable;
  * by every test that depends on it. The optional {@code transient} field, when {@code true}, makes the
  * test run <em>only</em> as another test's dependency and never as a standalone test.
  *
+ * <p>The {@code assertions} list is optional. A test that declares none is still executed and still
+ * verified, by the implicit {@code base_server_response} assertion the engine evaluates for every
+ * test — useful for a test that exists only as a {@code depends-on} parent, or one kept in the suite
+ * to be fired manually. An absent list is normalized to an empty one, never {@code null}.
+ *
  * <p>All fields are deserialized from the YAML test-suite file via Jackson.
  */
 public record TestCase(
@@ -80,7 +85,14 @@ public record TestCase(
         /** HTTP request definition (method, URL, headers, optional body). */
         Request request,
 
-        /** Ordered list of assertions to evaluate against the HTTP response. */
+        /**
+         * Ordered list of assertions to evaluate against the HTTP response. Optional in the YAML:
+         * when the {@code assertions} key is absent (or explicitly empty) this is an empty list, and
+         * the test is verified solely by the implicit {@link
+         * io.github.snytkine.apitester.api_tester_cli.model.assertions.BaseServerResponseAssertion}
+         * that the engine evaluates for every test. Never {@code null} — see the compact
+         * constructor.
+         */
         List<Assertion> assertions,
 
         /**
@@ -105,6 +117,24 @@ public record TestCase(
          * test's dependency and is never executed as a standalone test. Defaults to {@code false}.
          */
         @JsonProperty("transient") boolean transientCase) {
+
+    /**
+     * Normalizes an absent {@code assertions} list to an empty one.
+     *
+     * <p>The {@code assertions} key is optional in the suite YAML, so Jackson supplies {@code null}
+     * for a test case that declares none. Normalizing here — rather than null-checking at every call
+     * site — keeps {@link #assertions()} non-null for every construction path, including the
+     * per-test template re-parse in {@link
+     * io.github.snytkine.apitester.api_tester_cli.service.PureJavaTestEngine}. Such a test is still
+     * meaningful: the engine always evaluates the implicit {@code base_server_response} assertion, so
+     * an assertion-less test verifies that the service responded. Tests that exist only to be pulled
+     * in by {@code depends-on} (typically {@code transient} ones) commonly need nothing more.
+     *
+     * <p>Every other component is stored exactly as supplied.
+     */
+    public TestCase {
+        assertions = assertions != null ? assertions : List.of();
+    }
 
     /**
      * Backward-compatible convenience constructor for callers (and tests) that predate the {@code

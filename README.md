@@ -295,7 +295,7 @@ Each item in `tests` supports:
 - `skip`: optional skip reason; when non-blank, the test is skipped
 - `variables`: per-test variables exposed as `test.<name>`
 - `request`: required HTTP request definition
-- `assertions`: ordered list of assertions
+- `assertions`: optional ordered list of assertions; may be omitted or empty, in which case the test is verified solely by the implicit [`base_server_response`](#the-implicit-base_server_response-assertion) assertion
 - `saved-session`: optional list of response-value captures stored into the suite-wide `session` namespace (see [Chaining tests](#chaining-tests-session-capture-depends-on-and-transient))
 - `depends-on`: optional list of other test names that must run before this test
 - `transient`: optional boolean; when `true` the test runs **only** as another test's dependency, never standalone
@@ -437,7 +437,7 @@ rs --suite=/path/to/suite.yml --env-file=/path/to/staging.env
 
 ## Supported Assertions
 
-Every assertion is declared inside a test case's `assertions` list. The `type` field selects the evaluator.
+Every assertion is declared inside a test case's `assertions` list. The `type` field selects the evaluator. The list is **optional** — a test that omits it (or declares `assertions: []`) still runs and is still verified by the implicit assertion below, which is handy for a test that exists only as a `depends-on` parent or one kept in the suite to be fired manually.
 
 ### The implicit `base_server_response` assertion
 

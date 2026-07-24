@@ -205,7 +205,7 @@
     },
     "TestCase": {
       "type": "object",
-      "required": ["name", "request", "assertions"],
+      "required": ["name", "request"],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -244,8 +244,7 @@
         },
         "assertions": {
           "type": "array",
-          "description": "Assertions to evaluate against the response",
-          "minItems": 1,
+          "description": "Optional assertions to evaluate against the response. May be omitted or empty: every test also runs the implicit 'base_server_response' assertion, which passes when the service returns any response before the connect timeout.",
           "items": {
             "$ref": "#/$defs/Assertion"
           }
