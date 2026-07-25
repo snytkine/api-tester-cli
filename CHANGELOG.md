@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.0](https://github.com/snytkine/api-tester-cli/compare/v0.6.0...v0.7.0) (2026-07-25)
+
+
+### Features
+
+* add custom SSL/TLS certificate support for rest-clients ([#68](https://github.com/snytkine/api-tester-cli/issues/68)) ([19a7820](https://github.com/snytkine/api-tester-cli/commit/19a78207e4554b68c7bfd57d81424a6184521592))
+* add implicit base_server_response assertion ([#69](https://github.com/snytkine/api-tester-cli/issues/69)) ([868ee60](https://github.com/snytkine/api-tester-cli/commit/868ee60f295f5b721bdb1c58458e2cc693815a7d))
+* make test-case assertions an optional field ([#70](https://github.com/snytkine/api-tester-cli/issues/70)) ([e875b4f](https://github.com/snytkine/api-tester-cli/commit/e875b4f23b5038e6ba61311989efac6bed82c352))
+* render report path as clickable OSC 8 hyperlink ([#73](https://github.com/snytkine/api-tester-cli/issues/73)) ([308b53c](https://github.com/snytkine/api-tester-cli/commit/308b53ce0002fb9371c110ecc56b232d09dbd676))
+
 ## [0.6.0](https://github.com/snytkine/api-tester-cli/compare/v0.5.0...v0.6.0) (2026-07-21)
 
 
