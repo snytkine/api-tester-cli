@@ -45,6 +45,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.TestSuiteValidator;
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.AsyncHookHandles;
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.HookRunner;
 import io.github.snytkine.apitester.api_tester_cli.ui.ErrorBox;
+import io.github.snytkine.apitester.api_tester_cli.ui.TerminalHyperlink;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiController;
 import io.github.snytkine.apitester.api_tester_cli.ui.TerminalUiListener;
 import io.github.snytkine.apitester.api_tester_cli.ui.TtyDetector;
@@ -613,9 +614,12 @@ public class RunSuiteCommand {
         }
 
         // In UI mode the concise summary is suppressed, but the user still needs to know where
-        // the report landed — print just that line after the TUI table completes.
+        // the report landed — print just that line after the TUI table completes. The path is
+        // rendered as an OSC 8 hyperlink so that terminals supporting it can open the report in a
+        // browser directly; useUi already implies an interactive, colour-capable TTY, so emitting
+        // escape sequences here cannot corrupt redirected output.
         if (useUi && reportWritten) {
-            context.outputWriter().println("Report written to " + reportPath.toAbsolutePath());
+            context.outputWriter().println("Report written to " + TerminalHyperlink.fileLink(reportPath, true));
             context.outputWriter().flush();
         }
 

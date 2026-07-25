@@ -589,8 +589,18 @@ java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
 The CLI prints the exact path once the file is written:
 
 ```
-Report written to /tmp/reports/test-suite_Test_Suite_1_20260606142300.html
+Report written to file:///tmp/reports/test-suite_Test_Suite_1_20260606142300.html
 ```
+
+When the interactive terminal UI is active, the path is emitted as an
+[OSC 8 hyperlink](https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda), so terminals
+that support them render it as a clickable link — Cmd-click on macOS, Ctrl-click elsewhere — which
+opens the report in your default browser. Terminals without OSC 8 support (notably macOS
+Terminal.app) simply show the plain `file://` URI, which remains copy-pasteable.
+
+The escape sequences are only emitted when output goes to an interactive terminal. With `--no-ui`,
+in CI, or when stdout is piped or redirected, the report path is printed as a plain absolute path so
+that captured output is never corrupted.
 
 ### Filename format
 
