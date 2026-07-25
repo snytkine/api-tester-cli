@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/snytkine/api-tester-cli/compare/v0.7.0...v0.7.1) (2026-07-25)
+
+
+### Bug Fixes
+
+* skip JaCoCo coverage gate on Windows builds ([8f7b79b](https://github.com/snytkine/api-tester-cli/commit/8f7b79b74eef87243c8f5e8c6d5c61f79ae669cf))
+
 ## [0.7.0](https://github.com/snytkine/api-tester-cli/compare/v0.6.0...v0.7.0) (2026-07-25)
 
 
