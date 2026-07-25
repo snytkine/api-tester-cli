@@ -40,6 +40,9 @@
   </scm>
   <properties>
     <dotenv-java.version>3.2.0</dotenv-java.version>
+    <!-- Overridden to true by the jacoco-check-skip-windows profile; see that profile
+         and the jacoco-check execution for why the gate is not enforced on Windows. -->
+    <jacoco.check.skip>false</jacoco.check.skip>
     <jacoco.version>0.8.15</jacoco.version>
     <java.version>25</java.version>
     <java.target.version>21</java.target.version>
@@ -209,6 +212,16 @@
             </goals>
             <phase>test</phase>
             <configuration>
+              <!-- Skipped on Windows only. A large set of tests is annotated
+                   @DisabledOnOs(OS.WINDOWS) because their fixtures are POSIX shell
+                   scripts with shebang lines that Windows cannot execute (script
+                   lifecycle hooks). Those tests still run on Linux and macOS, where
+                   this gate is enforced on every commit, so the coverage ratios it
+                   measures are a property of the code rather than of the build
+                   platform. Enforcing it on Windows only re-reports the 45
+                   deliberately skipped tests as a coverage failure. Tests themselves
+                   still run on Windows — only this check is skipped. -->
+              <skip>${jacoco.check.skip}</skip>
               <!-- Coverage is enforced everywhere except code that cannot be
                    meaningfully unit tested:
                    - commands/TuiSmokeCommand drives the interactive TUI and needs a
@@ -268,6 +281,22 @@
   </build>
 
   <profiles>
+    <!-- Disables the JaCoCo coverage gate on Windows. Script-hook tests use POSIX
+         shell fixtures and are @DisabledOnOs(OS.WINDOWS), so ~45 tests are skipped
+         there by design and the resulting ratios are not comparable to Linux/macOS.
+         The gate still runs on every commit on the other two platforms. Activates
+         automatically; no CI flag required. -->
+    <profile>
+      <id>jacoco-check-skip-windows</id>
+      <activation>
+        <os>
+          <family>windows</family>
+        </os>
+      </activation>
+      <properties>
+        <jacoco.check.skip>true</jacoco.check.skip>
+      </properties>
+    </profile>
     <profile>
       <id>native</id>
       <build>
