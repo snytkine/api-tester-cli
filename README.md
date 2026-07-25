@@ -18,7 +18,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 ## What It Does
 
 - Executes HTTP test suites described in YAML
-- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, and HTTP Basic Auth
+- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, HTTP Basic Auth, and custom SSL/TLS (self-signed certs, custom truststore, and mutual-TLS client certificates)
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
@@ -199,6 +199,7 @@ Each client supports:
 - `connect-timeout`: timeout in milliseconds; defaults to `30000`
 - `headers`: default headers added to every request using the client
 - `auth`: optional HTTP Basic Auth (client-level default)
+- `ssl`: optional custom SSL/TLS settings — skip certificate validation, a custom truststore, and/or a client keystore for mutual TLS (see below)
 
 Per-test headers override same-named client-level headers. Per-test authentication and explicit `Authorization` headers in request headers override client-level authentication. The per-request `rest-client` selector is ignored (a warning is logged) when the singular `rest-client` form is used.
 
@@ -239,6 +240,52 @@ Precedence (lowest to highest):
 2. Per-request `request.auth` (overrides client-level)
 3. Explicit `Authorization` header in `request.headers` (always wins)
 
+#### Custom SSL/TLS certificates
+
+Each client may declare an `ssl` block to test HTTPS endpoints that use self-signed
+certificates, a private certificate authority, or that require a client certificate
+(mutual TLS). All certificate/key file paths may be **absolute** or **relative to the
+test-suite file's directory**.
+
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
+  ssl:
+    # Trust a self-signed server certificate or a private CA:
+    truststore:
+      certificate: "certs/ca.pem"
+    # Present a client certificate for mutual TLS (mTLS):
+    keystore:
+      certificate: "certs/client.pem"
+      private-key: "certs/client.key"           # PKCS#8 PEM (.key)
+      password: "[[${env.KEYSTORE_PASSWORD}]]"  # only for an encrypted key
+```
+
+`ssl` properties:
+
+- `skip-certificate-validation`: when `true`, disable certificate **and** hostname
+  verification (allows self-signed certificates). When set, `truststore` and `keystore`
+  are ignored. Defaults to `false`. Use only against trusted, non-production endpoints.
+- `truststore.certificate`: path to a PEM certificate to trust (in addition to the JVM's
+  default trust anchors).
+- `keystore.certificate`: path to the PEM client certificate presented during the TLS
+  handshake.
+- `keystore.private-key`: optional path to the client's **PKCS#8** private key
+  (`-----BEGIN PRIVATE KEY-----` or, when encrypted, `-----BEGIN ENCRYPTED PRIVATE KEY-----`).
+  Required for the client to actually authenticate via mTLS. Legacy PKCS#1 keys
+  (`-----BEGIN RSA PRIVATE KEY-----`) are rejected — convert them with
+  `openssl pkcs8 -topk8 -in key.pem -out key-pkcs8.pem`.
+- `keystore.password`: passphrase that decrypts an encrypted private key. Only allowed
+  when `private-key` is set.
+
+**Best Practice:** never commit passwords. Keep `keystore.password` in a `.env` file or
+environment variable and reference it with `[[${env.KEYSTORE_PASSWORD}]]` so the suite
+file can be shared or committed to git safely.
+
+Invalid SSL configuration (missing/unreadable files, a password without a private key, a
+wrong key password, or an unsupported key format) fails the run up front, before any test
+executes.
+
 ### Test cases
 
 Each item in `tests` supports:
@@ -248,7 +295,7 @@ Each item in `tests` supports:
 - `skip`: optional skip reason; when non-blank, the test is skipped
 - `variables`: per-test variables exposed as `test.<name>`
 - `request`: required HTTP request definition
-- `assertions`: ordered list of assertions
+- `assertions`: optional ordered list of assertions; may be omitted or empty, in which case the test is verified solely by the implicit [`base_server_response`](#the-implicit-base_server_response-assertion) assertion
 - `saved-session`: optional list of response-value captures stored into the suite-wide `session` namespace (see [Chaining tests](#chaining-tests-session-capture-depends-on-and-transient))
 - `depends-on`: optional list of other test names that must run before this test
 - `transient`: optional boolean; when `true` the test runs **only** as another test's dependency, never standalone
@@ -390,7 +437,19 @@ rs --suite=/path/to/suite.yml --env-file=/path/to/staging.env
 
 ## Supported Assertions
 
-Every assertion is declared inside a test case's `assertions` list. The `type` field selects the evaluator.
+Every assertion is declared inside a test case's `assertions` list. The `type` field selects the evaluator. The list is **optional** — a test that omits it (or declares `assertions: []`) still runs and is still verified by the implicit assertion below, which is handy for a test that exists only as a `depends-on` parent or one kept in the suite to be fired manually.
+
+### The implicit `base_server_response` assertion
+
+Every test case additionally carries one assertion you never declare: `base_server_response`. It asserts only that the request was dispatched and that *some* HTTP response came back before the rest-client's timeout elapsed — the status code, headers and body are irrelevant, so a `500` passes it just as a `200` does.
+
+It fails only when no response is obtained at all (connection refused, unknown host, TLS handshake failure, connection timeout). The test is then reported as **failed** — not errored — with this single failure, because none of the declared assertions could be evaluated:
+
+| Assertion | Expected | Actual |
+|---|---|---|
+| `base_server_response` | `service must respond within default timeout of 30 seconds` | `no response received: Connection refused` |
+
+The timeout in the expected text is the dispatching rest-client's `connect-timeout` in seconds (30 unless the suite overrides it). Since this assertion is always evaluated, reported assertion counts are one higher than the number declared in the YAML.
 
 | Type | Purpose | Minimal YAML example |
 |---|---|---|
@@ -530,8 +589,18 @@ java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
 The CLI prints the exact path once the file is written:
 
 ```
-Report written to /tmp/reports/test-suite_Test_Suite_1_20260606142300.html
+Report written to file:///tmp/reports/test-suite_Test_Suite_1_20260606142300.html
 ```
+
+When the interactive terminal UI is active, the path is emitted as an
+[OSC 8 hyperlink](https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda), so terminals
+that support them render it as a clickable link — Cmd-click on macOS, Ctrl-click elsewhere — which
+opens the report in your default browser. Terminals without OSC 8 support (notably macOS
+Terminal.app) simply show the plain `file://` URI, which remains copy-pasteable.
+
+The escape sequences are only emitted when output goes to an interactive terminal. With `--no-ui`,
+in CI, or when stdout is piped or redirected, the report path is printed as a plain absolute path so
+that captured output is never corrupted.
 
 ### Filename format
 

@@ -26,6 +26,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.assertions.ArraySizeMin
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertFalseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.AssertTrueAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.BaseServerResponseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.EndsWithAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.GreaterThanOrEqualAssertion;
@@ -76,6 +77,7 @@ final class AssertionDescriber {
      */
     static String describe(Assertion assertion) {
         return switch (assertion) {
+            case BaseServerResponseAssertion ignored -> BaseServerResponseAssertion.TYPE_NAME;
             case StatusCodeAssertion a -> "status_code equals " + a.expected();
             case StatusInAssertion a -> "status_in " + a.expected();
             case ResponseTimeAssertion a -> "response_time within " + a.milliseconds() + "ms";

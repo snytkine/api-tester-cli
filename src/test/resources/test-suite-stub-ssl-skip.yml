@@ -1,0 +1,14 @@
+---
+name: "Stub Suite – ssl skip"
+rest-client:
+  base-url: "http://stub.test"
+  ssl:
+    skip-certificate-validation: true
+tests:
+- name: "GET objects – 200"
+  request:
+    method: "GET"
+    url: "/objects"
+  assertions:
+  - type: "status_code"
+    expected: 200

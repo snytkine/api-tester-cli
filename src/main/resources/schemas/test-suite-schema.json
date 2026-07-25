@@ -39,6 +39,10 @@
         "auth": {
           "$ref": "#/$defs/RequestAuth",
           "description": "Optional authentication configuration applied as a default to every request in the suite"
+        },
+        "ssl": {
+          "$ref": "#/$defs/Ssl",
+          "description": "Optional custom SSL/TLS settings (skip validation, custom truststore, and/or client keystore for mTLS)"
         }
       }
     },
@@ -73,6 +77,10 @@
           "auth": {
             "$ref": "#/$defs/RequestAuth",
             "description": "Optional authentication configuration applied as a default to every request that uses this client"
+          },
+          "ssl": {
+            "$ref": "#/$defs/Ssl",
+            "description": "Optional custom SSL/TLS settings (skip validation, custom truststore, and/or client keystore for mTLS)"
           }
         }
       }
@@ -102,6 +110,49 @@
     {"required": ["rest-clients"], "not": {"required": ["rest-client"]}}
   ],
   "$defs": {
+    "Ssl": {
+      "type": "object",
+      "description": "Custom SSL/TLS settings for a rest-client. When 'skip-certificate-validation' is true, 'truststore' and 'keystore' are ignored. File paths may be absolute or relative to the test-suite file's directory.",
+      "additionalProperties": false,
+      "properties": {
+        "skip-certificate-validation": {
+          "type": "boolean",
+          "description": "When true, disable certificate AND hostname verification (allows self-signed certificates). Ignores 'truststore' and 'keystore'. Default false."
+        },
+        "truststore": {
+          "type": "object",
+          "description": "Trust a custom certificate (self-signed server cert or private CA) in addition to the JVM default trust anchors.",
+          "additionalProperties": false,
+          "required": ["certificate"],
+          "properties": {
+            "certificate": {
+              "type": "string",
+              "description": "Path to a PEM-encoded certificate file to trust. Absolute or relative to the suite file. Supports [[${...}]] templates."
+            }
+          }
+        },
+        "keystore": {
+          "type": "object",
+          "description": "Client certificate and private key presented for mutual-TLS (mTLS) authentication.",
+          "additionalProperties": false,
+          "required": ["certificate"],
+          "properties": {
+            "certificate": {
+              "type": "string",
+              "description": "Path to the PEM-encoded client certificate. Absolute or relative to the suite file. Supports [[${...}]] templates."
+            },
+            "private-key": {
+              "type": "string",
+              "description": "Optional path to the PEM-encoded PKCS#8 private key (.key) matching the client certificate. Required for the client to authenticate via mTLS. Supports [[${...}]] templates."
+            },
+            "password": {
+              "type": "string",
+              "description": "Optional passphrase decrypting an encrypted private key. Only allowed when 'private-key' is set. Prefer a template placeholder such as [[${env.KEYSTORE_PASSWORD}]] to keep secrets out of the file."
+            }
+          }
+        }
+      }
+    },
     "Hooks": {
       "type": "object",
       "description": "Lifecycle hooks grouped by execution phase. Each phase is an ordered list of hooks.",
@@ -154,7 +205,7 @@
     },
     "TestCase": {
       "type": "object",
-      "required": ["name", "request", "assertions"],
+      "required": ["name", "request"],
       "additionalProperties": false,
       "properties": {
         "name": {
@@ -193,8 +244,7 @@
         },
         "assertions": {
           "type": "array",
-          "description": "Assertions to evaluate against the response",
-          "minItems": 1,
+          "description": "Optional assertions to evaluate against the response. May be omitted or empty: every test also runs the implicit 'base_server_response' assertion, which passes when the service returns any response before the connect timeout.",
           "items": {
             "$ref": "#/$defs/Assertion"
           }

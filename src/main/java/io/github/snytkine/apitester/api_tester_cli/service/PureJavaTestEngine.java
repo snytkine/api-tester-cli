@@ -24,6 +24,7 @@ import io.github.snytkine.apitester.api_tester_cli.event.TestProgressListener;
 import io.github.snytkine.apitester.api_tester_cli.event.TestStatus;
 import io.github.snytkine.apitester.api_tester_cli.exception.AssertionFailuresException;
 import io.github.snytkine.apitester.api_tester_cli.exception.HookFailedException;
+import io.github.snytkine.apitester.api_tester_cli.exception.NoServerResponseException;
 import io.github.snytkine.apitester.api_tester_cli.exception.SessionCaptureException;
 import io.github.snytkine.apitester.api_tester_cli.exception.SkipTestException;
 import io.github.snytkine.apitester.api_tester_cli.interfaces.AssertionEvaluator;
@@ -44,6 +45,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.TestResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestRunResult;
 import io.github.snytkine.apitester.api_tester_cli.model.TestSuite;
 import io.github.snytkine.apitester.api_tester_cli.model.assertions.Assertion;
+import io.github.snytkine.apitester.api_tester_cli.model.assertions.BaseServerResponseAssertion;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hook;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
@@ -55,6 +57,7 @@ import io.github.snytkine.apitester.api_tester_cli.service.hooks.ScriptHookExecu
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.WebHookExecutor;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
+import io.github.snytkine.apitester.api_tester_cli.util.SslContextFactory;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -103,6 +106,14 @@ import org.springframework.web.client.RestClient;
  * io.github.snytkine.apitester.api_tester_cli.util.FailureCollector} and
  * surfaced together rather
  * than stopping at the first failure.
+ *
+ * <p>
+ * Every test case additionally carries one implicit {@link BaseServerResponseAssertion}, injected
+ * here rather than declared in the YAML, asserting only that the service answered the request with
+ * some HTTP response before the rest-client's timeout elapsed. It is evaluated first and counted in
+ * the test's assertion total. When no response arrives at all the transport exception is converted
+ * into that assertion's failure ({@link NoServerResponseException}) and the test is recorded FAILED
+ * with zero passed assertions, rather than surfacing as an opaque ERROR.
  *
  * <p>
  * Execution order honours {@code depends-on} and {@code transient}: before any test runs, {@link
@@ -208,10 +219,10 @@ public class PureJavaTestEngine implements TestEngine {
     @Override
     public TestRunResult runConfigurationSuite(
             TestSuite testSuite, SuiteRunContext context, TestProgressListener listener) {
-        Map<String, RestClient> restClients = new LinkedHashMap<>();
-        testSuite.restClientsById().forEach((id, config) -> restClients.put(id, buildRestClient(config)));
-        RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
+        Map<String, RestClient> restClients = new LinkedHashMap<>();
+        testSuite.restClientsById().forEach((id, config) -> restClients.put(id, buildRestClient(config, suiteDir)));
+        RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
 
         // Suite-wide, mutable 'session' namespace. Values are captured from test responses (via
@@ -428,7 +439,10 @@ public class PureJavaTestEngine implements TestEngine {
      *       TestCase#transientCase() transient}. A transient test fires no per-test hooks: those belong
      *       to the dependent test that triggered it. A blocking before-each failure records {@code ERROR}
      *       and skips the request and after-each.
-     *   <li><b>request + assertions + saved-session capture</b> via {@link #executeSingleTest}.
+     *   <li><b>request + assertions + saved-session capture</b> via {@link #executeSingleTest}. A
+     *       {@link NoServerResponseException} raised here means the service returned no response at
+     *       all: the test is recorded {@code FAILED} with zero passed assertions and the single
+     *       {@code base_server_response} failure.
      *   <li><b>after-each hooks</b> — same transient/skip gate as before-each.
      * </ol>
      *
@@ -538,7 +552,7 @@ public class PureJavaTestEngine implements TestEngine {
                     info -> capturedRequest[0] = info,
                     resp -> capturedResponse[0] = resp);
             long durationMs = System.currentTimeMillis() - testStart;
-            int totalAssertions = config.assertions().size();
+            int totalAssertions = totalAssertionCount(config);
             results.add(new TestCaseResult(
                     label,
                     TestResult.PASSED,
@@ -566,10 +580,21 @@ public class PureJavaTestEngine implements TestEngine {
                     uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, 0, failure));
             log.debug("Test case '{}' failed: session capture error: {}", config.name(), e.getMessage());
             outcome = new TestOutcome(TestResult.FAILED, e.getMessage());
+        } catch (NoServerResponseException e) {
+            // No response at all: the implicit base_server_response assertion is the only one that
+            // could be evaluated, and it failed, so no declared assertion passed.
+            long durationMs = System.currentTimeMillis() - testStart;
+            List<AssertionFailure> failures = List.of(e.failure());
+            results.add(new TestCaseResult(
+                    label, TestResult.FAILED, 0, failures, null, capturedRequest[0], capturedResponse[0]));
+            listener.onProgress(new TestProgressEvent.TestCompleted(
+                    uniqueId, rowIndex, label, TestStatus.FAIL, durationMs, totalAssertionCount(config), failures));
+            log.debug("Test case '{}' failed: no response from server: {}", config.name(), e.getMessage());
+            outcome = new TestOutcome(TestResult.FAILED, e.getMessage());
         } catch (AssertionFailuresException e) {
             long durationMs = System.currentTimeMillis() - testStart;
             List<AssertionFailure> failures = e.failures();
-            int totalAssertions = config.assertions().size();
+            int totalAssertions = totalAssertionCount(config);
             int passedAssertions = totalAssertions - failures.size();
             results.add(new TestCaseResult(
                     label,
@@ -867,21 +892,35 @@ public class PureJavaTestEngine implements TestEngine {
                 resolveEffectiveAuth(testSuite, config),
                 restClientId));
 
+        // Every test case implicitly asserts that the service answered at all. The implicit
+        // assertion is prepended to the declared ones so it is evaluated (and counted) first;
+        // it is never read back from the test case, which still holds only the declared list.
+        List<Assertion> effectiveAssertions = withBaseServerResponseAssertion(config, selectedRestClientConfig);
+
         RestClient selectedClient = selectRestClient(restClients, defaultRestClient, config);
         RestClient.RequestBodySpec requestSpec = buildRequestSpec(selectedClient, config, resolvedBody);
-        RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
 
-        log.debug(
-                "Test [{}] '{}': evaluating {} assertion(s)",
-                rowIndex,
-                config.name(),
-                config.assertions().size());
+        log.debug("Test [{}] '{}': evaluating {} assertion(s)", rowIndex, config.name(), effectiveAssertions.size());
 
         // Force full (body-reading) resolution when this test captures saved-session values, so the
         // response body is available even if the test's only assertion is a status_code check.
         boolean hasCaptures =
                 config.savedSession() != null && !config.savedSession().isEmpty();
-        ApiResponse apiResponse = responseResolver.resolve(responseSpec, config.assertions(), hasCaptures);
+
+        // Sending the request and reading the response is the window in which the implicit
+        // base_server_response assertion can fail: any transport-level exception here (connection
+        // refused, unknown host, TLS failure, connection timeout) means no response was received,
+        // so none of the declared assertions can be evaluated and the test fails on this one
+        // assertion alone.
+        ApiResponse apiResponse;
+        try {
+            RestClient.ResponseSpec responseSpec = requestSpec.retrieve();
+            apiResponse = responseResolver.resolve(responseSpec, effectiveAssertions, hasCaptures);
+        } catch (RuntimeException e) {
+            BaseServerResponseAssertion baseAssertion = (BaseServerResponseAssertion) effectiveAssertions.get(0);
+            log.debug("Test [{}] '{}': no response received: {}", rowIndex, config.name(), e.toString());
+            throw new NoServerResponseException(baseServerResponseFailure(baseAssertion, e), e);
+        }
         log.debug("Test [{}] '{}': received status {}", rowIndex, config.name(), apiResponse.statusCode());
 
         responseCapture.accept(apiResponse);
@@ -893,7 +932,7 @@ public class PureJavaTestEngine implements TestEngine {
         // and expected/actual from the AFE structured fields.
         List<AssertionFailure> failures = new ArrayList<>();
         FailureCollector collector = new FailureCollector();
-        for (Assertion assertion : config.assertions()) {
+        for (Assertion assertion : effectiveAssertions) {
             AssertionEvaluator evaluator = evaluatorFactory.create(assertion, suiteDir, testConfigMap);
             int failuresBefore = collector.getFailures().size();
             evaluator.evaluate(apiResponse, collector);
@@ -918,6 +957,102 @@ public class PureJavaTestEngine implements TestEngine {
         // extraction, or a failed type conversion raises a SessionCaptureException that the run loop
         // records as a test failure.
         SessionCapturer.capture(config.name(), config.savedSession(), apiResponse, sessionVars);
+    }
+
+    /**
+     * Returns the assertion list actually evaluated for a test case: the implicit {@link
+     * BaseServerResponseAssertion} followed by the assertions declared in the YAML.
+     *
+     * <p>The implicit assertion is added to <em>every</em> test case, including one that declares no
+     * assertions at all, so that every test at minimum verifies the service responded. It is placed
+     * first so it is evaluated (and reported) before any declared assertion.
+     *
+     * @param config the resolved test case being executed
+     * @param selectedRestClientConfig the configuration of the rest-client dispatching this request,
+     *     or {@code null} when the suite declares no matching client
+     * @return an unmodifiable list of {@code declared + 1} assertions, the implicit one first
+     */
+    private static List<Assertion> withBaseServerResponseAssertion(
+            TestCase config, @Nullable RestClientConfig selectedRestClientConfig) {
+        List<Assertion> effective = new ArrayList<>(config.assertions().size() + 1);
+        effective.add(new BaseServerResponseAssertion(timeoutSeconds(selectedRestClientConfig)));
+        effective.addAll(config.assertions());
+        return List.copyOf(effective);
+    }
+
+    /**
+     * Returns the number of assertions reported for a test case: its declared assertions plus the
+     * one implicit {@link BaseServerResponseAssertion} the engine always evaluates.
+     *
+     * @param config the test case whose assertion count is reported
+     * @return the declared assertion count incremented by one
+     */
+    private static int totalAssertionCount(TestCase config) {
+        return config.assertions().size() + 1;
+    }
+
+    /**
+     * Resolves the timeout, in whole seconds, reported by the implicit {@code base_server_response}
+     * assertion for a request dispatched through {@code restClientConfig}.
+     *
+     * <p>The value is the client's {@code connect-timeout}, falling back to {@link
+     * RestClientConfig#DEFAULT_CONNECT_TIMEOUT_MS} when the suite declares no explicit timeout (or
+     * no matching client at all), which is the timeout the underlying HTTP client actually applies.
+     *
+     * @param restClientConfig the resolved rest-client configuration, or {@code null}
+     * @return the effective timeout in seconds
+     */
+    private static int timeoutSeconds(@Nullable RestClientConfig restClientConfig) {
+        int timeoutMs = restClientConfig != null && restClientConfig.connectTimeout() != null
+                ? restClientConfig.connectTimeout()
+                : RestClientConfig.DEFAULT_CONNECT_TIMEOUT_MS;
+        return timeoutMs / 1000;
+    }
+
+    /**
+     * Builds the structured failure recorded when no HTTP response could be obtained, reporting the
+     * implicit assertion's expected text against the transport error that occurred instead.
+     *
+     * @param assertion the implicit assertion that failed, carrying the effective timeout
+     * @param cause the transport exception thrown while sending the request or reading the response
+     * @return the {@link AssertionFailure} to attach to the failed test case
+     */
+    private static AssertionFailure baseServerResponseFailure(BaseServerResponseAssertion assertion, Throwable cause) {
+        String reason = rootCauseMessage(cause);
+        return new AssertionFailure(
+                BaseServerResponseAssertion.TYPE_NAME,
+                assertion.expectedDescription(),
+                "no response received: " + reason,
+                "The service did not return a response: " + reason);
+    }
+
+    /**
+     * Extracts the most specific available message from a transport exception chain.
+     *
+     * <p>Transport failures arrive wrapped by Spring (e.g. {@code ResourceAccessException} around a
+     * {@code ConnectException}), and the wrapper's own message only restates the request URL —
+     * often with a literal {@code null} interpolated where the cause had no message. The search
+     * therefore starts at the first cause when there is one and keeps the deepest non-blank message
+     * found from there down. A refused connection carries no message anywhere in its chain on some
+     * JDKs, in which case the wrapped exception's type name is the reason reported.
+     *
+     * @param throwable the exception to unwrap
+     * @return the deepest non-blank message below the outermost wrapper, or the wrapped exception's
+     *     class name when the chain carries no message at all
+     */
+    private static String rootCauseMessage(Throwable throwable) {
+        Throwable start =
+                throwable.getCause() != null && throwable.getCause() != throwable ? throwable.getCause() : throwable;
+        String message = null;
+        for (Throwable current = start; current != null; current = current.getCause()) {
+            if (current.getMessage() != null && !current.getMessage().isBlank()) {
+                message = current.getMessage();
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+        }
+        return message != null ? message : start.getClass().getSimpleName();
     }
 
     /**
@@ -1016,30 +1151,45 @@ public class PureJavaTestEngine implements TestEngine {
      * <p>
      * If {@code config} carries a non-blank {@code baseUrl} it is set as the
      * client's default base
-     * URL. When a {@code connectTimeout} is present AND the injected factory is a
-     * {@link
+     * URL. When a {@code connectTimeout} and/or a custom {@code ssl} configuration
+     * is present AND the injected factory is a {@link
      * org.springframework.http.client.JdkClientHttpRequestFactory}, a new
-     * JDK-backed factory is
-     * created with that timeout; non-JDK factories (e.g. stub factories used in
-     * tests) are never
-     * replaced. When {@code headers} is non-null each entry is registered as a
+     * JDK-backed factory is created whose {@link java.net.http.HttpClient} carries
+     * both the connect timeout and the custom {@link javax.net.ssl.SSLContext};
+     * non-JDK factories (e.g. stub factories used in tests) are never replaced.
+     * When {@code headers} is non-null each entry is registered as a
      * default header applied
      * to every request built with this client.
      *
-     * @param config the suite-level REST client settings
+     * @param config   the suite-level REST client settings
+     * @param suiteDir the directory of the suite file, used to resolve relative
+     *                 SSL certificate/key paths; may be {@code null}
      * @return a fully configured {@link RestClient} ready for use
      */
-    private RestClient buildRestClient(RestClientConfig config) {
+    private RestClient buildRestClient(
+            RestClientConfig config, java.nio.file.@org.jspecify.annotations.Nullable Path suiteDir) {
         RestClient.Builder builder = RestClient.builder().requestFactory(requestFactory);
         if (StringUtils.hasText(config.baseUrl())) {
             builder.baseUrl(config.baseUrl());
         }
-        if (config.connectTimeout() != null
-                && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory) {
-            builder.requestFactory(new org.springframework.http.client.JdkClientHttpRequestFactory(
-                    java.net.http.HttpClient.newBuilder()
-                            .connectTimeout(Duration.ofMillis(config.connectTimeout()))
-                            .build()));
+        javax.net.ssl.SSLContext sslContext = SslContextFactory.create(config.ssl(), suiteDir);
+        boolean needsCustomHttpClient = (config.connectTimeout() != null || sslContext != null)
+                && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory;
+        if (needsCustomHttpClient) {
+            // Mirror the defaults of the application's default factory (HttpClientConfig) so that
+            // enabling a connect timeout or custom SSL does not silently change redirect/protocol
+            // behavior.
+            java.net.http.HttpClient.Builder httpClientBuilder = java.net.http.HttpClient.newBuilder()
+                    .version(java.net.http.HttpClient.Version.HTTP_2)
+                    .followRedirects(java.net.http.HttpClient.Redirect.NORMAL);
+            if (config.connectTimeout() != null) {
+                httpClientBuilder.connectTimeout(Duration.ofMillis(config.connectTimeout()));
+            }
+            if (sslContext != null) {
+                httpClientBuilder.sslContext(sslContext);
+            }
+            builder.requestFactory(
+                    new org.springframework.http.client.JdkClientHttpRequestFactory(httpClientBuilder.build()));
         }
         if (config.headers() != null) {
             config.headers().forEach((name, value) -> builder.defaultHeader(name, value));
