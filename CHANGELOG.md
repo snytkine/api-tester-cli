@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/snytkine/api-tester-cli/compare/v0.7.1...v0.8.0) (2026-07-26)
+
+
+### Features
+
+* add follow-redirects option to rest-client config ([#72](https://github.com/snytkine/api-tester-cli/issues/72)) ([1e61a54](https://github.com/snytkine/api-tester-cli/commit/1e61a546a46f042b6dbaf825ff0ed6dcae61057b))
+
 ## [0.7.1](https://github.com/snytkine/api-tester-cli/compare/v0.7.0...v0.7.1) (2026-07-25)
 
 
