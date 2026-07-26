@@ -57,6 +57,11 @@ import io.github.snytkine.apitester.api_tester_cli.service.hooks.ScriptHookExecu
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.WebHookExecutor;
 import io.github.snytkine.apitester.api_tester_cli.util.FailureCollector;
 import io.github.snytkine.apitester.api_tester_cli.util.FileLoader;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyAuthenticator;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyConfigurationException;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyErrorClassifier;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyResolver;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxySettings;
 import io.github.snytkine.apitester.api_tester_cli.util.SslContextFactory;
 import java.io.IOException;
 import java.net.URI;
@@ -221,7 +226,9 @@ public class PureJavaTestEngine implements TestEngine {
             TestSuite testSuite, SuiteRunContext context, TestProgressListener listener) {
         Path suiteDir = testSuite.filePath() != null ? testSuite.filePath().getParent() : null;
         Map<String, RestClient> restClients = new LinkedHashMap<>();
-        testSuite.restClientsById().forEach((id, config) -> restClients.put(id, buildRestClient(config, suiteDir)));
+        testSuite
+                .restClientsById()
+                .forEach((id, config) -> restClients.put(id, buildRestClient(config, suiteDir, context.env())));
         RestClient defaultRestClient = restClients.get(TestSuite.DEFAULT_REST_CLIENT_ID);
         Map<String, String> suiteVariables = Objects.requireNonNullElse(testSuite.variables(), Map.of());
 
@@ -919,9 +926,28 @@ public class PureJavaTestEngine implements TestEngine {
         } catch (RuntimeException e) {
             BaseServerResponseAssertion baseAssertion = (BaseServerResponseAssertion) effectiveAssertions.get(0);
             log.debug("Test [{}] '{}': no response received: {}", rowIndex, config.name(), e.toString());
-            throw new NoServerResponseException(baseServerResponseFailure(baseAssertion, e), e);
+            String proxyReason = proxyFailureReason(e, selectedRestClientConfig, config, configMap.get("env"));
+            if (proxyReason != null) {
+                log.warn("Test [{}] '{}': proxy failure: {}", rowIndex, config.name(), proxyReason);
+            }
+            throw new NoServerResponseException(baseServerResponseFailure(baseAssertion, e, proxyReason), e);
         }
         log.debug("Test [{}] '{}': received status {}", rowIndex, config.name(), apiResponse.statusCode());
+
+        // A proxy that rejects the request answers it rather than failing the connection, so a 407
+        // arrives here as an ordinary response. Left alone it would fail an unrelated status-code
+        // assertion with "expected 200 but was 407", hiding the fact that the service was never
+        // reached at all. Only reinterpreted when this client actually goes through a proxy.
+        if (Integer.valueOf(407).equals(apiResponse.statusCode())) {
+            String proxyAuthReason =
+                    proxyAuthResponseReason(selectedRestClientConfig, config, configMap.get("env"), apiResponse);
+            if (proxyAuthReason != null) {
+                BaseServerResponseAssertion baseAssertion = (BaseServerResponseAssertion) effectiveAssertions.get(0);
+                log.warn("Test [{}] '{}': proxy failure: {}", rowIndex, config.name(), proxyAuthReason);
+                throw new NoServerResponseException(
+                        baseServerResponseFailure(baseAssertion, null, proxyAuthReason), null);
+            }
+        }
 
         responseCapture.accept(apiResponse);
 
@@ -1013,17 +1039,123 @@ public class PureJavaTestEngine implements TestEngine {
      * Builds the structured failure recorded when no HTTP response could be obtained, reporting the
      * implicit assertion's expected text against the transport error that occurred instead.
      *
+     * <p>When the request was routed through a proxy and the failure is recognisably the proxy's
+     * doing, {@code proxyReason} replaces the raw transport message. A bare "connection refused"
+     * against a healthy endpoint is deeply misleading when the thing that actually refused the
+     * connection is the proxy in front of it.
+     *
      * @param assertion the implicit assertion that failed, carrying the effective timeout
      * @param cause the transport exception thrown while sending the request or reading the response
+     * @param proxyReason a proxy-specific explanation of the failure, or {@code null} when the
+     *     failure is not proxy-related
      * @return the {@link AssertionFailure} to attach to the failed test case
      */
-    private static AssertionFailure baseServerResponseFailure(BaseServerResponseAssertion assertion, Throwable cause) {
-        String reason = rootCauseMessage(cause);
+    private static AssertionFailure baseServerResponseFailure(
+            BaseServerResponseAssertion assertion, @Nullable Throwable cause, @Nullable String proxyReason) {
+        String reason =
+                proxyReason != null ? proxyReason : (cause != null ? rootCauseMessage(cause) : "no cause reported");
+        String detail = proxyReason != null
+                ? "The request did not reach the service: " + reason
+                : "The service did not return a response: " + reason;
         return new AssertionFailure(
                 BaseServerResponseAssertion.TYPE_NAME,
                 assertion.expectedDescription(),
                 "no response received: " + reason,
-                "The service did not return a response: " + reason);
+                detail);
+    }
+
+    /**
+     * Returns a proxy-specific explanation for a transport failure, or {@code null} when the
+     * request was not proxied or the failure is not recognisably proxy-related.
+     *
+     * <p>The proxy settings are re-resolved here rather than threaded down from client
+     * construction: resolution is a pure function of the client config and the environment, and
+     * doing it on the error path only keeps the success path untouched. It cannot fail here —
+     * {@link #buildRestClient} already resolved the same config against the same environment before
+     * any request was sent, so an unusable proxy configuration has aborted the run long before this
+     * point.
+     *
+     * @param cause the transport exception
+     * @param clientConfig the rest-client the request used, or {@code null} when unknown
+     * @param testCase the test case being executed, used to determine the target scheme
+     * @param env the merged environment
+     * @return a proxy-specific message, or {@code null}
+     */
+    private static @Nullable String proxyFailureReason(
+            Throwable cause,
+            @Nullable RestClientConfig clientConfig,
+            TestCase testCase,
+            @Nullable Map<String, String> env) {
+        if (clientConfig == null) {
+            return null;
+        }
+        ProxySettings settings = ProxyResolver.resolve(clientConfig, env);
+        return ProxyErrorClassifier.classify(cause, settings, targetScheme(clientConfig, testCase));
+    }
+
+    /**
+     * Returns a proxy-specific explanation for a {@code 407} response, or {@code null} when the
+     * request was not proxied.
+     *
+     * @param clientConfig the rest-client the request used, or {@code null} when unknown
+     * @param testCase the test case being executed, used to determine the target scheme
+     * @param env the merged environment
+     * @param response the {@code 407} response, whose {@code Proxy-Authenticate} header names the
+     *     challenged scheme
+     * @return a proxy-specific message, or {@code null}
+     */
+    private static @Nullable String proxyAuthResponseReason(
+            @Nullable RestClientConfig clientConfig,
+            TestCase testCase,
+            @Nullable Map<String, String> env,
+            ApiResponse response) {
+        if (clientConfig == null) {
+            return null;
+        }
+        ProxySettings settings = ProxyResolver.resolve(clientConfig, env);
+        return ProxyErrorClassifier.classifyProxyAuthResponse(
+                settings, targetScheme(clientConfig, testCase), headerIgnoringCase(response, "Proxy-Authenticate"));
+    }
+
+    /**
+     * Looks up a response header by case-insensitive name.
+     *
+     * @param response the response whose headers to search
+     * @param name the header name
+     * @return the header value, or {@code null} when absent
+     */
+    static @Nullable String headerIgnoringCase(ApiResponse response, String name) {
+        Map<String, String> headers = response.headers();
+        if (headers == null) {
+            return null;
+        }
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) {
+                return entry.getValue();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Determines the URI scheme a test case's request actually targets, so the matching proxy can
+     * be named in an error message.
+     *
+     * <p>An absolute request URL carries its own scheme; a relative one inherits the rest-client's
+     * base URL.
+     *
+     * @param clientConfig the rest-client used for the request
+     * @param testCase the test case being executed
+     * @return {@code "https"}, {@code "http"}, or {@code null} when neither URL declares a scheme
+     */
+    static @Nullable String targetScheme(RestClientConfig clientConfig, TestCase testCase) {
+        String requestUrl = testCase.request().url();
+        String candidate = requestUrl != null && requestUrl.contains("://") ? requestUrl : clientConfig.baseUrl();
+        if (candidate == null) {
+            return null;
+        }
+        int separator = candidate.indexOf("://");
+        return separator < 0 ? null : candidate.substring(0, separator).toLowerCase(java.util.Locale.ROOT);
     }
 
     /**
@@ -1145,6 +1277,65 @@ public class PureJavaTestEngine implements TestEngine {
     }
 
     /**
+     * Logs how a rest-client's proxy was resolved.
+     *
+     * <p>An active proxy is reported at INFO, since routing every request through a third party is
+     * something a user should see without enabling debug logging. A client that opts out with
+     * {@code proxy: false} while an environment proxy <em>is</em> present is reported at DEBUG:
+     * that combination is deliberate, but it is also exactly what someone stares at when wondering
+     * why one client behaves differently from another.
+     *
+     * <p>Only {@link ProxySettings#describe()} is logged, which names hosts and ports and never
+     * credentials.
+     *
+     * @param config the rest-client being built
+     * @param settings the resolved settings, or {@code null} when this client connects directly
+     * @param env the merged environment, consulted only to detect the opt-out-with-env case
+     */
+    private static void logProxySelection(
+            RestClientConfig config, @Nullable ProxySettings settings, Map<String, String> env) {
+        String clientId = config.id() != null ? config.id() : TestSuite.DEFAULT_REST_CLIENT_ID;
+        if (settings != null) {
+            log.info(
+                    "rest-client '{}': routing requests through proxy {}, authentication {}",
+                    clientId,
+                    settings.describe(),
+                    settings.requiresAuthentication() ? "enabled" : "not configured");
+            return;
+        }
+        if (config.proxy() != null && config.proxy().isDisabled() && log.isDebugEnabled()) {
+            String ignored = ignoredEnvironmentProxy(env);
+            if (ignored != null) {
+                log.debug(
+                        "rest-client '{}': proxy explicitly disabled (proxy: false); ignoring environment proxy {}",
+                        clientId,
+                        ignored);
+            }
+        }
+    }
+
+    /**
+     * Describes the environment proxy that a {@code proxy: false} client is choosing to ignore, or
+     * {@code null} when there is nothing to report.
+     *
+     * <p>A malformed environment value yields {@code null} rather than an error: the opt-out is
+     * absolute, so such a client never consults the environment and must not be failed — or even
+     * warned — by a value that is irrelevant to it. Clients that would actually use the value have
+     * it validated before the run.
+     *
+     * @param env the merged environment
+     * @return a credential-free description of the ignored proxy, or {@code null}
+     */
+    static @Nullable String ignoredEnvironmentProxy(Map<String, String> env) {
+        try {
+            ProxySettings environmentProxy = ProxyResolver.fromEnvironment(env);
+            return environmentProxy == null ? null : environmentProxy.describe();
+        } catch (ProxyConfigurationException e) {
+            return null;
+        }
+    }
+
+    /**
      * Builds a {@link RestClient} configured from the given
      * {@link RestClientConfig}.
      *
@@ -1168,21 +1359,39 @@ public class PureJavaTestEngine implements TestEngine {
      * default ({@code true}) maps to {@link
      * java.net.http.HttpClient.Redirect#NORMAL}.
      *
+     * <p>
+     * When a proxy is resolved for this client (see {@link ProxyResolver}) the JDK
+     * client is additionally given a scheme-aware {@link java.net.ProxySelector} and,
+     * if the proxy needs credentials, a {@link ProxyAuthenticator} that answers only
+     * proxy challenges. A client that resolves to no proxy — including one declaring
+     * {@code proxy: false} — is built exactly as it would be without this feature, so
+     * opting out never changes redirect or protocol behaviour as a side effect.
+     *
      * @param config   the suite-level REST client settings
      * @param suiteDir the directory of the suite file, used to resolve relative
      *                 SSL certificate/key paths; may be {@code null}
+     * @param env      the merged environment used to resolve {@code HTTP_PROXY},
+     *                 {@code HTTPS_PROXY} and {@code PROXY_USE_ENV}
      * @return a fully configured {@link RestClient} ready for use
      */
     private RestClient buildRestClient(
-            RestClientConfig config, java.nio.file.@org.jspecify.annotations.Nullable Path suiteDir) {
+            RestClientConfig config,
+            java.nio.file.@org.jspecify.annotations.Nullable Path suiteDir,
+            Map<String, String> env) {
         RestClient.Builder builder = RestClient.builder().requestFactory(requestFactory);
         if (StringUtils.hasText(config.baseUrl())) {
             builder.baseUrl(config.baseUrl());
         }
         javax.net.ssl.SSLContext sslContext = SslContextFactory.create(config.ssl(), suiteDir);
+        ProxySettings proxySettings = ProxyResolver.resolve(config, env);
+        if (proxySettings != null && proxySettings.isEmpty()) {
+            proxySettings = null;
+        }
+        logProxySelection(config, proxySettings, env);
         boolean followRedirects = config.followRedirectsOrDefault();
-        boolean needsCustomHttpClient = (config.connectTimeout() != null || sslContext != null || !followRedirects)
-                && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory;
+        boolean needsCustomHttpClient =
+                (config.connectTimeout() != null || sslContext != null || !followRedirects || proxySettings != null)
+                        && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory;
         if (needsCustomHttpClient) {
             // Mirror the defaults of the application's default factory (HttpClientConfig) so that
             // enabling a connect timeout or custom SSL does not silently change redirect/protocol
@@ -1199,6 +1408,12 @@ public class PureJavaTestEngine implements TestEngine {
             }
             if (sslContext != null) {
                 httpClientBuilder.sslContext(sslContext);
+            }
+            if (proxySettings != null) {
+                httpClientBuilder.proxy(proxySettings.toProxySelector());
+                if (proxySettings.requiresAuthentication()) {
+                    httpClientBuilder.authenticator(new ProxyAuthenticator(proxySettings));
+                }
             }
             builder.requestFactory(
                     new org.springframework.http.client.JdkClientHttpRequestFactory(httpClientBuilder.build()));

@@ -180,6 +180,21 @@
         </configuration>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <!-- Enables Basic proxy authentication over CONNECT tunnels for the test JVM.
+                 The JDK disables Basic for tunneling by default, which would make every
+                 proxy-authentication test against an https target fail silently. The
+                 application does the same for itself in main(); tests never call main(),
+                 and the property has to be set before any JDK HTTP class initializes, so
+                 it must be set here rather than in a @BeforeAll. See ProxyTunnelingSupport. -->
+            <jdk.http.auth.tunneling.disabledSchemes/>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+      <plugin>
         <groupId>org.graalvm.buildtools</groupId>
         <artifactId>native-maven-plugin</artifactId>
       </plugin>

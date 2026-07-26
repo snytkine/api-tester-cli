@@ -201,6 +201,7 @@ Each client supports:
 - `auth`: optional HTTP Basic Auth (client-level default)
 - `ssl`: optional custom SSL/TLS settings — skip certificate validation, a custom truststore, and/or a client keystore for mutual TLS (see below)
 - `follow-redirects`: whether to follow HTTP 3xx responses; defaults to `true` (see below)
+- `proxy`: optional HTTP proxy to route this client's requests through, or `false` to opt out of an environment proxy (see below)
 
 Per-test headers override same-named client-level headers. Per-test authentication and explicit `Authorization` headers in request headers override client-level authentication. The per-request `rest-client` selector is ignored (a warning is logged) when the singular `rest-client` form is used.
 
@@ -341,6 +342,67 @@ file can be shared or committed to git safely.
 Invalid SSL configuration (missing/unreadable files, a password without a private key, a
 wrong key password, or an unsupported key format) fails the run up front, before any test
 executes.
+
+#### Requests through a proxy
+
+Requests can optionally go through an HTTP proxy — typically a corporate egress proxy. This
+is entirely optional: with nothing configured, requests connect directly as before.
+
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
+  proxy:
+    url: "http://proxy.mycompany.com:8080"
+    username: "[[${env.PROXY_USER}]]"
+    password: "[[${env.PROXY_PASSWORD}]]"
+```
+
+`proxy` properties:
+
+- `url`: proxy URL as `http://host[:port]`; the port defaults to `80`.
+- `username` / `password`: optional credentials for proxies that require authentication.
+  `password` is only allowed alongside a `username`.
+
+**Best Practice:** never write proxy credentials into a test-suite file. Keep them in a
+`.env` file or environment variable and reference them with `[[${env.PROXY_USER}]]` so the
+suite can be committed to git safely.
+
+The `HTTP_PROXY` and `HTTPS_PROXY` environment variables are honoured automatically for any
+rest-client that does **not** declare a `proxy` key — no opt-in flag is needed. They may
+carry credentials inline (`http://user:pass@proxy:8080`), and `HTTP_PROXY` applies to
+`http://` targets while `HTTPS_PROXY` applies to `https://` targets. A rest-client that
+declares its own `proxy` object ignores them, unless `PROXY_USE_ENV=true` is set, which
+flips the precedence so the environment replaces the YAML block **in its entirety,
+credentials included**.
+
+To keep one client off the proxy — an internal service that must be reached directly while
+external calls are proxied — set `proxy: false`. This is absolute: neither `HTTP_PROXY`,
+`HTTPS_PROXY` nor `PROXY_USE_ENV` can override it.
+
+```yaml
+rest-clients:
+  - id: "external"
+    base-url: "https://api.partner.com"     # inherits HTTP_PROXY / HTTPS_PROXY
+  - id: "internal"
+    base-url: "https://svc.internal.local"
+    proxy: false                            # always connects directly
+```
+
+Note there is deliberately **no proxy TLS option**. The underlying JDK HTTP client connects
+to the proxy in plaintext and tunnels the endpoint's own TLS through it with `CONNECT`, so
+there is no proxy certificate to validate. Certificate validation for the API endpoint is
+governed by the `ssl` block above and is unaffected by proxying. For the same reason a
+`https://` proxy URL is rejected up front.
+
+Only **Basic** proxy authentication is supported; NTLM and Negotiate/Kerberos proxies are
+not, as the JDK HTTP client implements no other scheme. A proxy demanding one of those
+fails with a message naming the scheme.
+
+Invalid proxy configuration (a missing or malformed `url`, an `https://` URL, a `password`
+without a `username`, `proxy: true`, or an unparseable `HTTP_PROXY` value) fails the run up
+front, before any test executes. At run time, proxy-specific failures — an unreachable
+proxy, a rejected credential, a refused tunnel — are reported as such rather than as a
+connection error against the endpoint, which was never contacted.
 
 ### Test cases
 

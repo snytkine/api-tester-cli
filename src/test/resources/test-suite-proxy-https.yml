@@ -1,0 +1,17 @@
+---
+name: "Proxy – TLS endpoint tunneled"
+rest-client:
+  base-url: "[[${cli.base_url}]]"
+  connect-timeout: 5000
+  ssl:
+    skip-certificate-validation: true
+  proxy:
+    url: "[[${cli.proxy_url}]]"
+tests:
+- name: "GET through CONNECT tunnel"
+  request:
+    method: "GET"
+    url: "/api"
+  assertions:
+  - type: "status_code"
+    expected: 200

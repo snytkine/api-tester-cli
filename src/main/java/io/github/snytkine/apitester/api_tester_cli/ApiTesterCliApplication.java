@@ -25,6 +25,8 @@ import io.github.snytkine.apitester.api_tester_cli.model.HttpMethod;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValue;
 import io.github.snytkine.apitester.api_tester_cli.model.ObjectExpectedValueDeserializer;
 import io.github.snytkine.apitester.api_tester_cli.model.PayloadRequest;
+import io.github.snytkine.apitester.api_tester_cli.model.ProxyConfig;
+import io.github.snytkine.apitester.api_tester_cli.model.ProxyConfigDeserializer;
 import io.github.snytkine.apitester.api_tester_cli.model.Request;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestAuth;
 import io.github.snytkine.apitester.api_tester_cli.model.RequestBody;
@@ -71,6 +73,7 @@ import io.github.snytkine.apitester.api_tester_cli.model.hooks.HookPhase;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.ScriptHook;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.WebHook;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyTunnelingSupport;
 import java.util.Map;
 import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 import org.springframework.boot.Banner;
@@ -127,6 +130,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
     ObjectExpectedValueDeserializer.class,
     OneOfAssertion.class,
     PayloadRequest.class,
+    ProxyConfig.class,
+    ProxyConfigDeserializer.class,
     RangeAssertion.class,
     RegexMatchAssertion.class,
     Request.class,
@@ -151,6 +156,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 public class ApiTesterCliApplication {
 
     public static void main(String[] args) {
+        ProxyTunnelingSupport.enableBasicAuthenticationOverConnect();
         SpringApplication app = new SpringApplication(ApiTesterCliApplication.class);
         app.setBannerMode(Banner.Mode.OFF);
         app.setDefaultProperties(Map.of("logging.level.root", "OFF"));

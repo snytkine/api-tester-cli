@@ -35,8 +35,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Use {@link #withDefaults(RestClientConfig)} to obtain an instance where {@code baseUrl},
  * {@code connectTimeout} and {@code followRedirects} are guaranteed non-null. {@code id}, {@code
- * headers}, {@code auth} and {@code ssl} have no defaults and remain {@code null} when absent from
- * the YAML.
+ * headers}, {@code auth}, {@code ssl} and {@code proxy} have no defaults and remain {@code null}
+ * when absent from the YAML. For {@code proxy} that {@code null} is meaningful rather than merely
+ * unset — see {@link #proxy()}.
  *
  * <p>Configs obtained from {@link TestSuite#restClientsById()} are the raw parsed values and do
  * <em>not</em> pass through {@link #withDefaults(RestClientConfig)}, so read the redirect setting
@@ -94,7 +95,19 @@ public record RestClientConfig(
          * this flag and select it from the tests that need it via the request's {@code rest-client}
          * property.
          */
-        @JsonProperty("follow-redirects") @Nullable Boolean followRedirects) {
+        @JsonProperty("follow-redirects") @Nullable Boolean followRedirects,
+
+        /**
+         * Optional HTTP proxy settings for this client. Three states are distinguished and must not
+         * be conflated: {@code null} means the {@code proxy} key was absent, so an {@code
+         * HTTP_PROXY} / {@code HTTPS_PROXY} environment proxy applies automatically; {@link
+         * ProxyConfig#DISABLED} means {@code proxy: false} was declared and this client must never
+         * use a proxy; anything else is an explicitly configured proxy.
+         *
+         * <p>Resolution of these three states against the environment is performed by {@code
+         * ProxyResolver}, not here.
+         */
+        @JsonProperty("proxy") @Nullable ProxyConfig proxy) {
 
     /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
     public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
@@ -126,7 +139,7 @@ public record RestClientConfig(
             Integer connectTimeout,
             @Nullable Map<String, String> headers,
             @Nullable RequestAuth auth) {
-        this(id, baseUrl, connectTimeout, headers, auth, null, null);
+        this(id, baseUrl, connectTimeout, headers, auth, null, null, null);
     }
 
     /**
@@ -148,7 +161,31 @@ public record RestClientConfig(
             @Nullable Map<String, String> headers,
             @Nullable RequestAuth auth,
             @Nullable SslConfig ssl) {
-        this(id, baseUrl, connectTimeout, headers, auth, ssl, null);
+        this(id, baseUrl, connectTimeout, headers, auth, ssl, null, null);
+    }
+
+    /**
+     * Backwards-compatible constructor for a config with no {@code proxy} key, delegating to the
+     * canonical constructor with {@code proxy = null}. Retained so call sites (and tests) written
+     * against the redirect-era seven-argument shape continue to compile unchanged.
+     *
+     * @param id optional client id
+     * @param baseUrl base URL prepended to relative request URLs
+     * @param connectTimeout connection timeout in milliseconds
+     * @param headers optional default headers
+     * @param auth optional default authentication
+     * @param ssl optional custom SSL/TLS settings
+     * @param followRedirects whether redirects are followed
+     */
+    public RestClientConfig(
+            @Nullable String id,
+            String baseUrl,
+            Integer connectTimeout,
+            @Nullable Map<String, String> headers,
+            @Nullable RequestAuth auth,
+            @Nullable SslConfig ssl,
+            @Nullable Boolean followRedirects) {
+        this(id, baseUrl, connectTimeout, headers, auth, ssl, followRedirects, null);
     }
 
     /**
@@ -182,7 +219,14 @@ public record RestClientConfig(
     public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
         if (raw == null) {
             return new RestClientConfig(
-                    null, DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null, null, null, DEFAULT_FOLLOW_REDIRECTS);
+                    null,
+                    DEFAULT_BASE_URL,
+                    DEFAULT_CONNECT_TIMEOUT_MS,
+                    null,
+                    null,
+                    null,
+                    DEFAULT_FOLLOW_REDIRECTS,
+                    null);
         }
         return new RestClientConfig(
                 raw.id(),
@@ -191,6 +235,7 @@ public record RestClientConfig(
                 raw.headers(),
                 raw.auth(),
                 raw.ssl(),
-                raw.followRedirects() != null ? raw.followRedirects() : DEFAULT_FOLLOW_REDIRECTS);
+                raw.followRedirects() != null ? raw.followRedirects() : DEFAULT_FOLLOW_REDIRECTS,
+                raw.proxy());
     }
 }

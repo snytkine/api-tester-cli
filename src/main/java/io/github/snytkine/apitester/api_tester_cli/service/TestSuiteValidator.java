@@ -29,6 +29,8 @@ import io.github.snytkine.apitester.api_tester_cli.model.hooks.Hooks;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.ScriptHook;
 import io.github.snytkine.apitester.api_tester_cli.model.hooks.WebHook;
 import io.github.snytkine.apitester.api_tester_cli.service.hooks.ScriptHookExecutor;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyConfigurationException;
+import io.github.snytkine.apitester.api_tester_cli.util.ProxyResolver;
 import io.github.snytkine.apitester.api_tester_cli.util.SslConfigurationException;
 import io.github.snytkine.apitester.api_tester_cli.util.SslContextFactory;
 import java.nio.file.Files;
@@ -42,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 
 /**
@@ -335,6 +338,38 @@ public class TestSuiteValidator {
         } else if (!Files.isReadable(resolved)) {
             errors.add(label + " file is not readable: " + resolved);
         }
+    }
+
+    /**
+     * Validates the {@code proxy} block of every rest-client, together with the {@code HTTP_PROXY}
+     * / {@code HTTPS_PROXY} environment values that would apply to them.
+     *
+     * <p>Validation runs the same {@link ProxyResolver#resolve} the engine uses when building each
+     * client, so anything the runtime would reject is reported here instead — an unusable {@code
+     * proxy} scalar (notably {@code proxy: true}), a missing or malformed {@code url}, an {@code
+     * https://} proxy URL, a {@code password} without a {@code username}, or a malformed
+     * environment value.
+     *
+     * <p>Because resolution is per-client, a malformed environment proxy is reported only for the
+     * clients that would actually use it. A client declaring {@code proxy: false} is exempt, since
+     * its opt-out is absolute and it never consults the environment.
+     *
+     * @param suite the fully-loaded, template-resolved test suite; must not be {@code null}
+     * @param env the merged environment (process environment overlaid on the suite's {@code .env});
+     *     may be {@code null}, treated as empty
+     * @return a non-null, possibly-empty list of error messages; empty means every proxy setting is
+     *     valid
+     */
+    public List<String> validateProxy(TestSuite suite, @Nullable Map<String, String> env) {
+        List<String> errors = new ArrayList<>();
+        for (Map.Entry<String, RestClientConfig> entry : suite.restClientsById().entrySet()) {
+            try {
+                ProxyResolver.resolve(entry.getValue(), env);
+            } catch (ProxyConfigurationException e) {
+                errors.add("rest-client '" + entry.getKey() + "': " + e.getMessage());
+            }
+        }
+        return errors;
     }
 
     /**

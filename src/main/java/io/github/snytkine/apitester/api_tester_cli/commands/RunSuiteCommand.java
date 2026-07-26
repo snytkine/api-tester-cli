@@ -532,7 +532,7 @@ public class RunSuiteCommand {
                     resolveUpgradeMessage(),
                     suiteRunContext.getRunID());
             controller.start();
-            List<String> validationErrors = collectValidationErrors(suiteToRun);
+            List<String> validationErrors = collectValidationErrors(suiteToRun, suiteRunContext.env());
             if (!validationErrors.isEmpty()) {
                 runValidationFailedHooks(suiteToRun, hookCtx, uiListener);
                 uiListener.onProgress(new TestProgressEvent.ValidationFailed(validationErrors));
@@ -550,7 +550,7 @@ public class RunSuiteCommand {
             }
             controller.await();
         } else {
-            List<String> validationErrors = collectValidationErrors(suiteToRun);
+            List<String> validationErrors = collectValidationErrors(suiteToRun, suiteRunContext.env());
             if (!validationErrors.isEmpty()) {
                 runValidationFailedHooks(suiteToRun, hookCtx, NoOpProgressListener.INSTANCE);
                 reportOptionsError(validationErrors, nonInteractive, context);
@@ -648,17 +648,21 @@ public class RunSuiteCommand {
 
     /**
      * Collects all pre-execution validation errors for {@code suite}: duplicate test names, invalid
-     * rest-client declarations, invalid custom SSL configuration, invalid {@code depends-on}
-     * declarations (unknown references and cycles), and invalid lifecycle hooks.
+     * rest-client declarations, invalid custom SSL configuration, invalid proxy configuration,
+     * invalid {@code depends-on} declarations (unknown references and cycles), and invalid
+     * lifecycle hooks.
      *
      * @param suite the suite to validate
+     * @param env the merged environment, needed to validate the proxy settings that {@code
+     *     HTTP_PROXY} / {@code HTTPS_PROXY} would contribute
      * @return a mutable, possibly-empty list of error messages
      */
-    private List<String> collectValidationErrors(TestSuite suite) {
+    private List<String> collectValidationErrors(TestSuite suite, Map<String, String> env) {
         List<String> errors = new ArrayList<>();
         errors.addAll(testSuiteValidator.validate(suite));
         errors.addAll(testSuiteValidator.validateRestClients(suite));
         errors.addAll(testSuiteValidator.validateSsl(suite));
+        errors.addAll(testSuiteValidator.validateProxy(suite, env));
         errors.addAll(testSuiteValidator.validateDependencies(suite));
         errors.addAll(testSuiteValidator.validateHooks(suite));
         return errors;
