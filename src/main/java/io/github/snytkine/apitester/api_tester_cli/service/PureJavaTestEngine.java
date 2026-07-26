@@ -1151,15 +1151,22 @@ public class PureJavaTestEngine implements TestEngine {
      * <p>
      * If {@code config} carries a non-blank {@code baseUrl} it is set as the
      * client's default base
-     * URL. When a {@code connectTimeout} and/or a custom {@code ssl} configuration
-     * is present AND the injected factory is a {@link
+     * URL. When a {@code connectTimeout}, a custom {@code ssl} configuration and/or
+     * {@code follow-redirects: false} is present AND the injected factory is a {@link
      * org.springframework.http.client.JdkClientHttpRequestFactory}, a new
      * JDK-backed factory is created whose {@link java.net.http.HttpClient} carries
-     * both the connect timeout and the custom {@link javax.net.ssl.SSLContext};
-     * non-JDK factories (e.g. stub factories used in tests) are never replaced.
-     * When {@code headers} is non-null each entry is registered as a
+     * the connect timeout, the custom {@link javax.net.ssl.SSLContext} and the
+     * redirect policy; non-JDK factories (e.g. stub factories used in tests) are
+     * never replaced. When {@code headers} is non-null each entry is registered as a
      * default header applied
      * to every request built with this client.
+     *
+     * <p>
+     * {@code follow-redirects: false} maps to {@link
+     * java.net.http.HttpClient.Redirect#NEVER}, which makes a 3xx response the final
+     * response seen by assertions rather than being transparently followed. The
+     * default ({@code true}) maps to {@link
+     * java.net.http.HttpClient.Redirect#NORMAL}.
      *
      * @param config   the suite-level REST client settings
      * @param suiteDir the directory of the suite file, used to resolve relative
@@ -1173,15 +1180,20 @@ public class PureJavaTestEngine implements TestEngine {
             builder.baseUrl(config.baseUrl());
         }
         javax.net.ssl.SSLContext sslContext = SslContextFactory.create(config.ssl(), suiteDir);
-        boolean needsCustomHttpClient = (config.connectTimeout() != null || sslContext != null)
+        boolean followRedirects = config.followRedirectsOrDefault();
+        boolean needsCustomHttpClient = (config.connectTimeout() != null || sslContext != null || !followRedirects)
                 && requestFactory instanceof org.springframework.http.client.JdkClientHttpRequestFactory;
         if (needsCustomHttpClient) {
             // Mirror the defaults of the application's default factory (HttpClientConfig) so that
             // enabling a connect timeout or custom SSL does not silently change redirect/protocol
-            // behavior.
+            // behavior. NEVER makes the JDK client surface a 3xx response as the final response,
+            // so assertions can inspect its status code and Location header.
             java.net.http.HttpClient.Builder httpClientBuilder = java.net.http.HttpClient.newBuilder()
                     .version(java.net.http.HttpClient.Version.HTTP_2)
-                    .followRedirects(java.net.http.HttpClient.Redirect.NORMAL);
+                    .followRedirects(
+                            followRedirects
+                                    ? java.net.http.HttpClient.Redirect.NORMAL
+                                    : java.net.http.HttpClient.Redirect.NEVER);
             if (config.connectTimeout() != null) {
                 httpClientBuilder.connectTimeout(Duration.ofMillis(config.connectTimeout()));
             }

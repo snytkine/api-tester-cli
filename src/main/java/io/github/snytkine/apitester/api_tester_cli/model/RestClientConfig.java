@@ -33,9 +33,14 @@ import org.jspecify.annotations.Nullable;
  * singular {@code rest-client} form (which is always the {@code default} client) and for a
  * single-entry {@code rest-clients} list that omits it.
  *
- * <p>Use {@link #withDefaults(RestClientConfig)} to obtain an instance where {@code baseUrl} and
- * {@code connectTimeout} are guaranteed non-null. {@code id}, {@code headers}, {@code auth} and
- * {@code ssl} have no defaults and remain {@code null} when absent from the YAML.
+ * <p>Use {@link #withDefaults(RestClientConfig)} to obtain an instance where {@code baseUrl},
+ * {@code connectTimeout} and {@code followRedirects} are guaranteed non-null. {@code id}, {@code
+ * headers}, {@code auth} and {@code ssl} have no defaults and remain {@code null} when absent from
+ * the YAML.
+ *
+ * <p>Configs obtained from {@link TestSuite#restClientsById()} are the raw parsed values and do
+ * <em>not</em> pass through {@link #withDefaults(RestClientConfig)}, so read the redirect setting
+ * via {@link #followRedirectsOrDefault()} rather than {@link #followRedirects()}.
  */
 public record RestClientConfig(
         /**
@@ -75,7 +80,21 @@ public record RestClientConfig(
          * org.springframework.web.client.RestClient}. May be {@code null} when the {@code ssl} key is
          * absent from the YAML.
          */
-        @JsonProperty("ssl") @Nullable SslConfig ssl) {
+        @JsonProperty("ssl") @Nullable SslConfig ssl,
+
+        /**
+         * Whether this client automatically follows HTTP redirect (3xx) responses. When {@code false}
+         * a redirect response is delivered to the test as the final response, so assertions can check
+         * the 3xx status code and the {@code Location} header. When {@code null} (the {@code
+         * follow-redirects} key is absent from the YAML) the default {@link
+         * #DEFAULT_FOLLOW_REDIRECTS} applies.
+         *
+         * <p>This setting exists only at the rest-client level; it cannot be overridden per test
+         * case. To mix behaviours within one suite, declare a second rest-client that differs only in
+         * this flag and select it from the tests that need it via the request's {@code rest-client}
+         * property.
+         */
+        @JsonProperty("follow-redirects") @Nullable Boolean followRedirects) {
 
     /** Default connection timeout applied when the YAML omits {@code connect_timeout}. */
     public static final int DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
@@ -84,9 +103,16 @@ public record RestClientConfig(
     public static final String DEFAULT_BASE_URL = "";
 
     /**
+     * Default redirect-following behaviour applied when the YAML omits {@code follow-redirects}.
+     * Redirects are followed by default, preserving the behaviour of suites written before this
+     * option existed.
+     */
+    public static final boolean DEFAULT_FOLLOW_REDIRECTS = true;
+
+    /**
      * Backwards-compatible constructor for a config with no {@code ssl} block, delegating to the
-     * canonical constructor with {@code ssl = null}. Retained so existing call sites (and tests) that
-     * predate the SSL feature continue to compile unchanged.
+     * canonical constructor with {@code ssl = null} and {@code followRedirects = null}. Retained so
+     * existing call sites (and tests) that predate the SSL feature continue to compile unchanged.
      *
      * @param id optional client id
      * @param baseUrl base URL prepended to relative request URLs
@@ -100,7 +126,43 @@ public record RestClientConfig(
             Integer connectTimeout,
             @Nullable Map<String, String> headers,
             @Nullable RequestAuth auth) {
-        this(id, baseUrl, connectTimeout, headers, auth, null);
+        this(id, baseUrl, connectTimeout, headers, auth, null, null);
+    }
+
+    /**
+     * Backwards-compatible constructor for a config with no {@code follow-redirects} key, delegating
+     * to the canonical constructor with {@code followRedirects = null}. Retained so call sites (and
+     * tests) written against the SSL-era six-argument shape continue to compile unchanged.
+     *
+     * @param id optional client id
+     * @param baseUrl base URL prepended to relative request URLs
+     * @param connectTimeout connection timeout in milliseconds
+     * @param headers optional default headers
+     * @param auth optional default authentication
+     * @param ssl optional custom SSL/TLS settings
+     */
+    public RestClientConfig(
+            @Nullable String id,
+            String baseUrl,
+            Integer connectTimeout,
+            @Nullable Map<String, String> headers,
+            @Nullable RequestAuth auth,
+            @Nullable SslConfig ssl) {
+        this(id, baseUrl, connectTimeout, headers, auth, ssl, null);
+    }
+
+    /**
+     * Returns whether this client should follow HTTP redirects, resolving the {@code null} (absent)
+     * case to {@link #DEFAULT_FOLLOW_REDIRECTS}.
+     *
+     * <p>Callers should prefer this over reading {@link #followRedirects()} directly, because configs
+     * obtained from {@link TestSuite#restClientsById()} are the raw parsed values and have not passed
+     * through {@link #withDefaults(RestClientConfig)}.
+     *
+     * @return {@code true} when redirects should be followed
+     */
+    public boolean followRedirectsOrDefault() {
+        return followRedirects == null ? DEFAULT_FOLLOW_REDIRECTS : followRedirects;
     }
 
     /**
@@ -119,7 +181,8 @@ public record RestClientConfig(
      */
     public static RestClientConfig withDefaults(@Nullable RestClientConfig raw) {
         if (raw == null) {
-            return new RestClientConfig(null, DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null, null, null);
+            return new RestClientConfig(
+                    null, DEFAULT_BASE_URL, DEFAULT_CONNECT_TIMEOUT_MS, null, null, null, DEFAULT_FOLLOW_REDIRECTS);
         }
         return new RestClientConfig(
                 raw.id(),
@@ -127,6 +190,7 @@ public record RestClientConfig(
                 raw.connectTimeout() != null ? raw.connectTimeout() : DEFAULT_CONNECT_TIMEOUT_MS,
                 raw.headers(),
                 raw.auth(),
-                raw.ssl());
+                raw.ssl(),
+                raw.followRedirects() != null ? raw.followRedirects() : DEFAULT_FOLLOW_REDIRECTS);
     }
 }

@@ -1,0 +1,18 @@
+---
+name: "Redirect Suite – follow-redirects false"
+rest-client:
+  base-url: "[[${cli.base_url}]]"
+  follow-redirects: false
+tests:
+- name: "GET redirect – 301 not followed"
+  request:
+    method: "GET"
+    url: "/redirect"
+  assertions:
+  - type: "status_code"
+    expected: 301
+  - type: "has_header"
+    name: "location"
+  - type: "string_contains"
+    path: "response.headers.location"
+    expected: "/target"

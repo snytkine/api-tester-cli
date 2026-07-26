@@ -43,6 +43,11 @@
         "ssl": {
           "$ref": "#/$defs/Ssl",
           "description": "Optional custom SSL/TLS settings (skip validation, custom truststore, and/or client keystore for mTLS)"
+        },
+        "follow-redirects": {
+          "type": "boolean",
+          "description": "Whether to automatically follow HTTP redirect (3xx) responses. Defaults to true. Set to false to make a 3xx response the final response, so assertions can check its status code and Location header. Available only on the rest-client, not on individual tests.",
+          "default": true
         }
       }
     },
@@ -81,6 +86,11 @@
           "ssl": {
             "$ref": "#/$defs/Ssl",
             "description": "Optional custom SSL/TLS settings (skip validation, custom truststore, and/or client keystore for mTLS)"
+          },
+          "follow-redirects": {
+            "type": "boolean",
+            "description": "Whether this client automatically follows HTTP redirect (3xx) responses. Defaults to true. Set to false to make a 3xx response the final response, so assertions can check its status code and Location header. Available only on the rest-client, not on individual tests.",
+            "default": true
           }
         }
       }
