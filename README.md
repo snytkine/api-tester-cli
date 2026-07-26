@@ -18,7 +18,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 ## What It Does
 
 - Executes HTTP test suites described in YAML
-- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, HTTP Basic Auth, and custom SSL/TLS (self-signed certs, custom truststore, and mutual-TLS client certificates)
+- Supports one default `rest-client` or multiple named `rest-clients` with per-request selection — each with `base-url`, `connect-timeout`, shared headers, HTTP Basic Auth, optional redirect following, and custom SSL/TLS (self-signed certs, custom truststore, and mutual-TLS client certificates)
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
@@ -200,8 +200,64 @@ Each client supports:
 - `headers`: default headers added to every request using the client
 - `auth`: optional HTTP Basic Auth (client-level default)
 - `ssl`: optional custom SSL/TLS settings — skip certificate validation, a custom truststore, and/or a client keystore for mutual TLS (see below)
+- `follow-redirects`: whether to follow HTTP 3xx responses; defaults to `true` (see below)
 
 Per-test headers override same-named client-level headers. Per-test authentication and explicit `Authorization` headers in request headers override client-level authentication. The per-request `rest-client` selector is ignored (a warning is logged) when the singular `rest-client` form is used.
+
+#### Handling HTTP redirects
+
+By default a rest-client transparently follows HTTP redirect (3xx) responses, so a test that
+requests a redirecting URL sees the final response from the redirect target. To test the redirect
+itself — its status code and its `Location` header — set `follow-redirects: false`:
+
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
+  follow-redirects: false
+
+tests:
+  - name: "legacy path redirects permanently"
+    request:
+      method: "GET"
+      url: "/old-path"
+    assertions:
+      - type: "status_code"
+        expected: 301
+      - type: "string_contains"
+        path: "response.headers.location"
+        expected: "/new-path"
+```
+
+**This option exists only on the rest-client, not on individual tests.** If some tests in a suite
+need redirects followed and others do not, declare a second rest-client that shares the same
+configuration but adds `follow-redirects: false`, then select it from the tests that need it:
+
+```yaml
+rest-clients:
+  - id: "default"
+    base-url: "https://api.example.com"
+  - id: "no-redirect"
+    base-url: "https://api.example.com"
+    follow-redirects: false
+
+tests:
+  - name: "follows the redirect"
+    request:
+      method: "GET"
+      url: "/old-path"
+    assertions:
+      - type: "status_code"
+        expected: 200
+
+  - name: "inspects the redirect itself"
+    request:
+      method: "GET"
+      url: "/old-path"
+      rest-client: "no-redirect"
+    assertions:
+      - type: "status_code"
+        expected: 301
+```
 
 #### HTTP Basic Auth
 

@@ -121,4 +121,61 @@ class RestClientConfigTest {
 
         assertThat(raw.ssl()).isNull();
     }
+
+    // --- follow-redirects ---
+
+    @Test
+    void withDefaultsOnNullRawEnablesFollowRedirects() {
+        RestClientConfig result = RestClientConfig.withDefaults(null);
+
+        assertThat(result.followRedirects()).isEqualTo(RestClientConfig.DEFAULT_FOLLOW_REDIRECTS);
+        assertThat(result.followRedirectsOrDefault()).isTrue();
+    }
+
+    @Test
+    void withDefaultsFillsMissingFollowRedirectsWithTrue() {
+        RestClientConfig raw = new RestClientConfig(null, null, null, null, null, null, null);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.followRedirects()).isTrue();
+    }
+
+    @Test
+    void withDefaultsPreservesExplicitFollowRedirectsFalse() {
+        RestClientConfig raw = new RestClientConfig(null, "https://api.example.com", 1000, null, null, null, false);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.followRedirects()).isFalse();
+        assertThat(result.followRedirectsOrDefault()).isFalse();
+    }
+
+    @Test
+    void withDefaultsPreservesExplicitFollowRedirectsTrue() {
+        RestClientConfig raw = new RestClientConfig(null, "https://api.example.com", 1000, null, null, null, true);
+
+        RestClientConfig result = RestClientConfig.withDefaults(raw);
+
+        assertThat(result.followRedirects()).isTrue();
+    }
+
+    @Test
+    void followRedirectsOrDefaultTreatsAbsentValueAsTrue() {
+        RestClientConfig raw = new RestClientConfig(null, "https://api.example.com", 1000, null, null, null, null);
+
+        assertThat(raw.followRedirects()).isNull();
+        assertThat(raw.followRedirectsOrDefault()).isTrue();
+    }
+
+    @Test
+    void backwardsCompatibleConstructorsLeaveFollowRedirectsNull() {
+        RestClientConfig fiveArg = new RestClientConfig("id", "https://api.example.com", 1000, null, null);
+        RestClientConfig sixArg = new RestClientConfig("id", "https://api.example.com", 1000, null, null, null);
+
+        assertThat(fiveArg.followRedirects()).isNull();
+        assertThat(sixArg.followRedirects()).isNull();
+        assertThat(fiveArg.followRedirectsOrDefault()).isTrue();
+        assertThat(sixArg.followRedirectsOrDefault()).isTrue();
+    }
 }

@@ -1,0 +1,14 @@
+---
+name: "Redirect Suite – follow-redirects omitted"
+rest-client:
+  base-url: "[[${cli.base_url}]]"
+tests:
+- name: "GET redirect – followed to target"
+  request:
+    method: "GET"
+    url: "/redirect"
+  assertions:
+  - type: "status_code"
+    expected: 200
+  - type: "assert_true"
+    path: "response.body.json.ok"
