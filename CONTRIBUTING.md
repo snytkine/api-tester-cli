@@ -49,6 +49,51 @@ cd cmd-rest
 
 ---
 
+## Dependency vulnerability scanning
+
+`./mvnw verify` runs [OWASP dependency-check](https://owasp.org/www-project-dependency-check/)
+against the resolved dependency tree and fails the build on any CVE with a CVSS score of
+7.0 or higher. Reports are written to `target/dependency-check-report.{html,json}`.
+
+The scan is **local-only**: its profile activates on the absence of the `CI` environment
+variable, which GitHub Actions always sets, so it never runs in CI. Dependency scanning in
+CI is handled by Snyk (`.github/workflows/snyk.yml`).
+
+To skip it for a single build:
+
+```bash
+./mvnw verify -Ddependency-check.skip=true
+```
+
+### NVD API key
+
+Without an API key the National Vulnerability Database feed is heavily rate-limited and the
+first update can take 10+ minutes. Request a free key at
+[nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key),
+then store it **outside the repository** in `~/.m2/settings.xml` so it is shared by every
+Maven project on your machine and can never be committed:
+
+```xml
+<settings>
+  <profiles>
+    <profile>
+      <id>machine-secrets</id>
+      <properties>
+        <nvd.api.key>your-key-here</nvd.api.key>
+      </properties>
+    </profile>
+  </profiles>
+  <activeProfiles>
+    <activeProfile>machine-secrets</activeProfile>
+  </activeProfiles>
+</settings>
+```
+
+The `pom.xml` declares an empty `nvd.api.key` default, so builds still work without a key —
+just more slowly. Never put the key in `pom.xml` or any file inside the repository.
+
+---
+
 ## Code style
 
 This project uses [Spotless](https://github.com/diffplug/spotless) with
