@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.0](https://github.com/snytkine/cmd-rest/compare/v0.8.0...v1.0.0) (2026-07-31)
+
+
+### ⚠ BREAKING CHANGES
+
+* groupId, artifactId, and Java packages renamed from api-tester-cli/io.github.snytkine.apitester to cmd-rest/io.github.snytkine.cmdrest. CMDREST_ALLOW_SCRIPTS replaces APITESTER_ALLOW_SCRIPTS.
+
+### Features
+
+* add proxy support to rest-client config ([#71](https://github.com/snytkine/cmd-rest/issues/71)) ([83d02f4](https://github.com/snytkine/cmd-rest/commit/83d02f49d1d975976c07b6195bf56aec98205ad4))
+* rename project to cmd-rest ([0eb7c55](https://github.com/snytkine/cmd-rest/commit/0eb7c556527217b88715dff505518e8e3baeeb53))
+
 ## [0.8.0](https://github.com/snytkine/api-tester-cli/compare/v0.7.1...v0.8.0) (2026-07-26)
 
 
