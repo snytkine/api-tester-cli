@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/snytkine/cmd-rest/compare/v1.0.0...v1.1.0) (2026-07-31)
+
+
+### Features
+
+* upgrade Spring Boot to 4.0.7 to remediate critical CVE-2026-41855 ([424d437](https://github.com/snytkine/cmd-rest/commit/424d437c6985fff52e85fb0be8baffaeebd88523))
+
 ## [1.0.0](https://github.com/snytkine/cmd-rest/compare/v0.8.0...v1.0.0) (2026-07-31)
 
 
