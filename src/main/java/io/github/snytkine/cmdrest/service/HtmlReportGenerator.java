@@ -1,0 +1,428 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.cmdrest.service;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.snytkine.cmdrest.config.VersionCheckProperties;
+import io.github.snytkine.cmdrest.model.ApiResponse;
+import io.github.snytkine.cmdrest.model.AssertionFailure;
+import io.github.snytkine.cmdrest.model.ReportOptions;
+import io.github.snytkine.cmdrest.model.RequestAuth;
+import io.github.snytkine.cmdrest.model.TestCaseResult;
+import io.github.snytkine.cmdrest.model.TestResult;
+import io.github.snytkine.cmdrest.model.TestRunResult;
+import io.github.snytkine.cmdrest.model.TestSuite;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
+import org.springframework.boot.info.BuildProperties;
+import org.springframework.stereotype.Service;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context;
+import org.thymeleaf.templatemode.TemplateMode;
+import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
+
+/**
+ * Renders a {@link TestRunResult} together with its originating {@link TestSuite} into a
+ * self-contained single-page HTML report and writes it to a file.
+ *
+ * <p>The report embeds all CSS inline and uses native {@code <details>}/{@code <summary>}
+ * expand-collapse. Rendering behaviour is controlled by a {@link ReportOptions} instance passed to
+ * {@link #generate}: when {@link ReportOptions#jsEnabled()} is {@code true} a small inline
+ * JavaScript formatter is embedded and JSON bodies are stored as compact JSON; when {@code false}
+ * JSON bodies are pretty-printed server-side and no script tag is emitted.
+ *
+ * <p>Thread-safety: this class is a stateless Spring singleton. The static {@link TemplateEngine}
+ * is thread-safe after initialization (Thymeleaf's documented guarantee). The {@code ObjectMapper}
+ * field is configured once at construction and never mutated afterwards — Jackson's {@code
+ * ObjectMapper} is thread-safe for reading/writing when no reconfiguration occurs after
+ * construction. All per-invocation state (context, computed strings, file I/O) lives on the call
+ * stack.
+ */
+@Service
+public class HtmlReportGenerator {
+
+    private static final TemplateEngine HTML_ENGINE;
+
+    /** Matches a complete {@code <pre>…</pre>} block including its content. */
+    private static final Pattern PRE_PATTERN = Pattern.compile("(?s)<pre[^>]*>.*?</pre>");
+
+    /** Matches a complete {@code <style>…</style>} block, capturing the inner content. */
+    private static final Pattern STYLE_PATTERN = Pattern.compile("(?s)(<style[^>]*>)(.*?)(</style>)");
+
+    /**
+     * Displayed in place of a real username/password in the report. The raw credentials in {@link
+     * io.github.snytkine.cmdrest.model.ExecutedRequestInfo#auth()} must never reach
+     * the rendered HTML.
+     */
+    private static final String MASKED_VALUE = "*****";
+
+    static {
+        ClassLoaderTemplateResolver resolver = new ClassLoaderTemplateResolver();
+        resolver.setPrefix("templates/");
+        resolver.setSuffix(".html");
+        resolver.setTemplateMode(TemplateMode.HTML);
+        resolver.setCharacterEncoding("UTF-8");
+        resolver.setCacheable(true);
+        TemplateEngine engine = new TemplateEngine();
+        engine.setTemplateResolver(resolver);
+        HTML_ENGINE = engine;
+    }
+
+    private final ObjectMapper jsonMapper = new ObjectMapper();
+    private final String appVersion;
+    private final LatestVersionHolder latestVersionHolder;
+    private final VersionCheckProperties versionCheckProperties;
+
+    /**
+     * Constructs the generator with the application build properties and the version-check
+     * collaborators used to render the upgrade-available banner.
+     *
+     * @param buildProperties Spring Boot build properties providing the application version
+     * @param latestVersionHolder supplies the latest known newer-than-running version, if any
+     * @param versionCheckProperties supplies the upgrade message template and upgrade-page URL
+     */
+    public HtmlReportGenerator(
+            BuildProperties buildProperties,
+            LatestVersionHolder latestVersionHolder,
+            VersionCheckProperties versionCheckProperties) {
+        this.appVersion = buildProperties.getVersion();
+        this.latestVersionHolder = latestVersionHolder;
+        this.versionCheckProperties = versionCheckProperties;
+    }
+
+    /**
+     * Renders the supplied test-run result and suite metadata into an HTML report and writes it to
+     * {@code outputPath}, using the supplied {@link ReportOptions} to control JS and minification.
+     *
+     * <p>Convenience overload equivalent to {@link #generate(TestRunResult, TestSuite, Path,
+     * ReportOptions, String)} with a {@code null} run identifier, so no {@code runID} line is
+     * rendered in the report header.
+     *
+     * @param result the aggregated outcome of the test run
+     * @param suite the test suite that was executed
+     * @param outputPath the file path where the HTML report will be written
+     * @param options rendering options controlling JS formatter and HTML minification
+     * @throws IOException if template rendering or file I/O fails
+     */
+    public void generate(TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options)
+            throws IOException {
+        generate(result, suite, outputPath, options, null);
+    }
+
+    /**
+     * Renders the supplied test-run result and suite metadata into an HTML report and writes it to
+     * {@code outputPath}, using the supplied {@link ReportOptions} to control JS and minification.
+     *
+     * <p>Any missing parent directories of {@code outputPath} are created automatically. The file is
+     * overwritten if it already exists.
+     *
+     * @param result the aggregated outcome of the test run
+     * @param suite the test suite that was executed
+     * @param outputPath the file path where the HTML report will be written
+     * @param options rendering options controlling JS formatter and HTML minification
+     * @param runID the unique identifier of this suite execution (see {@link
+     *     io.github.snytkine.cmdrest.model.SuiteRunContext#getRunID()}); when
+     *     non-null and non-blank it is rendered as a {@code runID: <value>} line in the report header
+     *     directly above the "Generated" timestamp; when {@code null} or blank the line is omitted
+     * @throws IOException if template rendering or file I/O fails
+     */
+    public void generate(
+            TestRunResult result, TestSuite suite, Path outputPath, ReportOptions options, @Nullable String runID)
+            throws IOException {
+        Context ctx = new Context();
+        ctx.setVariable("suiteName", suite.name());
+        ctx.setVariable("suiteDescription", suite.description());
+        ctx.setVariable("runID", runID != null && !runID.isBlank() ? runID : null);
+        ctx.setVariable("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
+        ctx.setVariable("passedCount", result.passedCount());
+        ctx.setVariable("failedCount", result.failedCount());
+        ctx.setVariable("skippedCount", result.skippedCount());
+        ctx.setVariable("errorCount", result.errorCount());
+        ctx.setVariable(
+                "totalCount",
+                result.passedCount() + result.failedCount() + result.skippedCount() + result.errorCount());
+        ctx.setVariable(
+                "tests",
+                result.results().stream()
+                        .map(tc -> toTestMap(tc, options.jsEnabled()))
+                        .toList());
+        ctx.setVariable("jsEnabled", options.jsEnabled());
+        ctx.setVariable("appVersion", appVersion);
+
+        Optional<String> latestVersion = latestVersionHolder.get();
+        ctx.setVariable("upgradeAvailable", latestVersion.isPresent());
+        ctx.setVariable(
+                "upgradeMessage",
+                latestVersion.map(versionCheckProperties::resolveUpgradeMessage).orElse(null));
+        ctx.setVariable("upgradePageUrl", versionCheckProperties.upgradePageUrl());
+
+        String html = HTML_ENGINE.process("suite-report", ctx);
+        if (options.minifyEnabled()) {
+            html = minify(html);
+        }
+        Files.createDirectories(outputPath.toAbsolutePath().getParent());
+        Files.writeString(outputPath, html);
+    }
+
+    /**
+     * Converts a {@link TestCaseResult} record into a {@code Map<String,Object>} suitable for
+     * consumption by the Thymeleaf OGNL template engine.
+     *
+     * <p>All fields that are nullable in the record are carried into the map as-is; the template uses
+     * {@code th:if} guards before accessing them.
+     *
+     * @param tc the test-case result to convert
+     * @param compactJson when {@code true} JSON response bodies are serialised as compact JSON;
+     *     when {@code false} they are pretty-printed
+     * @return a map with keys matching the template variable names
+     */
+    private Map<String, Object> toTestMap(TestCaseResult tc, boolean compactJson) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        boolean parentFailure = tc.failedParentName() != null;
+        boolean isError = tc.result() == TestResult.ERROR;
+        map.put("name", tc.name());
+        map.put("result", tc.result().name());
+        map.put("statusClass", tc.result().name().toLowerCase());
+        map.put("passedAssertions", tc.passedAssertions());
+        // Neither a parent-failure test nor an errored test evaluated assertions of its own, so both
+        // report zero failed assertions and show no "Failed Assertions" block. A parent-failure test
+        // shows the "Failed parent test" block; an errored test (e.g. an HTTP I/O failure) shows the
+        // "Error" block. Only a genuinely FAILED test lists individual failed assertions.
+        map.put(
+                "failedAssertions",
+                (parentFailure || isError) ? 0 : tc.failures().size());
+        map.put("isParentFailure", parentFailure);
+        map.put(
+                "parentFailureMessage",
+                parentFailure ? TestCaseResult.parentFailureMessage(tc.failedParentName()) : null);
+        // An error is not an assertion outcome: its message lives in the failure descriptions and is
+        // rendered under an "Error" summary rather than "Failed Assertions".
+        map.put("isError", isError);
+        map.put("errorMessage", isError ? errorMessageFrom(tc.failures()) : null);
+        map.put("skipReason", tc.skipReason());
+        map.put("hasRequest", tc.requestInfo() != null);
+        map.put(
+                "requestMethod",
+                tc.requestInfo() != null ? tc.requestInfo().method().name() : null);
+        map.put("requestUrl", tc.requestInfo() != null ? tc.requestInfo().url() : null);
+        map.put("restClientId", tc.requestInfo() != null ? tc.requestInfo().restClientId() : null);
+        map.put(
+                "requestBody",
+                tc.requestInfo() != null ? formatJsonString(tc.requestInfo().body(), compactJson) : null);
+        map.put(
+                "requestHeaders",
+                headersToList(tc.requestInfo() != null ? tc.requestInfo().headers() : null));
+        RequestAuth auth = tc.requestInfo() != null ? tc.requestInfo().auth() : null;
+        map.put("hasAuth", auth != null);
+        map.put("authType", auth != null ? auth.type().name() : null);
+        map.put("authUsername", auth != null ? MASKED_VALUE : null);
+        map.put("authPassword", auth != null ? MASKED_VALUE : null);
+        map.put("hasResponse", tc.apiResponse() != null);
+        map.put("responseStatus", tc.apiResponse() != null ? tc.apiResponse().statusCode() : null);
+        map.put("responseTimeMs", tc.apiResponse() != null ? tc.apiResponse().responseTimeMs() : null);
+        map.put(
+                "responseHeaders",
+                headersToList(tc.apiResponse() != null ? tc.apiResponse().headers() : null));
+        map.put("formattedResponseBody", formatBody(tc.apiResponse(), compactJson));
+        map.put("failures", failuresToList(tc.failures()));
+        return map;
+    }
+
+    /**
+     * Converts a nullable header map into a list of {@code {name, value}} maps for OGNL-safe
+     * iteration in the template.
+     *
+     * @param headers the header map, or {@code null}
+     * @return a list of single-entry maps; empty when {@code headers} is {@code null} or empty
+     */
+    private List<Map<String, String>> headersToList(@Nullable Map<String, String> headers) {
+        if (headers == null) {
+            return List.of();
+        }
+        return headers.entrySet().stream()
+                .map(e -> Map.of("name", e.getKey(), "value", e.getValue()))
+                .toList();
+    }
+
+    /**
+     * Converts a list of {@link AssertionFailure} records into a list of {@code Map<String,Object>}
+     * for OGNL-safe iteration in the template.
+     *
+     * @param failures the list of failures; must not be {@code null} but may be empty
+     * @return a list of maps, one per failure, with keys {@code description}, {@code expected},
+     *     {@code actual}, and {@code error}
+     */
+    private List<Map<String, Object>> failuresToList(List<AssertionFailure> failures) {
+        return failures.stream()
+                .map(f -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("description", f.description());
+                    m.put("expected", f.expected());
+                    m.put("actual", f.actual());
+                    m.put("error", f.error());
+                    return m;
+                })
+                .toList();
+    }
+
+    /**
+     * Builds the human-readable error message shown under the "Error" summary for a test whose result
+     * is {@link TestResult#ERROR}.
+     *
+     * <p>For an errored test the failure entries carry the captured error text (e.g. an HTTP I/O
+     * failure message) in their {@link AssertionFailure#description()} field, with {@code expected},
+     * {@code actual}, and {@code error} all {@code null}. This joins the non-blank descriptions with
+     * newlines. When no usable text is present a generic fallback is returned so the block is never
+     * empty.
+     *
+     * @param failures the errored test's failure entries; typically a single entry
+     * @return the joined error text, or {@code "An unexpected error occurred."} when none is available
+     */
+    private static String errorMessageFrom(List<AssertionFailure> failures) {
+        String joined = failures.stream()
+                .map(AssertionFailure::description)
+                .filter(d -> d != null && !d.isBlank())
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return joined.isBlank() ? "An unexpected error occurred." : joined;
+    }
+
+    /**
+     * Formats the response body for display in the report.
+     *
+     * <p>When {@code compact} is {@code true} and the body contains parsed JSON, the JSON is
+     * serialised as a single-line compact string (the browser-side JS formatter will expand it).
+     * When {@code compact} is {@code false} the JSON is pretty-printed server-side. Returns the raw
+     * body text when the body is not JSON, and {@code null} when the response or its body is absent.
+     *
+     * @param resp the API response, or {@code null}
+     * @param compact when {@code true} serialise JSON compactly; when {@code false} pretty-print
+     * @return formatted body string, or {@code null}
+     */
+    @Nullable private String formatBody(@Nullable ApiResponse resp, boolean compact) {
+        if (resp == null || resp.body() == null) {
+            return null;
+        }
+        if (resp.body().json() != null) {
+            try {
+                return compact
+                        ? jsonMapper.writeValueAsString(resp.body().json())
+                        : jsonMapper
+                                .writerWithDefaultPrettyPrinter()
+                                .writeValueAsString(resp.body().json());
+            } catch (IOException e) {
+                return resp.body().text();
+            }
+        }
+        return resp.body().text();
+    }
+
+    /**
+     * Attempts to parse {@code text} as JSON and re-serialise it compactly or with pretty-printing.
+     *
+     * <p>If {@code text} is not valid JSON (e.g. a plain-text request body), it is returned
+     * unchanged. Returns {@code null} when {@code text} is {@code null}.
+     *
+     * @param text raw body text, or {@code null}
+     * @param compact when {@code true} serialise as compact JSON; when {@code false} pretty-print
+     * @return reformatted JSON string, original text if not JSON, or {@code null}
+     */
+    @Nullable private String formatJsonString(@Nullable String text, boolean compact) {
+        if (text == null) {
+            return null;
+        }
+        try {
+            Object parsed = jsonMapper.readValue(text, Object.class);
+            return compact
+                    ? jsonMapper.writeValueAsString(parsed)
+                    : jsonMapper.writerWithDefaultPrettyPrinter().writeValueAsString(parsed);
+        } catch (IOException e) {
+            return text;
+        }
+    }
+
+    /**
+     * Minifies an HTML string produced by the Thymeleaf template engine.
+     *
+     * <p>Steps applied in order:
+     *
+     * <ol>
+     *   <li>Extract {@code <pre>…</pre>} blocks and replace them with sentinels so their whitespace
+     *       is never touched.
+     *   <li>Strip HTML comments ({@code <!-- … -->}).
+     *   <li>Collapse all whitespace inside {@code <style>} blocks to single spaces.
+     *   <li>Remove whitespace-only text nodes between tags ({@code >\s+<} → {@code ><}).
+     *   <li>Remove leading horizontal whitespace from every line.
+     *   <li>Restore {@code <pre>} blocks from sentinels.
+     *   <li>Run a second inter-tag whitespace pass to clean up boundaries around {@code <pre>}
+     *       blocks exposed by restoration.
+     * </ol>
+     *
+     * <p>Thread-safety: stateless static method; safe for concurrent use.
+     *
+     * @param html the raw HTML produced by Thymeleaf
+     * @return minified HTML string
+     */
+    private static String minify(String html) {
+        // Step 1: stash <pre> blocks using null-char sentinels ( PRE{n} ) so steps 4-5
+        // cannot corrupt them —   is not space/tab and cannot appear in Thymeleaf output.
+        List<String> preBlocks = new ArrayList<>();
+        Matcher preMatcher = PRE_PATTERN.matcher(html);
+        StringBuffer sb = new StringBuffer();
+        while (preMatcher.find()) {
+            preBlocks.add(preMatcher.group());
+            preMatcher.appendReplacement(sb, " PRE" + (preBlocks.size() - 1) + " ");
+        }
+        preMatcher.appendTail(sb);
+        html = sb.toString();
+
+        // Step 2: strip HTML comments
+        html = html.replaceAll("(?s)<!--.*?-->", "");
+
+        // Step 3: collapse whitespace inside <style> blocks
+        html = STYLE_PATTERN
+                .matcher(html)
+                .replaceAll(mr -> Matcher.quoteReplacement(
+                        mr.group(1) + mr.group(2).replaceAll("\\s+", " ").strip() + mr.group(3)));
+
+        // Step 4: remove whitespace-only text nodes between tags
+        html = html.replaceAll(">\\s+<", "><");
+
+        // Step 5: drop leading whitespace on every line
+        html = html.replaceAll("(?m)^[ \\t]+", "");
+
+        // Step 6: restore <pre> blocks
+        for (int i = 0; i < preBlocks.size(); i++) {
+            html = html.replace(" PRE" + i + " ", preBlocks.get(i));
+        }
+
+        // Step 7: clean up inter-tag whitespace exposed at <pre> block boundaries after restoration
+        html = html.replaceAll(">\\s+<", "><");
+
+        return html.strip();
+    }
+}

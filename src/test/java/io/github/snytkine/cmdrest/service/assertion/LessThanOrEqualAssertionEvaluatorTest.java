@@ -1,0 +1,144 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.cmdrest.service.assertion;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.snytkine.cmdrest.model.ApiResponse;
+import io.github.snytkine.cmdrest.model.assertions.LessThanOrEqualAssertion;
+import io.github.snytkine.cmdrest.util.FailureCollector;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.opentest4j.MultipleFailuresError;
+
+class LessThanOrEqualAssertionEvaluatorTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private static ApiResponse responseWithJson(Object json) {
+        try {
+            return new ApiResponse(200, Map.of(), new ApiResponse.Body(MAPPER.writeValueAsString(json), json));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    void lowerValuePasses() {
+        ApiResponse response = responseWithJson(Map.of("count", 3));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void equalValuePasses() {
+        ApiResponse response = responseWithJson(Map.of("count", 5));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void higherValueFails() {
+        ApiResponse response = responseWithJson(Map.of("count", 10));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void missingPathFails() {
+        ApiResponse response = responseWithJson(Map.of("count", 3));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.missing", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void numericStringPasses() {
+        ApiResponse response = responseWithJson(Map.of("count", "3"));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatCode(collector::assertAll).doesNotThrowAnyException();
+    }
+
+    @Test
+    void nonNumericStringFails() {
+        ApiResponse response = responseWithJson(Map.of("count", "few"));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.count", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+
+    @Test
+    void nullValueFails() {
+        ApiResponse response = new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", null));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("null");
+    }
+
+    @Test
+    void nonNumericNonStringTypeFails() {
+        ApiResponse response = responseWithJson(Map.of("active", true));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("response.body.json.$.active", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll)
+                .isInstanceOf(MultipleFailuresError.class)
+                .hasMessageContaining("Boolean");
+    }
+
+    @Test
+    void unsupportedPathRecordsError() {
+        ApiResponse response = responseWithJson(Map.of("count", 3));
+
+        FailureCollector collector = new FailureCollector();
+        new LessThanOrEqualAssertionEvaluator(new LessThanOrEqualAssertion("invalid.path", 5))
+                .evaluate(response, collector);
+
+        assertThatThrownBy(collector::assertAll).isInstanceOf(MultipleFailuresError.class);
+    }
+}

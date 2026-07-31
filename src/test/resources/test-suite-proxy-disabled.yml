@@ -1,0 +1,27 @@
+---
+name: "Proxy – opt-out alongside an inheriting client"
+rest-clients:
+- id: "inherits"
+  base-url: "[[${cli.base_url}]]"
+  connect-timeout: 5000
+- id: "direct"
+  base-url: "[[${cli.base_url}]]"
+  connect-timeout: 5000
+  proxy: false
+tests:
+- name: "inheriting client uses the environment proxy"
+  request:
+    method: "GET"
+    url: "/api"
+    rest-client: "inherits"
+  assertions:
+  - type: "status_code"
+    expected: 200
+- name: "opted-out client connects directly"
+  request:
+    method: "GET"
+    url: "/api"
+    rest-client: "direct"
+  assertions:
+  - type: "status_code"
+    expected: 200

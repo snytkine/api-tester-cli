@@ -1,13 +1,13 @@
-# api-tester-cli
+# cmd-rest
 
-[![Java CI with Maven](https://github.com/snytkine/api-tester-cli/actions/workflows/maven.yml/badge.svg)](https://github.com/snytkine/api-tester-cli/actions/workflows/maven.yml)
+[![Java CI with Maven](https://github.com/snytkine/cmd-rest/actions/workflows/maven.yml/badge.svg)](https://github.com/snytkine/cmd-rest/actions/workflows/maven.yml)
 
-[![codecov](https://codecov.io/github/snytkine/api-tester-cli/graph/badge.svg?token=GNN9UATDU8)](https://codecov.io/github/snytkine/api-tester-cli)
+[![codecov](https://codecov.io/github/snytkine/cmd-rest/graph/badge.svg?token=GNN9UATDU8)](https://codecov.io/github/snytkine/cmd-rest)
 
-[![Known Vulnerabilities](https://snyk.io/test/github/snytkine/api-tester-cli/badge.svg?targetFile=package.json)](https://snyk.io/test/github/{username}/{repo}?targetFile=package.json)
+[![Known Vulnerabilities](https://snyk.io/test/github/snytkine/cmd-rest/badge.svg?targetFile=package.json)](https://snyk.io/test/github/{username}/{repo}?targetFile=package.json)
 
 
-`api-tester-cli` is a Spring Boot + Spring Shell command-line tool for running HTTP API test suites defined in YAML. Test suites can use Thymeleaf expressions to inject command-line values, values from a local `.env` file, suite-level variables, and per-test variables into requests and assertions.
+`cmd-rest` is a Spring Boot + Spring Shell command-line tool for running HTTP API test suites defined in YAML. Test suites can use Thymeleaf expressions to inject command-line values, values from a local `.env` file, suite-level variables, and per-test variables into requests and assertions.
 
 The project can run as a regular JVM application or as a GraalVM native binary. The JVM build is easiest for development; the native build starts faster and runs without a JVM at runtime.
 
@@ -22,12 +22,12 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 - Supports per-request HTTP Basic Auth with automatic precedence handling
 - Applies Thymeleaf templating before execution
 - Evaluates a broad set of response assertions, including status, JSON, headers, strings, ranges, arrays, and response time
-- Supports lifecycle hooks — local scripts or outbound web calls fired at suite-execution phases (before/after all, before/after each test, and around report generation); script hooks are gated behind `--allow-scripts` / `APITESTER_ALLOW_SCRIPTS=true` (see [Lifecycle Hooks](https://cmdrest.com/docs/lifecycle-hooks))
+- Supports lifecycle hooks — local scripts or outbound web calls fired at suite-execution phases (before/after all, before/after each test, and around report generation); script hooks are gated behind `--allow-scripts` / `CMDREST_ALLOW_SCRIPTS=true` (see [Lifecycle Hooks](https://cmdrest.com/docs/lifecycle-hooks))
 - Emits JSON results in non-interactive mode
 - Can show an interactive terminal UI when running in a compatible TTY
 - Can generate a self-contained single-page HTML execution report with `--report` (browser-side JSON formatting via optional inline JS)
 - Can write debug logs to files when `CLI_LOG_LEVEL` and `CLI_LOG_DIR` are set
-- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](https://cmdrest.com/docs/version-check)); never blocks startup or a run and can be disabled via `apitester.version-check.enabled=false`
+- Checks GitHub in the background on startup for a newer release and surfaces an upgrade message in the HTML report and terminal UI (see [Upgrade Notifications](https://cmdrest.com/docs/version-check)); never blocks startup or a run and can be disabled via `cmdrest.version-check.enabled=false`
 
 ## Build And Run
 
@@ -35,7 +35,7 @@ The project can run as a regular JVM application or as a GraalVM native binary. 
 
 ```bash
 ./mvnw clean package
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar
 ```
 
 ### GraalVM native binary
@@ -44,7 +44,7 @@ This path requires a GraalVM JDK with `native-image` installed and available on 
 
 ```bash
 ./mvnw -Pnative native:compile
-./target/api-tester-cli
+./target/cmd-rest
 ```
 
 The native executable starts significantly faster than the JVM jar and does not require a JVM on the target machine.
@@ -55,20 +55,20 @@ The main command is `run-suite` with the alias `rs`.
 
 ```bash
 # Simplest form — run test-suite.yml in the current directory
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar run-suite
 
 # Explicit suite path (JVM jar)
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar run-suite \
   --suite ./src/test/resources/test-suite-1.yml \
   api_base_url=https://api.restful-api.dev
 
 # Alias form
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar rs \
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar rs \
   --suite ./src/test/resources/test-suite-1.yml \
   api_base_url=https://api.restful-api.dev
 
 # Native binary (no --suite — uses test-suite.yml in current directory)
-./target/api-tester-cli run-suite
+./target/cmd-rest run-suite
 ```
 
 CLI variables are passed as positional `key=value` arguments after all named options. They become available in Thymeleaf expressions as `[[${cli.key}]]`.
@@ -201,6 +201,7 @@ Each client supports:
 - `auth`: optional HTTP Basic Auth (client-level default)
 - `ssl`: optional custom SSL/TLS settings — skip certificate validation, a custom truststore, and/or a client keystore for mutual TLS (see below)
 - `follow-redirects`: whether to follow HTTP 3xx responses; defaults to `true` (see below)
+- `proxy`: optional HTTP proxy to route this client's requests through, or `false` to opt out of an environment proxy (see below)
 
 Per-test headers override same-named client-level headers. Per-test authentication and explicit `Authorization` headers in request headers override client-level authentication. The per-request `rest-client` selector is ignored (a warning is logged) when the singular `rest-client` form is used.
 
@@ -341,6 +342,67 @@ file can be shared or committed to git safely.
 Invalid SSL configuration (missing/unreadable files, a password without a private key, a
 wrong key password, or an unsupported key format) fails the run up front, before any test
 executes.
+
+#### Requests through a proxy
+
+Requests can optionally go through an HTTP proxy — typically a corporate egress proxy. This
+is entirely optional: with nothing configured, requests connect directly as before.
+
+```yaml
+rest-client:
+  base-url: "https://api.example.com"
+  proxy:
+    url: "http://proxy.mycompany.com:8080"
+    username: "[[${env.PROXY_USER}]]"
+    password: "[[${env.PROXY_PASSWORD}]]"
+```
+
+`proxy` properties:
+
+- `url`: proxy URL as `http://host[:port]`; the port defaults to `80`.
+- `username` / `password`: optional credentials for proxies that require authentication.
+  `password` is only allowed alongside a `username`.
+
+**Best Practice:** never write proxy credentials into a test-suite file. Keep them in a
+`.env` file or environment variable and reference them with `[[${env.PROXY_USER}]]` so the
+suite can be committed to git safely.
+
+The `HTTP_PROXY` and `HTTPS_PROXY` environment variables are honoured automatically for any
+rest-client that does **not** declare a `proxy` key — no opt-in flag is needed. They may
+carry credentials inline (`http://user:pass@proxy:8080`), and `HTTP_PROXY` applies to
+`http://` targets while `HTTPS_PROXY` applies to `https://` targets. A rest-client that
+declares its own `proxy` object ignores them, unless `PROXY_USE_ENV=true` is set, which
+flips the precedence so the environment replaces the YAML block **in its entirety,
+credentials included**.
+
+To keep one client off the proxy — an internal service that must be reached directly while
+external calls are proxied — set `proxy: false`. This is absolute: neither `HTTP_PROXY`,
+`HTTPS_PROXY` nor `PROXY_USE_ENV` can override it.
+
+```yaml
+rest-clients:
+  - id: "external"
+    base-url: "https://api.partner.com"     # inherits HTTP_PROXY / HTTPS_PROXY
+  - id: "internal"
+    base-url: "https://svc.internal.local"
+    proxy: false                            # always connects directly
+```
+
+Note there is deliberately **no proxy TLS option**. The underlying JDK HTTP client connects
+to the proxy in plaintext and tunnels the endpoint's own TLS through it with `CONNECT`, so
+there is no proxy certificate to validate. Certificate validation for the API endpoint is
+governed by the `ssl` block above and is unaffected by proxying. For the same reason a
+`https://` proxy URL is rejected up front.
+
+Only **Basic** proxy authentication is supported; NTLM and Negotiate/Kerberos proxies are
+not, as the JDK HTTP client implements no other scheme. A proxy demanding one of those
+fails with a message naming the scheme.
+
+Invalid proxy configuration (a missing or malformed `url`, an `https://` URL, a `password`
+without a `username`, `proxy: true`, or an unparseable `HTTP_PROXY` value) fails the run up
+front, before any test executes. At run time, proxy-specific failures — an unreachable
+proxy, a rejected credential, a refused tunnel — are reported as such rather than as a
+connection error against the endpoint, which was never contacted.
 
 ### Test cases
 
@@ -555,13 +617,13 @@ The CLI bundles a JSON Schema for the test-suite YAML format. Export a local cop
 
 ```bash
 # JVM jar
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar export-schema --out ./schemas
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar export-schema --out ./schemas
 
 # Native binary
-./target/api-tester-cli export-schema --out ./schemas
+./target/cmd-rest export-schema --out ./schemas
 
 # Using the alias
-./target/api-tester-cli es --out ./schemas
+./target/cmd-rest es --out ./schemas
 ```
 
 The `--out` option accepts an absolute or relative path to an **output directory**. The file is
@@ -614,16 +676,16 @@ Print the application version with the `version` command:
 
 ```bash
 # JVM jar
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar version
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar version
 
 # Native binary
-./target/api-tester-cli version
+./target/cmd-rest version
 ```
 
 Output:
 
 ```
-Api Tester CLI version 0.2.1
+CmdRest version 0.2.1
 ```
 
 The version is embedded at build time from `pom.xml`, so it is accurate for both the JVM jar and
@@ -636,7 +698,7 @@ after the run completes. Pass the **absolute path to a directory**; the file nam
 automatically.
 
 ```bash
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar run-suite \
   --suite ./src/test/resources/test-suite-1.yml \
   --report /tmp/reports \
   api_base_url=https://api.restful-api.dev
@@ -701,7 +763,7 @@ Example (exported environment):
 
 ```bash
 CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=./logs \
-  java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+  java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar run-suite \
   --suite ./src/test/resources/test-suite-1.yml
 ```
 
@@ -709,7 +771,7 @@ Example (via a `.env` file, no export needed):
 
 ```bash
 printf 'CLI_LOG_LEVEL=DEBUG\nCLI_LOG_DIR=./logs\n' > .env
-java -jar target/api-tester-cli-0.0.1-SNAPSHOT.jar run-suite \
+java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar run-suite \
   --suite ./src/test/resources/test-suite-1.yml
 ```
 

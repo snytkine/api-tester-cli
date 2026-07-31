@@ -1,0 +1,23 @@
+---
+name: "Proxy – proxy and endpoint credentials"
+rest-client:
+  base-url: "[[${cli.base_url}]]"
+  connect-timeout: 5000
+  ssl:
+    skip-certificate-validation: true
+  auth:
+    type: "basic"
+    username: "apiuser"
+    password: "apipass"
+  proxy:
+    url: "[[${cli.proxy_url}]]"
+    username: "[[${env.PROXY_USER}]]"
+    password: "[[${env.PROXY_PASSWORD}]]"
+tests:
+- name: "GET with distinct proxy and endpoint credentials"
+  request:
+    method: "GET"
+    url: "/api"
+  assertions:
+  - type: "status_code"
+    expected: 200

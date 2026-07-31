@@ -11,7 +11,7 @@ constructive feedback graciously, and prioritize the well-being of the community
 ## Enforcement
 
 Instances of unacceptable behavior may be reported by opening an issue at
-**https://github.com/snytkine/api-tester-cli/issues**. All reports will be reviewed and
+**https://github.com/snytkine/cmd-rest/issues**. All reports will be reviewed and
 investigated promptly and confidentially.
 
 Project maintainers are responsible for clarifying and enforcing standards of acceptable behavior

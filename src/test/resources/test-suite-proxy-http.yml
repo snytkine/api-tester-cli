@@ -1,0 +1,15 @@
+---
+name: "Proxy – plaintext endpoint forwarded"
+rest-client:
+  base-url: "[[${cli.base_url}]]"
+  connect-timeout: 5000
+  proxy:
+    url: "[[${cli.proxy_url}]]"
+tests:
+- name: "GET through forwarding proxy"
+  request:
+    method: "GET"
+    url: "/api"
+  assertions:
+  - type: "status_code"
+    expected: 200

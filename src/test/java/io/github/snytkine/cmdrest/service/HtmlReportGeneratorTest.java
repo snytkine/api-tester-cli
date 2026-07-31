@@ -1,0 +1,542 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.cmdrest.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.github.snytkine.cmdrest.config.VersionCheckProperties;
+import io.github.snytkine.cmdrest.model.ApiResponse;
+import io.github.snytkine.cmdrest.model.AssertionFailure;
+import io.github.snytkine.cmdrest.model.AuthType;
+import io.github.snytkine.cmdrest.model.ExecutedRequestInfo;
+import io.github.snytkine.cmdrest.model.HttpMethod;
+import io.github.snytkine.cmdrest.model.ReportOptions;
+import io.github.snytkine.cmdrest.model.RequestAuth;
+import io.github.snytkine.cmdrest.model.TestCaseResult;
+import io.github.snytkine.cmdrest.model.TestResult;
+import io.github.snytkine.cmdrest.model.TestRunResult;
+import io.github.snytkine.cmdrest.model.TestSuite;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.info.BuildProperties;
+
+/** Unit tests for {@link HtmlReportGenerator}. */
+class HtmlReportGeneratorTest {
+
+    @TempDir
+    Path tempDir;
+
+    private static BuildProperties buildProperties() {
+        Properties props = new Properties();
+        props.setProperty("version", "1.0.0-TEST");
+        return new BuildProperties(props);
+    }
+
+    private static VersionCheckProperties versionCheckProperties() {
+        return new VersionCheckProperties(
+                true,
+                "https://api.github.com/repos/snytkine/cmd-rest/releases/latest",
+                "https://github.com/snytkine/cmd-rest/releases/latest",
+                10,
+                3,
+                5,
+                "Version {latestVersion} is available.");
+    }
+
+    private final LatestVersionHolder latestVersionHolder = new LatestVersionHolder();
+
+    private final HtmlReportGenerator generator =
+            new HtmlReportGenerator(buildProperties(), latestVersionHolder, versionCheckProperties());
+
+    @Test
+    void generateWritesSelfContainedHtmlFile() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        assertThat(outputPath).exists();
+        String html = Files.readString(outputPath);
+        assertThat(html).startsWith("<!DOCTYPE html>");
+        assertThat(html).contains("<style>");
+    }
+
+    @Test
+    void generateRendersRunIdLineAboveGeneratedWhenRunIdSupplied() throws Exception {
+        String runId = "11111111-2222-3333-4444-555555555555";
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), runId);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("runID: ");
+        assertThat(html).contains(runId);
+        // The runID line must precede the "Generated:" line inside the header tile.
+        assertThat(html.indexOf("runID: ")).isLessThan(html.indexOf("Generated:"));
+    }
+
+    @Test
+    void generateOmitsRunIdLineWhenRunIdNull() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), null);
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateOmitsRunIdLineWhenRunIdBlank() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults(), "   ");
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateFourArgOverloadOmitsRunIdLine() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("runID: ");
+    }
+
+    @Test
+    void generateOmitsUpgradeBannerWhenNoNewerVersionKnown() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        // The CSS rule for ".upgrade-banner" is always present in <style>; only the rendered
+        // element (identifiable by the class *attribute*) should be absent.
+        assertThat(html).doesNotContain("class=\"upgrade-banner\"");
+    }
+
+    @Test
+    void generateIncludesUpgradeBannerWhenNewerVersionKnown() throws Exception {
+        latestVersionHolder.set("9.9.9");
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("class=\"upgrade-banner\"");
+        assertThat(html).contains("Version 9.9.9 is available.");
+        assertThat(html).contains("https://github.com/snytkine/cmd-rest/releases/latest");
+    }
+
+    @Test
+    void generateOmitsAuthenticationBlockWhenNoAuthCaptured() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("Authentication");
+    }
+
+    @Test
+    void generateShowsMaskedCredentialsAndNeverTheRawValues() throws Exception {
+        TestCaseResult withAuth = new TestCaseResult(
+                "Get secured pets",
+                TestResult.PASSED,
+                1,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(
+                        HttpMethod.GET,
+                        "/api/pets",
+                        null,
+                        null,
+                        new RequestAuth(AuthType.BASIC, "realuser", "s3cr3t"),
+                        "default"),
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
+        TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withAuth), Map.of());
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Authentication");
+        assertThat(html).contains("BASIC");
+        assertThat(html).contains("*****");
+        assertThat(html).doesNotContain("realuser");
+        assertThat(html).doesNotContain("s3cr3t");
+    }
+
+    @Test
+    void generateShowsRestClientId() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Rest Client");
+        assertThat(html).contains("default");
+    }
+
+    @Test
+    void generateShowsTheFullCombinedUrlVerbatim() throws Exception {
+        TestCaseResult withCombinedUrl = new TestCaseResult(
+                "Get objects",
+                TestResult.PASSED,
+                1,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(HttpMethod.GET, "http://stub.test/objects", null, null, null, "default"),
+                new ApiResponse(200, Map.of(), new ApiResponse.Body("{}", Map.of()), 10L));
+        TestRunResult result = new TestRunResult(1L, 0L, 0L, 0L, List.of(withCombinedUrl), Map.of());
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("http://stub.test/objects");
+    }
+
+    @Test
+    void defaultOptionsEmbedScriptTag() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("<script");
+    }
+
+    @Test
+    void noJsOptionOmitsScriptTag() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
+        assertThat(html).doesNotContain("<script");
+    }
+
+    @Test
+    void generateIncludesSuiteName() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Pet Store API");
+    }
+
+    @Test
+    void generateIncludesSuiteDescription() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Integration tests for the pet store");
+    }
+
+    @Test
+    void generateIncludesCounts() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        // passed=1, failed=1, skipped=1, error=0, total=3
+        assertThat(html).contains(">1<").contains(">0<").contains(">3<");
+    }
+
+    @Test
+    void generateIncludesAllTestNames() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Get all pets").contains("Create pet").contains("Skip this test");
+    }
+
+    @Test
+    void generateIncludesStatusWords() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("PASSED").contains("FAILED").contains("SKIPPED");
+    }
+
+    @Test
+    void generateIncludesDetailsAndSummaryElements() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("<details").contains("<summary");
+    }
+
+    @Test
+    void generateIncludesSkipReason() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("not needed in this env");
+    }
+
+    @Test
+    void generateIncludesFailureDescriptionExpectedAndActual() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("status_code equals 201");
+        assertThat(html).contains("201");
+        assertThat(html).contains("400");
+    }
+
+    @Test
+    void defaultOptionsStoreCompactJsonInPreBlock() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        // With jsEnabled=true JSON is compact — no newlines inside the pre block
+        assertThat(html).contains("[{&quot;id&quot;:1}]");
+    }
+
+    @Test
+    void noJsOptionPrettyPrintsJsonInPreBlock() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
+        // With jsEnabled=false JSON is pretty-printed — &quot;id&quot; appears indented
+        assertThat(html).contains("&quot;id&quot;");
+        // Pretty-printed JSON has newlines inside the <pre> block
+        assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
+    }
+
+    @Test
+    void defaultOptionsStoreCompactRequestBodyJson() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        // The "Create pet" test has request body {"name":"Fido"} — compact with jsEnabled=true
+        assertThat(html).contains("{&quot;name&quot;:&quot;Fido&quot;}");
+    }
+
+    @Test
+    void noJsOptionPrettyPrintsRequestBodyJson() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
+        // With jsEnabled=false request body JSON is pretty-printed server-side
+        assertThat(html).contains("&quot;name&quot;");
+        assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
+    }
+
+    @Test
+    void generateCreatesParentDirectoryWhenMissing() throws Exception {
+        TestRunResult result = buildTestRunResult();
+        TestSuite suite = buildTestSuite();
+        Path outputPath = tempDir.resolve("subdir/nested/report.html");
+
+        generator.generate(result, suite, outputPath, ReportOptions.defaults());
+
+        assertThat(outputPath).exists();
+    }
+
+    @Test
+    void minifiedOutputHasNoLeadingWhitespaceOnLines() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        // Strip <pre> blocks first — their content legitimately has leading whitespace.
+        // Only check the structural HTML outside <pre>.
+        String htmlOutsidePre = Files.readString(outputPath).replaceAll("(?s)<pre[^>]*>.*?</pre>", "<pre></pre>");
+        assertThat(htmlOutsidePre.lines())
+                .noneMatch(line -> !line.isEmpty() && (line.charAt(0) == ' ' || line.charAt(0) == '\t'));
+    }
+
+    @Test
+    void minifiedOutputHasNoInterTagWhitespace() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String htmlOutsidePre = Files.readString(outputPath).replaceAll("(?s)<pre[^>]*>.*?</pre>", "<pre></pre>");
+        assertThat(htmlOutsidePre).doesNotContainPattern(java.util.regex.Pattern.compile(">\\s+<"));
+    }
+
+    @Test
+    void noMinifyOptionProducesUnminifiedOutput() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(true, false));
+        String html = Files.readString(outputPath);
+        // Unminified output retains the leading indentation on at least some lines
+        assertThat(html).startsWith("<!DOCTYPE html>");
+        assertThat(html.lines().anyMatch(l -> l.startsWith("  "))).isTrue();
+    }
+
+    @Test
+    void generateIncludesPoweredByFooterWithVersion() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+        assertThat(html).contains("Powered by CmdRest version");
+        assertThat(html).contains("1.0.0-TEST");
+    }
+
+    @Test
+    void minifiedOutputPreservesPreBlockWhitespace() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        // Use no-JS so JSON is pretty-printed server-side and has embedded newlines in the <pre>
+        generator.generate(buildTestRunResult(), buildTestSuite(), outputPath, new ReportOptions(false, true));
+        String html = Files.readString(outputPath);
+        assertThat(html).containsPattern(java.util.regex.Pattern.compile("(?s)<pre[^>]*>.*\\n.*</pre>"));
+    }
+
+    @Test
+    void parentFailureShowsFailedParentBlockAndHidesRequestResponseAndAssertions() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult parentFailure = new TestCaseResult(
+                "get-widget",
+                TestResult.FAILED,
+                0,
+                List.of(new AssertionFailure(TestCaseResult.parentFailureMessage("create-widget"), null, null, null)),
+                null,
+                null,
+                null,
+                "create-widget");
+        TestRunResult result = new TestRunResult(0L, 1L, 0L, 0L, List.of(parentFailure), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        // The new "Failed parent test" expandable block with the parent-failure message is shown.
+        // Thymeleaf HTML-escapes the quotes around the parent name (&quot;), which is expected.
+        assertThat(html).contains("Failed parent test");
+        assertThat(html).contains("This test depends on a failed parent test &quot;create-widget&quot;.");
+        // No Request/Response/Failed-Assertions sections for a test that never sent a request.
+        assertThat(html).doesNotContain("<summary>Request</summary>");
+        assertThat(html).doesNotContain("<summary>Response</summary>");
+        assertThat(html).doesNotContain("<summary>Failed Assertions</summary>");
+        // The failed-assertion count badge is suppressed (no assertions of its own ran).
+        assertThat(html).doesNotContain("failed</span>");
+    }
+
+    @Test
+    void errorResultShowsErrorBlockNotFailedAssertions() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult errored = new TestCaseResult(
+                "create-pet",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure(
+                        "I/O error on POST request for \"http://localhost:9999/pets\": Connection refused",
+                        null,
+                        null,
+                        null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0L, 0L, 0L, 1L, List.of(errored), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        // The error is shown under an "Error" summary, carrying the captured I/O error text.
+        assertThat(html).contains("<summary>Error</summary>");
+        assertThat(html).contains("Connection refused");
+        // It must NOT appear under "Failed Assertions" — an error is not an assertion outcome.
+        assertThat(html).doesNotContain("<summary>Failed Assertions</summary>");
+        // No "N failed" assertion-count badge is shown for an errored test.
+        assertThat(html).doesNotContain("failed</span>");
+    }
+
+    @Test
+    void errorResultWithBlankMessageShowsGenericFallback() throws Exception {
+        Path outputPath = tempDir.resolve("report.html");
+        TestCaseResult errored = new TestCaseResult(
+                "create-pet",
+                TestResult.ERROR,
+                0,
+                List.of(new AssertionFailure(null, null, null, null)),
+                null,
+                null,
+                null);
+        TestRunResult result = new TestRunResult(0L, 0L, 0L, 1L, List.of(errored), Map.of());
+
+        generator.generate(result, buildTestSuite(), outputPath, ReportOptions.defaults());
+        String html = Files.readString(outputPath);
+
+        assertThat(html).contains("<summary>Error</summary>");
+        assertThat(html).contains("An unexpected error occurred.");
+    }
+
+    private static TestSuite buildTestSuite() {
+        return new TestSuite(
+                "Pet Store API", "Integration tests for the pet store", null, null, null, List.of(), null, null);
+    }
+
+    private static TestRunResult buildTestRunResult() {
+        TestCaseResult passed = new TestCaseResult(
+                "Get all pets",
+                TestResult.PASSED,
+                3,
+                List.of(),
+                null,
+                new ExecutedRequestInfo(
+                        HttpMethod.GET, "/api/pets", Map.of("Accept", "application/json"), null, null, "default"),
+                new ApiResponse(
+                        200,
+                        Map.of("Content-Type", "application/json"),
+                        new ApiResponse.Body("[{\"id\":1}]", List.of(Map.of("id", 1))),
+                        45L));
+
+        TestCaseResult failed = new TestCaseResult(
+                "Create pet",
+                TestResult.FAILED,
+                1,
+                List.of(new AssertionFailure("status_code equals 201", "201", "400", "Expected 201 but was 400")),
+                null,
+                new ExecutedRequestInfo(HttpMethod.POST, "/api/pets", null, "{\"name\":\"Fido\"}", null, "default"),
+                new ApiResponse(
+                        400,
+                        Map.of("Content-Type", "application/json"),
+                        new ApiResponse.Body("{\"error\":\"bad request\"}", Map.of("error", "bad request")),
+                        120L));
+
+        TestCaseResult skipped = new TestCaseResult(
+                "Skip this test", TestResult.SKIPPED, 0, List.of(), "not needed in this env", null, null);
+
+        return new TestRunResult(1L, 1L, 1L, 0L, List.of(passed, failed, skipped), Map.of());
+    }
+}

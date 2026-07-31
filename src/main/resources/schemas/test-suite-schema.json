@@ -48,6 +48,10 @@
           "type": "boolean",
           "description": "Whether to automatically follow HTTP redirect (3xx) responses. Defaults to true. Set to false to make a 3xx response the final response, so assertions can check its status code and Location header. Available only on the rest-client, not on individual tests.",
           "default": true
+        },
+        "proxy": {
+          "$ref": "#/$defs/Proxy",
+          "description": "Optional HTTP proxy. Either a configuration object, or the literal false to disable proxying for this client even when HTTP_PROXY / HTTPS_PROXY are set. Omit the key entirely to inherit an HTTP_PROXY / HTTPS_PROXY environment proxy."
         }
       }
     },
@@ -91,6 +95,10 @@
             "type": "boolean",
             "description": "Whether this client automatically follows HTTP redirect (3xx) responses. Defaults to true. Set to false to make a 3xx response the final response, so assertions can check its status code and Location header. Available only on the rest-client, not on individual tests.",
             "default": true
+          },
+          "proxy": {
+            "$ref": "#/$defs/Proxy",
+            "description": "Optional HTTP proxy. Either a configuration object, or the literal false to disable proxying for this client even when HTTP_PROXY / HTTPS_PROXY are set. Omit the key entirely to inherit an HTTP_PROXY / HTTPS_PROXY environment proxy."
           }
         }
       }
@@ -120,6 +128,36 @@
     {"required": ["rest-clients"], "not": {"required": ["rest-client"]}}
   ],
   "$defs": {
+    "Proxy": {
+      "description": "HTTP proxy settings for a rest-client. Either an object describing the proxy, or the literal false to disable proxying for this client even when HTTP_PROXY / HTTPS_PROXY are set. Omitting the key entirely lets an HTTP_PROXY / HTTPS_PROXY environment proxy apply automatically. Note there is no proxy TLS option: the client connects to the proxy in plaintext and tunnels the endpoint's own TLS through it with CONNECT, so endpoint certificate validation is governed by the separate 'ssl' block and is unaffected by proxying.",
+      "oneOf": [
+        {
+          "type": "boolean",
+          "const": false,
+          "description": "Disable proxying for this rest-client. This is absolute: HTTP_PROXY, HTTPS_PROXY and PROXY_USE_ENV cannot override it."
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Proxy URL in the form http://host[:port]. Port defaults to 80. The scheme must be http: the JDK HTTP client cannot establish a TLS connection to a proxy. Supports [[${...}]] templates.",
+              "pattern": "^(\\[\\[.*|(?i:http)://.+)$"
+            },
+            "username": {
+              "type": "string",
+              "description": "Proxy username for Basic proxy authentication. Only Basic is supported; NTLM and Negotiate/Kerberos proxies are not. Use an environment variable via a [[${env.NAME}]] template rather than a literal value."
+            },
+            "password": {
+              "type": "string",
+              "description": "Proxy password. Only allowed when 'username' is also set. Use an environment variable via a [[${env.NAME}]] template - never commit a literal password to a test-suite file."
+            }
+          }
+        }
+      ]
+    },
     "Ssl": {
       "type": "object",
       "description": "Custom SSL/TLS settings for a rest-client. When 'skip-certificate-validation' is true, 'truststore' and 'keystore' are ignored. File paths may be absolute or relative to the test-suite file's directory.",
