@@ -1,18 +1,26 @@
-# Sample workflow for scanning a target with Snyk API & Web
+name: Example workflow using Snyk
 on:
-  # Runs on pushes targeting the default branch
   push:
-    branches: ["main"]
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+    branches: [ main ] # Triggers when you push to your main branch
+
 jobs:
-  scan:
+  security:
     runs-on: ubuntu-latest
     steps:
-      - name: Scan with Snyk API & Web
-        id: snyk-scan
-        uses: Probely/probely-github-action@main
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
         with:
-          api-key: ${{ secrets.PROBELY_API_KEY }}
-          target-id: "2f5cb036-a692-4606-9981-1601a3d870a1"
-          region: "us"
+          distribution: 'temurin'
+          java-version: '25'
+
+      # Downloads and unpacks the Snyk CLI onto the host machine
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@master
+
+      # Natively executes the test under your configured Java 25 path
+      - name: Run Snyk test
+        run: snyk test --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
