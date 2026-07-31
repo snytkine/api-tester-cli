@@ -1,18 +1,14 @@
-# Sample workflow for scanning a target with Snyk API & Web
-on:
-  # Runs on pushes targeting the default branch
-  push:
-    branches: ["main"]
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+name: Example workflow using Snyk
+on: push
 jobs:
-  scan:
+  security:
     runs-on: ubuntu-latest
     steps:
-      - name: Scan with Snyk API & Web
-        id: snyk-scan
-        uses: Probely/probely-github-action@main
+      - uses: actions/checkout@master
+      - name: Run Snyk to check for vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          api-key: ${{ secrets.PROBELY_API_KEY }}
-          target-id: "2f5cb036-a692-4606-9981-1601a3d870a1"
-          region: "us"
+          args: --severity-threshold=high
+          
