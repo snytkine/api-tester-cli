@@ -41,6 +41,16 @@
   <properties>
     <dependency-check-maven.version>12.1.3</dependency-check-maven.version>
     <dotenv-java.version>3.2.0</dotenv-java.version>
+    <!-- Jackson 2.x BOM. Overrides spring-boot-dependencies 4.0.7 (2.21.4) to pick up
+         the fix for CVE-2026-54515 / SNYK-JAVA-COMFASTERXMLJACKSONCORE-17972608
+         (per-property @JsonIgnoreProperties exclusions leaking into the response).
+         Reached transitively via jackson-dataformat-yaml. Drop this override once a
+         Spring Boot release manages 2.21.5 or later. -->
+    <jackson-2-bom.version>2.21.5</jackson-2-bom.version>
+    <!-- Jackson 3.x BOM. Overrides spring-boot-dependencies 4.0.7 (3.1.4) for
+         SNYK-JAVA-TOOLSJACKSONCORE-17972609. Reached transitively via
+         spring-boot-starter-jackson. Drop once Spring Boot manages 3.1.5 or later. -->
+    <jackson-bom.version>3.1.5</jackson-bom.version>
     <!-- Overridden to true by the jacoco-check-skip-windows profile; see that profile
          and the jacoco-check execution for why the gate is not enforced on Windows. -->
     <jacoco.check.skip>false</jacoco.check.skip>
@@ -48,6 +58,11 @@
     <java.version>25</java.version>
     <java.target.version>21</java.target.version>
     <json-schema-validator.version>1.5.4</json-schema-validator.version>
+    <!-- Overrides spring-boot-dependencies 4.0.7 (1.5.34) for the expression-injection
+         issue SNYK-JAVA-CHQOSLOGBACK-17675439 in logback-core, fixed in 1.5.36. Pinned
+         to the latest 1.5.x patch rather than 1.6.x to stay on the line Spring Boot
+         tests against. Drop once Spring Boot manages 1.5.36 or later. -->
+    <logback.version>1.5.38</logback.version>
     <!-- NVD API key for the dependency-check profile. Deliberately empty here: the
          real key is a secret and must never be committed. Override it per-machine in
          ~/.m2/settings.xml (see the dependency-check profile below). Without a key

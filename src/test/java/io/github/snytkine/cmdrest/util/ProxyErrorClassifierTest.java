@@ -64,6 +64,45 @@ class ProxyErrorClassifierTest {
                 .contains("endpoint itself was never contacted");
     }
 
+    /**
+     * The layers above paste the endpoint URL into their messages, so the chain text routinely
+     * carries a random ephemeral port. A port that merely contains the digits {@code 407} must not
+     * be read as a {@code 407} status — that turned a refused connection into "the proxy requires
+     * authentication" and made CI fail roughly one run in two hundred.
+     */
+    @Test
+    void anEphemeralPortContaining407IsNotAProxyAuthChallenge() {
+        Throwable failure = new ResourceAccessException(
+                "I/O error on GET request for \"http://127.0.0.1:34071/api\"", new ConnectException());
+
+        String message = ProxyErrorClassifier.classify(failure, settings(PLAIN), "http");
+
+        assertThat(message).contains("could not connect to the proxy at proxy.example.com:8080");
+    }
+
+    /** The same guard, for a 407 buried in the middle of a longer number rather than at its start. */
+    @Test
+    void a407InsideALongerNumberIsNotAProxyAuthChallenge() {
+        Throwable failure = new ResourceAccessException(
+                "I/O error on GET request for \"http://127.0.0.1:14079/api\"",
+                new ConnectException("Connection refused"));
+
+        assertThat(ProxyErrorClassifier.classify(failure, settings(PLAIN), "http"))
+                .contains("could not connect to the proxy");
+    }
+
+    /** A genuine 407 status line is still recognised, which is what the narrower match must preserve. */
+    @Test
+    void a407StatusLineIsStillRecognisedAsAnAuthChallenge() {
+        Throwable failure = new ResourceAccessException(
+                "I/O error",
+                new IOException("Unable to tunnel through proxy. Proxy returns \"HTTP/1.1 407 Proxy"
+                        + " Authentication Required\""));
+
+        assertThat(ProxyErrorClassifier.classify(failure, settings(PLAIN), "https"))
+                .contains("requires authentication but no proxy credentials are configured");
+    }
+
     @Test
     void unknownHostIsRecognised() {
         Throwable failure = new ResourceAccessException("I/O error", new UnknownHostException("proxy.example.com"));
