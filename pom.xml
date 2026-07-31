@@ -8,13 +8,13 @@
     <relativePath/>
     <!-- lookup parent from repository -->
   </parent>
-  <groupId>io.github.snytkine.apitester</groupId>
-  <artifactId>api-tester-cli</artifactId>
+  <groupId>io.github.snytkine.cmdrest</groupId>
+  <artifactId>cmd-rest</artifactId>
   <version>0.8.1-SNAPSHOT</version>
-  <name>api-tester-cli</name>
+  <name>cmd-rest</name>
   <description>Spring Boot + Spring Shell CLI for running HTTP API test suites defined in YAML,
     with Thymeleaf expression support and GraalVM native-image compatibility.</description>
-  <url>https://github.com/snytkine/api-tester-cli</url>
+  <url>https://github.com/snytkine/cmd-rest</url>
   <licenses>
     <license>
       <name>Apache License, Version 2.0</name>
@@ -33,10 +33,10 @@
     </developer>
   </developers>
   <scm>
-    <connection>scm:git:git://github.com/snytkine/api-tester-cli.git</connection>
-    <developerConnection>scm:git:https://github.com/snytkine/api-tester-cli.git</developerConnection>
+    <connection>scm:git:git://github.com/snytkine/cmd-rest.git</connection>
+    <developerConnection>scm:git:https://github.com/snytkine/cmd-rest.git</developerConnection>
     <tag>HEAD</tag>
-    <url>https://github.com/snytkine/api-tester-cli</url>
+    <url>https://github.com/snytkine/cmd-rest</url>
   </scm>
   <properties>
     <dotenv-java.version>3.2.0</dotenv-java.version>
@@ -209,7 +209,7 @@
             </goals>
             <configuration>
               <includes>
-                <include>io/github/snytkine/apitester/**</include>
+                <include>io/github/snytkine/cmdrest/**</include>
               </includes>
             </configuration>
           </execution>
@@ -246,7 +246,7 @@
                      code: Spring Boot AOT emits __BeanDefinitions classes into
                      target/classes under this Spring Shell package name. -->
               <excludes>
-                <exclude>io/github/snytkine/apitester/api_tester_cli/commands/TuiSmokeCommand*</exclude>
+                <exclude>io/github/snytkine/cmdrest/commands/TuiSmokeCommand*</exclude>
                 <exclude>org/springframework/shell/core/autoconfigure/*</exclude>
               </excludes>
               <rules>

@@ -1,4 +1,4 @@
-# Contributing to api-tester-cli
+# Contributing to cmd-rest
 
 Thank you for your interest in contributing! This project is a Spring Boot + Spring Shell CLI tool
 that executes HTTP API test suites defined in YAML files. See [README.md](README.md) for a full
@@ -22,8 +22,8 @@ overview of features and usage.
 
 ```bash
 # Clone your fork
-git clone https://github.com/snytkine/api-tester-cli.git
-cd api-tester-cli
+git clone https://github.com/snytkine/cmd-rest.git
+cd cmd-rest
 
 # JVM build (fast, for day-to-day development)
 ./mvnw clean package
@@ -125,7 +125,7 @@ guarantees explicitly in each class-level JavaDoc.
 
 ## Reporting bugs and suggesting features
 
-Open a [GitHub Issue](https://github.com/snytkine/api-tester-cli/issues). For bug reports,
+Open a [GitHub Issue](https://github.com/snytkine/cmd-rest/issues). For bug reports,
 please include:
 
 - Steps to reproduce the problem

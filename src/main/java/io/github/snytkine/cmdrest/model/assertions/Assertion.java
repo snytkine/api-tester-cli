@@ -1,0 +1,101 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.cmdrest.model.assertions;
+
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
+/**
+ * Sealed marker interface for all assertion types supported in a test-suite YAML.
+ *
+ * <p>Jackson uses {@link JsonTypeInfo} and {@link JsonSubTypes} to deserialise the {@code type}
+ * discriminator field in YAML into the correct concrete record type. Every permitted subtype must
+ * be listed both in the {@code permits} clause and in the {@code @JsonSubTypes} annotation.
+ *
+ * <p>All permitted subtypes live in the same package ({@code model.assertions}) as required by the
+ * Java sealed-type rules for the unnamed module.
+ *
+ * <p>{@link BaseServerResponseAssertion} is the one exception to the "listed in both places" rule:
+ * it is permitted but intentionally <em>not</em> registered in {@link JsonSubTypes}, because it is
+ * an implicit assertion injected by the engine rather than one declared in a suite file. Omitting
+ * it keeps {@code type: base_server_response} from being accepted in YAML.
+ */
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, property = "type")
+@JsonSubTypes({
+    @JsonSubTypes.Type(value = ArrayContainsAllAssertion.class, name = "array_contains_all"),
+    @JsonSubTypes.Type(value = ArrayContainsAssertion.class, name = "array_contains"),
+    @JsonSubTypes.Type(value = ArrayIsEmptyAssertion.class, name = "array_is_empty"),
+    @JsonSubTypes.Type(value = ArrayIsNotEmptyAssertion.class, name = "array_is_not_empty"),
+    @JsonSubTypes.Type(value = ArraySizeAssertion.class, name = "array_size"),
+    @JsonSubTypes.Type(value = ArraySizeMaxAssertion.class, name = "array_size_max"),
+    @JsonSubTypes.Type(value = ArraySizeMinAssertion.class, name = "array_size_min"),
+    @JsonSubTypes.Type(value = AssertFalseAssertion.class, name = "assert_false"),
+    @JsonSubTypes.Type(value = AssertTrueAssertion.class, name = "assert_true"),
+    @JsonSubTypes.Type(value = EndsWithAssertion.class, name = "ends_with"),
+    @JsonSubTypes.Type(value = GreaterThanAssertion.class, name = "greater_than"),
+    @JsonSubTypes.Type(value = GreaterThanOrEqualAssertion.class, name = "greater_than_or_equal"),
+    @JsonSubTypes.Type(value = HasHeaderAssertion.class, name = "has_header"),
+    @JsonSubTypes.Type(value = IsNullAssertion.class, name = "is_null"),
+    @JsonSubTypes.Type(value = JsonMatchAssertion.class, name = "json_match"),
+    @JsonSubTypes.Type(value = JsonSchemaAssertion.class, name = "json_schema"),
+    @JsonSubTypes.Type(value = LessThanAssertion.class, name = "less_than"),
+    @JsonSubTypes.Type(value = LessThanOrEqualAssertion.class, name = "less_than_or_equal"),
+    @JsonSubTypes.Type(value = NotEmptyAssertion.class, name = "not_empty"),
+    @JsonSubTypes.Type(value = NotNullAssertion.class, name = "not_null"),
+    @JsonSubTypes.Type(value = OneOfAssertion.class, name = "one_of"),
+    @JsonSubTypes.Type(value = RangeAssertion.class, name = "range"),
+    @JsonSubTypes.Type(value = RegexMatchAssertion.class, name = "regex_match"),
+    @JsonSubTypes.Type(value = ResponseTimeAssertion.class, name = "response_time"),
+    @JsonSubTypes.Type(value = StartsWithAssertion.class, name = "starts_with"),
+    @JsonSubTypes.Type(value = StatusCodeAssertion.class, name = "status_code"),
+    @JsonSubTypes.Type(value = StatusInAssertion.class, name = "status_in"),
+    @JsonSubTypes.Type(value = StringContainsAssertion.class, name = "string_contains"),
+    @JsonSubTypes.Type(value = StringMatchAssertion.class, name = "string_match"),
+    @JsonSubTypes.Type(value = ValueTypeAssertion.class, name = "value_type"),
+})
+public sealed interface Assertion
+        permits ArrayContainsAllAssertion,
+                ArrayContainsAssertion,
+                ArrayIsEmptyAssertion,
+                ArrayIsNotEmptyAssertion,
+                ArraySizeAssertion,
+                ArraySizeMaxAssertion,
+                ArraySizeMinAssertion,
+                AssertFalseAssertion,
+                AssertTrueAssertion,
+                BaseServerResponseAssertion,
+                EndsWithAssertion,
+                GreaterThanAssertion,
+                GreaterThanOrEqualAssertion,
+                HasHeaderAssertion,
+                IsNullAssertion,
+                JsonMatchAssertion,
+                JsonSchemaAssertion,
+                LessThanAssertion,
+                LessThanOrEqualAssertion,
+                NotEmptyAssertion,
+                NotNullAssertion,
+                OneOfAssertion,
+                RangeAssertion,
+                RegexMatchAssertion,
+                ResponseTimeAssertion,
+                StartsWithAssertion,
+                StatusCodeAssertion,
+                StatusInAssertion,
+                StringContainsAssertion,
+                StringMatchAssertion,
+                ValueTypeAssertion {}

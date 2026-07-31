@@ -1,0 +1,32 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.cmdrest.event;
+
+/**
+ * Terminal status of a single test case execution, used in progress events.
+ *
+ * <p>{@link #PASS} — all assertions evaluated without failure. {@link #FAIL} — one or more
+ * assertions failed (soft-assertion failures). {@link #SKIP} — the test case declared a non-blank
+ * {@code skip} field; no HTTP request was sent. {@link #ERROR} — an unexpected exception was thrown
+ * before or during assertion evaluation (e.g. network error, JSON parse error).
+ */
+public enum TestStatus {
+    PASS,
+    FAIL,
+    SKIP,
+    ERROR
+}

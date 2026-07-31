@@ -18,11 +18,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            asset-name: api-tester-cli-linux-amd64
+            asset-name: cmd-rest-linux-amd64
           - os: macos-latest
-            asset-name: api-tester-cli-macos-aarch64
+            asset-name: cmd-rest-macos-aarch64
           - os: windows-latest
-            asset-name: api-tester-cli-windows-amd64.exe
+            asset-name: cmd-rest-windows-amd64.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -43,8 +43,8 @@ jobs:
         shell: bash
         run: |
           src=$([ "${{ runner.os }}" = "Windows" ] \
-            && echo "target/api-tester-cli.exe" \
-            || echo "target/api-tester-cli")
+            && echo "target/cmd-rest.exe" \
+            || echo "target/cmd-rest")
           mv "$src" "target/${{ matrix.asset-name }}"
 
       - name: Upload to GitHub Release

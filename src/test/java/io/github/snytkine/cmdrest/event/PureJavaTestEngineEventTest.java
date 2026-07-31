@@ -1,0 +1,117 @@
+/*
+ * Copyright 2026 - 2026 Dmitri Snytkine. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package io.github.snytkine.cmdrest.event;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import io.github.snytkine.cmdrest.model.SuiteRunContext;
+import io.github.snytkine.cmdrest.model.TestRunResult;
+import io.github.snytkine.cmdrest.model.TestSuite;
+import io.github.snytkine.cmdrest.service.PureJavaTestEngine;
+import io.github.snytkine.cmdrest.service.StubClientHttpRequestFactory;
+import io.github.snytkine.cmdrest.service.TestSuiteLoader;
+import io.github.snytkine.cmdrest.service.assertion.AssertionEvaluatorFactory;
+import io.github.snytkine.cmdrest.service.assertion.ResponseResolver;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Verifies that {@link PureJavaTestEngine} fires {@link TestProgressEvent}s in the correct order
+ * and with correct values when executing a test suite backed by a {@link
+ * StubClientHttpRequestFactory}.
+ */
+class PureJavaTestEngineEventTest {
+
+    private TestSuiteLoader loader;
+    private PureJavaTestEngine engine;
+
+    @BeforeEach
+    void setUp() {
+        loader = new TestSuiteLoader();
+        var factory = new StubClientHttpRequestFactory().stub("/objects", 200, "{}", "application/json");
+        engine = new PureJavaTestEngine(factory, new AssertionEvaluatorFactory(), new ResponseResolver());
+    }
+
+    @Test
+    void eventsAreFiredInCorrectOrderForPassingSuite() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+        int testCount = suite.tests().size();
+
+        List<TestProgressEvent> captured = new ArrayList<>();
+        TestRunResult result =
+                engine.runConfigurationSuite(suite, SuiteRunContext.of(Map.of(), Map.of()), captured::add);
+
+        assertThat(captured.get(0)).isInstanceOf(TestProgressEvent.SuiteStarted.class);
+        TestProgressEvent.SuiteStarted suiteStarted = (TestProgressEvent.SuiteStarted) captured.get(0);
+        assertThat(suiteStarted.suiteName()).isEqualTo(suite.name());
+        assertThat(suiteStarted.totalTestCount()).isEqualTo(testCount);
+
+        assertThat(captured.get(captured.size() - 1)).isInstanceOf(TestProgressEvent.SuiteCompleted.class);
+        TestProgressEvent.SuiteCompleted suiteCompleted =
+                (TestProgressEvent.SuiteCompleted) captured.get(captured.size() - 1);
+        assertThat(suiteCompleted.passCount()).isEqualTo(result.passedCount());
+        assertThat(suiteCompleted.failCount()).isEqualTo(result.failedCount());
+
+        List<TestProgressEvent> middleEvents = captured.subList(1, captured.size() - 1);
+        assertThat(middleEvents).hasSize(testCount * 2);
+        for (int i = 0; i < testCount; i++) {
+            assertThat(middleEvents.get(i * 2)).isInstanceOf(TestProgressEvent.TestStarted.class);
+            assertThat(middleEvents.get(i * 2 + 1)).isInstanceOf(TestProgressEvent.TestCompleted.class);
+
+            TestProgressEvent.TestStarted started = (TestProgressEvent.TestStarted) middleEvents.get(i * 2);
+            TestProgressEvent.TestCompleted completed = (TestProgressEvent.TestCompleted) middleEvents.get(i * 2 + 1);
+
+            assertThat(started.testIndex()).isEqualTo(i);
+            assertThat(completed.testIndex()).isEqualTo(i);
+            assertThat(completed.testName()).isEqualTo(started.testName());
+        }
+    }
+
+    @Test
+    void passedTestsFireCompletedWithPassStatus() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        List<TestProgressEvent> captured = new ArrayList<>();
+        TestRunResult result =
+                engine.runConfigurationSuite(suite, SuiteRunContext.of(Map.of(), Map.of()), captured::add);
+
+        long passEventCount = captured.stream()
+                .filter(e -> e instanceof TestProgressEvent.TestCompleted tc && tc.status() == TestStatus.PASS)
+                .count();
+
+        assertThat(passEventCount).isEqualTo(result.passedCount());
+    }
+
+    @Test
+    void noOpListenerProducesIdenticalResultToDefaultOverload() throws Exception {
+        Path path = Path.of(getClass().getResource("/test-suite-stub-pass.yml").toURI());
+        TestSuite suite = loader.load(path, SuiteRunContext.of(Map.of(), Map.of()));
+
+        TestRunResult resultDefault = engine.runConfigurationSuite(suite);
+        TestRunResult resultWithNoop = engine.runConfigurationSuite(
+                suite, SuiteRunContext.of(Map.of(), Map.of()), NoOpProgressListener.INSTANCE);
+
+        assertThat(resultWithNoop.passedCount()).isEqualTo(resultDefault.passedCount());
+        assertThat(resultWithNoop.failedCount()).isEqualTo(resultDefault.failedCount());
+    }
+}

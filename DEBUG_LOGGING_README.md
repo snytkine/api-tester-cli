@@ -34,25 +34,25 @@ file for the run.
 ```bash
 # Inline (single command)
 CLI_LOG_LEVEL=DEBUG CLI_LOG_DIR=/tmp/api-tester-logs \
-  java -jar api-tester-cli.jar run-suite --suite=my-suite.yml
+  java -jar cmd-rest.jar run-suite --suite=my-suite.yml
 
 # Exported (current shell session)
 export CLI_LOG_LEVEL=DEBUG
 export CLI_LOG_DIR=/tmp/api-tester-logs
-java -jar api-tester-cli.jar run-suite --suite=my-suite.yml
+java -jar cmd-rest.jar run-suite --suite=my-suite.yml
 
 # Via a .env file (no export needed)
 cat > .env <<'ENV'
 CLI_LOG_LEVEL=DEBUG
 CLI_LOG_DIR=/tmp/api-tester-logs
 ENV
-java -jar api-tester-cli.jar run-suite --suite=my-suite.yml
+java -jar cmd-rest.jar run-suite --suite=my-suite.yml
 
 # Via an explicit --env-file
-java -jar api-tester-cli.jar run-suite --suite=my-suite.yml --env-file=./config/staging.env
+java -jar cmd-rest.jar run-suite --suite=my-suite.yml --env-file=./config/staging.env
 
 # Native binary
-CLI_LOG_LEVEL=INFO CLI_LOG_DIR=./logs ./api-tester-cli run-suite --suite=my-suite.yml
+CLI_LOG_LEVEL=INFO CLI_LOG_DIR=./logs ./cmd-rest run-suite --suite=my-suite.yml
 ```
 
 ## Log file location and naming

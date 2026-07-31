@@ -66,6 +66,10 @@ api-tester-cli
 .vscode/launch.json
 .vscode/.ropeproject
 .vscode/*.yml
+.vscode/expected_objects_response.json
+.vscode/expected_objects_schema.json
+.vscode/new_item_post.json
+ .vscode/test-suite-schema.json
 
 # ----------------------------------------
 # Claude Code
