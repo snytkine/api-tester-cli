@@ -10,7 +10,7 @@
   </parent>
   <groupId>io.github.snytkine.cmdrest</groupId>
   <artifactId>cmd-rest</artifactId>
-  <version>1.0.1-SNAPSHOT</version>
+  <version>1.1.1-SNAPSHOT</version>
   <name>cmd-rest</name>
   <description>Spring Boot + Spring Shell CLI for running HTTP API test suites defined in YAML,
     with Thymeleaf expression support and GraalVM native-image compatibility.</description>
