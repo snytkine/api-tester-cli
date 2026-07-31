@@ -11,7 +11,7 @@ Set the environment variable to `true` (case-insensitive) and pass the command t
 
 ```bash
 # Native binary
-DISABLE_INTERACTIVE_MODE=true ./target/api-tester-cli run-suite --suite=/path/to/suite.yml
+DISABLE_INTERACTIVE_MODE=true ./target/cmd-rest run-suite --suite=/path/to/suite.yml
 
 # JVM (development)
 DISABLE_INTERACTIVE_MODE=true ./mvnw spring-boot:run -Dspring-boot.run.arguments="run-suite --suite=/path/to/suite.yml"
@@ -20,7 +20,7 @@ DISABLE_INTERACTIVE_MODE=true ./mvnw spring-boot:run -Dspring-boot.run.arguments
 Any command works, e.g. `help`:
 
 ```bash
-DISABLE_INTERACTIVE_MODE=true ./target/api-tester-cli help
+DISABLE_INTERACTIVE_MODE=true ./target/cmd-rest help
 ```
 
 | Value of `DISABLE_INTERACTIVE_MODE` | Mode |
@@ -66,7 +66,7 @@ Test report generated at /tmp/test-suite_MyApp_20260607185044.html
 ```
 
 For building the native binary, see [native-build-support.md](native-build-support.md)
-(`./mvnw clean -Pnative native:compile`; the binary is written to `target/api-tester-cli`).
+(`./mvnw -Pnative clean package -DskipTests`; the binary is written to `target/cmd-rest`).
 
 ---
 
@@ -177,9 +177,9 @@ Confirmed end-to-end on the native binary:
 
 | Invocation | Runner selected | Evidence |
 |------------|-----------------|----------|
-| `DISABLE_INTERACTIVE_MODE=true ./api-tester-cli` (no command) | NonInteractive | `NonInteractiveShellRunner: ... expected to have at least one argument` |
-| `DISABLE_INTERACTIVE_MODE=true ./api-tester-cli help` | NonInteractive | prints help and exits 0 |
-| `./api-tester-cli help` (no variable) | Interactive | `InteractiveShellRunner: Running in interactive mode, arguments will be ignored` |
+| `DISABLE_INTERACTIVE_MODE=true ./cmd-rest` (no command) | NonInteractive | `NonInteractiveShellRunner: ... expected to have at least one argument` |
+| `DISABLE_INTERACTIVE_MODE=true ./cmd-rest help` | NonInteractive | prints help and exits 0 |
+| `./cmd-rest help` (no variable) | Interactive | `InteractiveShellRunner: Running in interactive mode, arguments will be ignored` |
 
 ### Key takeaway
 

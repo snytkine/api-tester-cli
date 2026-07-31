@@ -29,7 +29,8 @@ cd cmd-rest
 ./mvnw clean package
 
 # Native binary (optional; requires GraalVM native-image tool)
-./mvnw -Pnative native:compile
+# Use the full lifecycle: `native:compile` alone skips spring-boot:process-aot
+./mvnw -Pnative clean package -DskipTests
 ```
 
 ---

@@ -17,7 +17,6 @@ target/
 # GraalVM Native Image
 # ----------------------------------------
 # compiled native binary (same name as artifactId)
-api-tester-cli
 *.dump
 *.hprof
 

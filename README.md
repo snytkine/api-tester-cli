@@ -43,9 +43,12 @@ java -jar target/cmd-rest-0.0.1-SNAPSHOT.jar
 This path requires a GraalVM JDK with `native-image` installed and available on `PATH`.
 
 ```bash
-./mvnw -Pnative native:compile
+./mvnw -Pnative clean package -DskipTests
 ./target/cmd-rest
 ```
+
+The full lifecycle is required — `native:compile` on its own skips `spring-boot:process-aot`
+and produces a binary missing its AOT context initializer.
 
 The native executable starts significantly faster than the JVM jar and does not require a JVM on the target machine.
 
