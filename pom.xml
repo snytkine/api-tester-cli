@@ -39,6 +39,7 @@
     <url>https://github.com/snytkine/cmd-rest</url>
   </scm>
   <properties>
+    <dependency-check-maven.version>12.1.3</dependency-check-maven.version>
     <dotenv-java.version>3.2.0</dotenv-java.version>
     <!-- Overridden to true by the jacoco-check-skip-windows profile; see that profile
          and the jacoco-check execution for why the gate is not enforced on Windows. -->
@@ -47,6 +48,11 @@
     <java.version>25</java.version>
     <java.target.version>21</java.target.version>
     <json-schema-validator.version>1.5.4</json-schema-validator.version>
+    <!-- NVD API key for the dependency-check profile. Deliberately empty here: the
+         real key is a secret and must never be committed. Override it per-machine in
+         ~/.m2/settings.xml (see the dependency-check profile below). Without a key
+         the NVD feed is heavily rate-limited and an update takes ~10+ minutes. -->
+    <nvd.api.key/>
     <opentest4j.version>1.3.0</opentest4j.version>
     <palantir-java-format.version>2.74.0</palantir-java-format.version>
     <spring-shell.version>4.0.2</spring-shell.version>
@@ -311,6 +317,51 @@
       <properties>
         <jacoco.check.skip>true</jacoco.check.skip>
       </properties>
+    </profile>
+    <!-- OWASP dependency-check: scans the resolved dependency tree against the NVD
+         and fails the build on a CVE at or above failBuildOnCVSS. Local-only by
+         design: the activation below keys off the absence of the CI environment
+         variable, which GitHub Actions always sets to "true", so the profile can
+         never activate there (Snyk covers CI — see .github/workflows/snyk.yml).
+         Skip it for a single build with -Ddependency-check.skip=true. -->
+    <profile>
+      <id>dependency-check</id>
+      <activation>
+        <property>
+          <name>!env.CI</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.owasp</groupId>
+            <artifactId>dependency-check-maven</artifactId>
+            <version>${dependency-check-maven.version}</version>
+            <configuration>
+              <!-- Supplied per-machine from ~/.m2/settings.xml; empty by default. -->
+              <nvdApiKey>${nvd.api.key}</nvdApiKey>
+              <!-- 7.0 = "high". Lower to 4.0 to also fail on medium findings. -->
+              <failBuildOnCVSS>7.0</failBuildOnCVSS>
+              <formats>
+                <format>HTML</format>
+                <format>JSON</format>
+              </formats>
+              <!-- Test-only and provided dependencies do not ship in the artifact. -->
+              <skipTestScope>true</skipTestScope>
+              <skipProvidedScope>true</skipProvidedScope>
+            </configuration>
+            <executions>
+              <execution>
+                <id>dependency-check</id>
+                <goals>
+                  <goal>check</goal>
+                </goals>
+                <phase>verify</phase>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
     <profile>
       <id>native</id>
