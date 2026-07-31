@@ -1,0 +1,12 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": "templates/suite-report.html"
+      },
+      {
+        "pattern": "schemas/test-suite-schema.json"
+      }
+    ]
+  }
+}

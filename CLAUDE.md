@@ -33,7 +33,7 @@ Spotless runs automatically during `verify` (but not `test`). Run `spotless:appl
 
 ## Architecture
 
-This is a Spring Boot 4.0.6 + Spring Shell 4.0.2 CLI that executes HTTP API test suites defined in YAML files.
+This is a Spring Boot 4.0.7 + Spring Shell 4.0.2 CLI that executes HTTP API test suites defined in YAML files.
 
 ### Test Suite YAML format
 

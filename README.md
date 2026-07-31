@@ -4,7 +4,7 @@
 
 [![codecov](https://codecov.io/github/snytkine/cmd-rest/graph/badge.svg?token=GNN9UATDU8)](https://codecov.io/github/snytkine/cmd-rest)
 
-[![Known Vulnerabilities](https://snyk.io/test/github/snytkine/cmd-rest/badge.svg?targetFile=package.json)](https://snyk.io/test/github/{username}/{repo}?targetFile=package.json)
+[![Known Vulnerabilities](https://app.snyk.io/org/snytkine/project/2f5cb036-a692-4606-9981-1601a3d870a1)](https://app.snyk.io/org/snytkine/project/2f5cb036-a692-4606-9981-1601a3d870a1)
 
 
 `cmd-rest` is a Spring Boot + Spring Shell command-line tool for running HTTP API test suites defined in YAML. Test suites can use Thymeleaf expressions to inject command-line values, values from a local `.env` file, suite-level variables, and per-test variables into requests and assertions.
@@ -783,7 +783,7 @@ For more detail, see [DEBUG_LOGGING_README.md](./DEBUG_LOGGING_README.md).
 
 ## Development Notes
 
-- Spring Boot version: `4.0.6`
+- Spring Boot version: `4.0.7`
 - Spring Shell version: `4.0.2`
 - Java version: `25`
 - Build tool: Maven Wrapper via `./mvnw`

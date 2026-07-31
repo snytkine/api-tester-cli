@@ -17,6 +17,7 @@
 package io.github.snytkine.cmdrest.util;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -65,7 +66,7 @@ public final class ProxyErrorClassifier {
         String text = chainText(failure);
         String proxy = endpoint.host() + ":" + endpoint.port();
 
-        if (text.contains("407") || text.contains("proxy authentication required")) {
+        if (indicatesProxyAuthChallenge(text)) {
             return authenticationFailure(endpoint, proxy, nonBasicScheme(text));
         }
 
@@ -136,6 +137,36 @@ public final class ProxyErrorClassifier {
         return "the proxy at " + proxy + " rejected the configured proxy credentials (407 Proxy Authentication"
                 + " Required)";
     }
+
+    /**
+     * Returns whether the failure text carries a {@code 407} status line, as opposed to merely
+     * containing those three digits somewhere.
+     *
+     * <p>The haystack is not a status line — it is the whole exception chain, and the layers above
+     * this one paste URLs into their messages ({@code I/O error on GET request for
+     * "http://127.0.0.1:34071/api"}). A plain {@code contains("407")} therefore matched any host,
+     * port, byte count or path that happened to contain those digits, and reported a healthy
+     * endpoint as a proxy demanding authentication. Ephemeral ports made that intermittent: roughly
+     * one CI run in two hundred drew a port such as {@code 34071} or {@code 40712} and failed.
+     *
+     * <p>So {@code 407} counts only as a standalone token — not adjoined to another digit, and not
+     * preceded by the {@code :} or {@code .} of an address — which is how it appears in the JDK's
+     * {@code Proxy returns "HTTP/1.1 407 Proxy Authentication Required"}. The reason phrase alone is
+     * also accepted, since any proxy that sends it means it.
+     *
+     * @param text the lower-cased concatenated exception chain text
+     * @return {@code true} when the text reports a 407 proxy authentication challenge
+     */
+    private static boolean indicatesProxyAuthChallenge(String text) {
+        return text.contains("proxy authentication required")
+                || STANDALONE_407.matcher(text).find();
+    }
+
+    /**
+     * Matches {@code 407} as a standalone token: not part of a longer number, and not the port or
+     * final octet of an address.
+     */
+    private static final Pattern STANDALONE_407 = Pattern.compile("(?<![\\d.:])407(?![\\d.])");
 
     /**
      * Returns whether the failure text looks like a failure to reach the proxy host at all, as

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "io.github.snytkine.cmdrest.CmdRestApplication__ApplicationContextInitializer",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "io.github.snytkine.cmdrest.model.TagsDeserializer",
+    "allPublicConstructors": true,
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "org.opentest4j.AssertionFailedError",
+    "allPublicConstructors": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.opentest4j.ValueWrapper",
+    "allPublicMethods": true
+  }
+]
