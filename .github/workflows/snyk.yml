@@ -1,7 +1,7 @@
 name: Example workflow using Snyk
 on:
   push:
-    branches: [ main ] # Triggers the workflow when you push to your main branch
+    branches: [ main ] # Triggers when you push to your main branch
 
 jobs:
   security:
@@ -15,11 +15,11 @@ jobs:
           distribution: 'temurin'
           java-version: '25'
 
-      # Installs the Snyk CLI onto the host machine using a secure version tag
+      # Downloads and unpacks the Snyk CLI onto the host machine
       - name: Install Snyk CLI
-        uses: snyk/actions/setup@v2
+        uses: snyk/actions/setup@master
 
-      # Runs the scan on your codebase using Java 25
+      # Natively executes the test under your configured Java 25 path
       - name: Run Snyk test
         run: snyk test --severity-threshold=high
         env:
