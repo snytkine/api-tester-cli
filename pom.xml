@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>4.0.6</version>
+    <version>4.0.7</version>
     <relativePath/>
     <!-- lookup parent from repository -->
   </parent>
@@ -349,6 +349,15 @@
               <!-- Test-only and provided dependencies do not ship in the artifact. -->
               <skipTestScope>true</skipTestScope>
               <skipProvidedScope>true</skipProvidedScope>
+              <!-- The Sonatype OSS Index analyzer is a live lookup against
+                   ossindex.sonatype.org, separate from the NVD feed that nvdApiKey
+                   above authenticates. Sonatype dropped anonymous access, so every
+                   unauthenticated run now returns HTTP 401 and fails the goal. We
+                   rely on the NVD (plus Snyk in CI) and do not want the dependency
+                   list POSTed to a third party, so it is off. To re-enable, register
+                   a free OSS Index account and add an <ossIndexServerId> pointing at
+                   a server entry in ~/.m2/settings.xml. -->
+              <ossindexAnalyzerEnabled>false</ossindexAnalyzerEnabled>
             </configuration>
             <executions>
               <execution>

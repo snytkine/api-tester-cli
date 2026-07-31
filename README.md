@@ -783,7 +783,7 @@ For more detail, see [DEBUG_LOGGING_README.md](./DEBUG_LOGGING_README.md).
 
 ## Development Notes
 
-- Spring Boot version: `4.0.6`
+- Spring Boot version: `4.0.7`
 - Spring Shell version: `4.0.2`
 - Java version: `25`
 - Build tool: Maven Wrapper via `./mvnw`
