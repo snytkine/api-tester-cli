@@ -1,10 +1,13 @@
 name: Example workflow using Snyk
-on: push
+on:
+  push:
+    branches: [ main ] # Triggers the workflow when you push to your main branch
+
 jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4 # Use a stable version tag
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 25
         uses: actions/setup-java@v4
@@ -12,10 +15,12 @@ jobs:
           distribution: 'temurin'
           java-version: '25'
 
-      - name: Run Snyk for Maven
-        uses: snyk/actions/maven@master # Changed from node to maven
+      # Installs the Snyk CLI onto the host machine using a secure version tag
+      - name: Install Snyk CLI
+        uses: snyk/actions/setup@v2
+
+      # Runs the scan on your codebase using Java 25
+      - name: Run Snyk test
+        run: snyk test --severity-threshold=high
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          args: --severity-threshold=high
-          
