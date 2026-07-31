@@ -35,9 +35,15 @@ jobs:
           cache: 'maven'
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Must go through the full lifecycle, never `native:compile` directly: the native
+      # profile binds spring-boot:process-aot to prepare-package and compile-no-fork to
+      # package. Invoking the plugin goal on its own skips process-aot, so the generated
+      # ApplicationContextInitializer that reflect-config.json registers by name — along
+      # with native-image.properties, which supplies -H:Class — is never produced. See
+      # native-build-support.md section 4. Tests are covered by the maven.yml workflow.
       - name: Build native image
         shell: bash
-        run: ./mvnw clean -Pnative native:compile -B
+        run: ./mvnw -Pnative clean package -DskipTests -B
 
       - name: Rename binary
         shell: bash
