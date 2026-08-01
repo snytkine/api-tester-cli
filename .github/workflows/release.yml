@@ -17,19 +17,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          #- os: ubuntu-latest
-          #  asset-name: cmd-rest-linux-amd64
-          #  march-flag: "-march=x86-64-v3"
-          # - os: macos-latest
-          #  asset-name: cmd-rest-macos-aarch64
-          #  march-flag: "" # march flags are not used on ARM/Apple Silicon architecture
-          # - os: windows-latest
-          #   asset-name: cmd-rest-windows-amd64.exe
-          #  march-flag: "-march=x86-64-v3"
+          - os: ubuntu-latest
+            asset-name: cmd-rest-linux-amd64
+          - os: macos-latest
+            asset-name: cmd-rest-macos-aarch64
+          - os: windows-latest
+            asset-name: cmd-rest-windows-amd64.exe
           - os: macos-15-intel
-            asset-name: cmd-rest-macos-intelx86
-            # march-flag: "-march=x86-64-v2" # Lower tier safety for your i3
-            
+            asset-name: cmd-rest-macos-intel_x86
 
     steps:
       - uses: actions/checkout@v4
