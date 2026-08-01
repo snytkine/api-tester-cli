@@ -1,24 +1,19 @@
-# Read Me First
-The following was discovered as part of building this project:
-
-* The original package name 'io.github.snytkine.apitester.api-tester-cli' is invalid and this project uses 'io.github.snytkine.apitester.api_tester_cli' instead.
-
 # Getting Started
 
 ### Reference Documentation
 For further reference, please consider the following sections:
 
 * [Official Apache Maven documentation](https://maven.apache.org/guides/index.html)
-* [Spring Boot Maven Plugin Reference Guide](https://docs.spring.io/spring-boot/4.0.6/maven-plugin)
-* [Create an OCI image](https://docs.spring.io/spring-boot/4.0.6/maven-plugin/build-image.html)
-* [GraalVM Native Image Support](https://docs.spring.io/spring-boot/4.0.6/reference/packaging/native-image/introducing-graalvm-native-images.html)
+* [Spring Boot Maven Plugin Reference Guide](https://docs.spring.io/spring-boot/4.0.7/maven-plugin)
+* [Create an OCI image](https://docs.spring.io/spring-boot/4.0.7/maven-plugin/build-image.html)
+* [GraalVM Native Image Support](https://docs.spring.io/spring-boot/4.0.7/reference/packaging/native-image/introducing-graalvm-native-images.html)
 * [Spring Shell](https://docs.spring.io/spring-shell/reference/index.html)
-* [HTTP Client](https://docs.spring.io/spring-boot/4.0.6/reference/io/rest-client.html#io.rest-client.restclient)
+* [HTTP Client](https://docs.spring.io/spring-boot/4.0.7/reference/io/rest-client.html#io.rest-client.restclient)
 
 ### Additional Links
 These additional references should also help you:
 
-* [Configure AOT settings in Build Plugin](https://docs.spring.io/spring-boot/4.0.6/how-to/aot.html)
+* [Configure AOT settings in Build Plugin](https://docs.spring.io/spring-boot/4.0.7/how-to/aot.html)
 
 ## GraalVM Native Support
 
@@ -38,7 +33,7 @@ $ ./mvnw spring-boot:build-image -Pnative
 Then, you can run the app like any other container:
 
 ```
-$ docker run --rm api-tester-cli:0.0.1-SNAPSHOT
+$ docker run --rm cmd-rest:1.0.1-SNAPSHOT
 ```
 
 ### Executable with Native Build Tools
@@ -50,12 +45,12 @@ NOTE: GraalVM 25+ is required.
 To create the executable, run the following goal:
 
 ```
-$ ./mvnw native:compile -Pnative
+$ ./mvnw -Pnative clean package -DskipTests
 ```
 
 Then, you can run the app as follows:
 ```
-$ target/api-tester-cli
+$ target/cmd-rest
 ```
 
 You can also run your existing tests suite in a native image.
